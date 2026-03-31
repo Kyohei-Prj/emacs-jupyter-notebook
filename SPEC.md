@@ -99,11 +99,8 @@ Create an Emacs package that replicates Jupyter Notebook functionality with full
 (ejn--offset->cell-position OFFSET) → (cell-id . buffer-pos)
 
 ;; Visual appearance
-(ejn--apply-cell-border CELL) → nil           ; applies colored border overlay
-(ejn--apply-cell-background CELL) → nil       ; applies background face
-(ejn--render-execution-count CELL) → nil      ; renders In [n]: prefix
-(ejn--render-output-prefix CELL) → nil        ; renders Out[n]: prefix
-(ejn--set-cell-mode CELL MODE) → nil          ; sets command/edit mode visually
+(ejn--update-cell-visuals CELL) → nil         ; orchestrates all visual updates
+(ejn--cell-hover-handler EVENT) → nil         ; handles mouse hover effects
 ```
 
 #### Kernel API (`ejn-kernel.el`)
@@ -163,14 +160,16 @@ Create an Emacs package that replicates Jupyter Notebook functionality with full
 - [ ] P1-T5 Define `ejn-mode` major mode derived from `fundamental-mode` with `ejn-mode-map` [smoke] (mode registration, no logic)
 - [ ] P1-T6 Implement `ejn:notebook-open-scratch` creating buffer and inserting initial cell [tdd] (buffer creation + cell insertion)
 - [ ] P1-T7 Implement `ejn--create-cell-overlay` with face and cell property [tdd] (overlay creation with properties)
-- [ ] P1-T8 Implement `ejn--insert-cell-at-point` inserting region and creating overlay [tdd] (buffer modification + state)
-- [ ] P1-T9 Implement `ejn--cell-at-point` using `overlays-at` lookup [tdd] (search logic)
-- [ ] P1-T10 Implement `ejn:worksheet-goto-next-input-km` and `ejn:worksheet-goto-prev-input-km` [tdd] (navigation logic)
-- [ ] P1-T11 Implement `ejn:worksheet-insert-cell-below-km` [tdd] (cell insertion at computed position)
-- [ ] P1-T12 Implement `ejn:worksheet-insert-cell-above-km` [tdd] (cell insertion at computed position)
-- [ ] P1-T13 Implement `ejn:worksheet-kill-cell-km` with overlay cleanup [tdd] (deletion + state cleanup)
-- [ ] P1-T14 Implement `ejn--validate-state` checking overlay consistency [tdd] (validation logic)
-- [ ] P1-T15 Wire all Phase 1 keybindings in `ejn-mode-map` [smoke] (keymap registration only)
+- [ ] P1-T8 Implement `ejn--apply-cell-border` creating border overlay with mode-dependent color using `before-string` property [tdd] (overlay creation with left border rendering) // classification: tdd — creates visual overlay with conditional styling based on cell mode
+- [ ] P1-T9 Implement `ejn--apply-cell-background` setting cell region background face via extent overlay [tdd] (overlay with extent properties) // classification: tdd — applies background face to cell region, different for code vs markdown
+- [ ] P1-T10 Implement `ejn--insert-cell-at-point` inserting region and creating overlay [tdd] (buffer modification + state)
+- [ ] P1-T11 Implement `ejn--cell-at-point` using `overlays-at` lookup [tdd] (search logic)
+- [ ] P1-T12 Implement `ejn:worksheet-goto-next-input-km` and `ejn:worksheet-goto-prev-input-km` [tdd] (navigation logic)
+- [ ] P1-T13 Implement `ejn:worksheet-insert-cell-below-km` [tdd] (cell insertion at computed position)
+- [ ] P1-T14 Implement `ejn:worksheet-insert-cell-above-km` [tdd] (cell insertion at computed position)
+- [ ] P1-T15 Implement `ejn:worksheet-kill-cell-km` with overlay cleanup [tdd] (deletion + state cleanup)
+- [ ] P1-T16 Implement `ejn--validate-state` checking overlay consistency [tdd] (validation logic)
+- [ ] P1-T17 Wire all Phase 1 keybindings in `ejn-mode-map` [smoke] (keymap registration only)
 
 ### Phase 2 — Cell Editing & Structural Transformations
 
@@ -204,9 +203,12 @@ Create an Emacs package that replicates Jupyter Notebook functionality with full
 - [ ] P4-T4 Implement `ejn--handle-execution-result` parsing execute_response [tdd] (JSON parsing + state update)
 - [ ] P4-T5 Implement `ejn--display-plain-text-output` rendering stdout in output region [tdd] (buffer insertion)
 - [ ] P4-T6 Implement `ejn--increment-execution-count` and store in cell [tdd] (counter logic)
-- [ ] P4-T7 Implement `ejn:worksheet-execute-cell-km` command [smoke] (calls ejn--execute-cell)
-- [ ] P4-T8 Implement `ejn:worksheet-execute-cell-and-goto-next-km` [smoke] (execute + navigation)
-- [ ] P4-T9 Wire all Phase 4 keybindings [smoke] (keymap registration only)
+- [ ] P4-T7 Implement `ejn--separate-output-overlay-from-input` creating distinct output overlay region [tdd] (overlay architecture change) // classification: tdd — foundational overlay restructuring for proper output handling
+- [ ] P4-T8 Implement `ejn--render-execution-count` displaying `In [n]:` prefix before code cells [tdd] (string formatting + before-string overlay) // classification: tdd — renders formatted execution count prefix, shows `In [ ]:` when nil
+- [ ] P4-T9 Implement `ejn--render-output-prefix` displaying `Out[n]:` prefix for executable outputs [tdd] (conditional rendering with execution count) // classification: tdd — conditionally renders output prefix based on execution count
+- [ ] P4-T10 Implement `ejn:worksheet-execute-cell-km` command [smoke] (calls ejn--execute-cell)
+- [ ] P4-T11 Implement `ejn:worksheet-execute-cell-and-goto-next-km` [smoke] (execute + navigation)
+- [ ] P4-T12 Wire all Phase 4 keybindings [smoke] (keymap registration only)
 
 ### Phase 5 — Execution Workflow Enhancements
 
@@ -216,8 +218,7 @@ Create an Emacs package that replicates Jupyter Notebook functionality with full
 - [ ] P5-T4 Implement `ejn:worksheet-clear-output-km` for current cell [tdd] (buffer deletion)
 - [ ] P5-T5 Implement `ejn:worksheet-clear-all-output-km` for all cells [tdd] (iteration + deletion)
 - [ ] P5-T6 Implement `ejn:worksheet-set-output-visibility-all-km` with prefix arg modes [tdd] (conditional visibility setting)
-- [ ] P5-T7 Implement output overlay separation from input overlay [tdd] (overlay management)
-- [ ] P5-T8 Wire all Phase 5 keybindings [smoke] (keymap registration only)
+- [ ] P5-T7 Wire all Phase 5 keybindings [smoke] (keymap registration only)
 
 ### Phase 6 — Kernel Lifecycle Management
 
@@ -256,11 +257,12 @@ Create an Emacs package that replicates Jupyter Notebook functionality with full
 
 - [ ] P8-T1 Implement `ejn--render-base64-image` displaying image in output region [tdd] (image decoding + display)
 - [ ] P8-T2 Implement `ejn--render-html-output` using `shr` with sandboxed CSS [tdd] (HTML rendering)
-- [ ] P8-T3 Implement output caching to avoid re-rendering [tdd] (cache logic)
-- [ ] P8-T4 Implement `ejn:shared-output-show-code-cell-at-point-km` navigation [tdd] (position lookup)
-- [ ] P8-T5 Implement `ejn:tb-show-km` toggling toolbar visibility [tdd] (UI toggle)
-- [ ] P8-T6 Implement toolbar widget showing kernel status [tdd] (widget creation)
-- [ ] P8-T7 Wire all Phase 8 keybindings [smoke] (keymap registration only)
+- [ ] P8-T3 Implement `ejn--markdown-render-toggle` for preview/source switching in markdown cells [tdd] (markdown-to-html rendering using `shr`) // classification: tdd — toggles between source and rendered markdown preview
+- [ ] P8-T4 Implement output caching to avoid re-rendering [tdd] (cache logic)
+- [ ] P8-T5 Implement `ejn:shared-output-show-code-cell-at-point-km` navigation [tdd] (position lookup)
+- [ ] P8-T6 Implement `ejn:tb-show-km` toggling toolbar visibility [tdd] (UI toggle)
+- [ ] P8-T7 Implement toolbar widget showing kernel status [tdd] (widget creation)
+- [ ] P8-T8 Wire all Phase 8 keybindings [smoke] (keymap registration only)
 
 ### Phase 9 — Notebook UX Completion & Utilities
 
@@ -274,15 +276,10 @@ Create an Emacs package that replicates Jupyter Notebook functionality with full
 
 ### Phase 10 — Jupyter-Style Visual Appearance
 
-- [ ] P10-T1 Define cell face set: `ejn-cell-border`, `ejn-cell-bg-code`, `ejn-cell-bg-markdown`, `ejn-execution-count`, `ejn-output-prefix`, `ejn-cell-command-mode`, `ejn-cell-edit-mode` [scaffold] (face definitions only)
-- [ ] P10-T2 Implement `ejn--apply-cell-border` creating border overlay with mode-dependent color using `before-string` property [tdd] (overlay creation with left border rendering) // classification: tdd — creates visual overlay with conditional styling based on cell mode
-- [ ] P10-T3 Implement `ejn--apply-cell-background` setting cell region background face via extent overlay [tdd] (overlay with extent properties) // classification: tdd — applies background face to cell region, different for code vs markdown
-- [ ] P10-T4 Implement `ejn--render-execution-count` displaying `In [n]:` prefix before code cells [tdd] (string formatting + before-string overlay) // classification: tdd — renders formatted execution count prefix, shows `In [ ]:` when nil
-- [ ] P10-T5 Implement `ejn--render-output-prefix` displaying `Out[n]:` prefix for executable outputs [tdd] (conditional rendering with execution count) // classification: tdd — conditionally renders output prefix based on execution count
-- [ ] P10-T6 Implement `ejn--cell-hover-handler` for mouse-enter/mouse-exit events to highlight cell border [tdd] (mouse event handling with overlay modification) // classification: tdd — handles mouse events and modifies border appearance dynamically
-- [ ] P10-T7 Implement `ejn--update-cell-visuals` consolidating all visual updates for a cell [tdd] (orchestrates border, background, execution count rendering) // classification: tdd — coordinates multiple visual updates atomically
-- [ ] P10-T8 Implement `ejn--markdown-render-toggle` for preview/source switching in markdown cells [tdd] (markdown-to-html rendering using `shr` or `htmlize`) // classification: tdd — toggles between source and rendered markdown preview
-- [ ] P10-T9 Wire mouse event handlers in `ejn-mode-map` using `local-set-key` on mouse maps [smoke] (mouse map registration only) // classification: smoke — simple keymap wiring, no logic
+- [ ] P10-T1 Define cell face set: `ejn-cell-border`, `ejn-cell-bg-code`, `ejn-cell-bg-markdown`, `ejn-cell-command-mode`, `ejn-cell-edit-mode` [scaffold] (face definitions only)
+- [ ] P10-T2 Implement `ejn--cell-hover-handler` for mouse-enter/mouse-exit events to highlight cell border [tdd] (mouse event handling with overlay modification) // classification: tdd — handles mouse events and modifies border appearance dynamically
+- [ ] P10-T3 Implement `ejn--update-cell-visuals` consolidating all visual updates for a cell [tdd] (orchestrates border, background rendering) // classification: tdd — coordinates multiple visual updates atomically
+- [ ] P10-T4 Wire mouse event handlers in `ejn-mode-map` using `local-set-key` on mouse maps [smoke] (mouse map registration only) // classification: smoke — simple keymap wiring, no logic
 
 ## Open questions
 
@@ -296,7 +293,8 @@ Create an Emacs package that replicates Jupyter Notebook functionality with full
 1. **Phase 4 kernel protocol**: ZeroMQ-based Jupyter messaging confirmed. ✅ Resolved
 2. **LSP virtual buffer approach**: Performance trade-off accepted, no incremental sync. ✅ Resolved
 3. **Test coverage for kernel/LSP**: Mocks confirmed for CI testing. ✅ Resolved
-4. **Phase 10 visual appearance**: Jupyter-style cell borders, backgrounds, and execution count display. **NEW — please review face color choices and visual design decisions.**
+4. **Phase 1 visual appearance**: Cell borders and backgrounds are now core functionality (P1-T8, P1-T9). **NEW — please review face color choices and visual design decisions.**
+5. **Task reorganization**: Moved execution count/output prefix rendering to Phase 4, output overlay separation to Phase 4, markdown preview to Phase 8, and cell borders/backgrounds to Phase 1. **NEW — please verify logical flow is correct.**
 
 **SPEC.md is approved and ready for the build loop.**
 
