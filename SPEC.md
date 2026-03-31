@@ -40,6 +40,13 @@ Create an Emacs package that replicates Jupyter Notebook functionality with full
 32. **Scratch notebook** → `C-c C-/` opens disposable notebook buffer without file association
 33. **Close notebook** → `C-c C-#` closes notebook buffer and optionally kills kernel
 34. **Multi-notebook support** → Multiple notebooks can be open with isolated kernels and state
+35. **Cell border appearance** → Cells display colored borders: blue for command mode, green for edit mode, matching Jupyter's visual language
+36. **Cell background styling** → Code cells have light gray background (#f5f5f5), markdown cells have white background
+37. **Execution count display** → Code cells show `In [n]:` prefix with monospace styling; nil count shows `In [ ]:`
+38. **Output styling** → Output regions display `Out[n]:` prefix for executable outputs; plain text output uses monospace font
+39. **Cell hover effect** → Hovering over a cell highlights its border slightly for visual feedback
+40. **Cell selection indicator** → Selected cell in command mode shows subtle background tint
+41. **Markdown preview toggle** → Markdown cells can be rendered as HTML preview or shown as source
 
 ## Out of scope
 
@@ -66,6 +73,7 @@ Create an Emacs package that replicates Jupyter Notebook functionality with full
 | | `overlay` | overlay | non-nil when cell active | nil |
 | | `execution-count` | integer | ≥ 0 or nil | nil |
 | | `output-visibility` | symbol | `show`, `hide`, `all` | `show` |
+| | `mode` | symbol | `command` or `edit` | `edit` |
 | **Notebook** | `cells` | list | ordered list of Cell objects | `()` |
 | | `metadata` | alist | key-value pairs from ipynb | `()` |
 | | `kernel-id` | string or nil | Jupyter kernel ID | nil |
@@ -89,6 +97,13 @@ Create an Emacs package that replicates Jupyter Notebook functionality with full
 (ejn--build-virtual-document) → string        ; concatenates code cells for LSP
 (ejn--cell-offset-map) → (alist cell-id → (start . end))
 (ejn--offset->cell-position OFFSET) → (cell-id . buffer-pos)
+
+;; Visual appearance
+(ejn--apply-cell-border CELL) → nil           ; applies colored border overlay
+(ejn--apply-cell-background CELL) → nil       ; applies background face
+(ejn--render-execution-count CELL) → nil      ; renders In [n]: prefix
+(ejn--render-output-prefix CELL) → nil        ; renders Out[n]: prefix
+(ejn--set-cell-mode CELL MODE) → nil          ; sets command/edit mode visually
 ```
 
 #### Kernel API (`ejn-kernel.el`)
@@ -257,6 +272,18 @@ Create an Emacs package that replicates Jupyter Notebook functionality with full
 - [ ] P9-T6 Wire all Phase 9 keybindings [smoke] (keymap registration only)
 - [ ] P9-T7 Final integration testing across all phases [tdd] (end-to-end validation)
 
+### Phase 10 — Jupyter-Style Visual Appearance
+
+- [ ] P10-T1 Define cell face set: `ejn-cell-border`, `ejn-cell-bg-code`, `ejn-cell-bg-markdown`, `ejn-execution-count`, `ejn-output-prefix`, `ejn-cell-command-mode`, `ejn-cell-edit-mode` [scaffold] (face definitions only)
+- [ ] P10-T2 Implement `ejn--apply-cell-border` creating border overlay with mode-dependent color using `before-string` property [tdd] (overlay creation with left border rendering) // classification: tdd — creates visual overlay with conditional styling based on cell mode
+- [ ] P10-T3 Implement `ejn--apply-cell-background` setting cell region background face via extent overlay [tdd] (overlay with extent properties) // classification: tdd — applies background face to cell region, different for code vs markdown
+- [ ] P10-T4 Implement `ejn--render-execution-count` displaying `In [n]:` prefix before code cells [tdd] (string formatting + before-string overlay) // classification: tdd — renders formatted execution count prefix, shows `In [ ]:` when nil
+- [ ] P10-T5 Implement `ejn--render-output-prefix` displaying `Out[n]:` prefix for executable outputs [tdd] (conditional rendering with execution count) // classification: tdd — conditionally renders output prefix based on execution count
+- [ ] P10-T6 Implement `ejn--cell-hover-handler` for mouse-enter/mouse-exit events to highlight cell border [tdd] (mouse event handling with overlay modification) // classification: tdd — handles mouse events and modifies border appearance dynamically
+- [ ] P10-T7 Implement `ejn--update-cell-visuals` consolidating all visual updates for a cell [tdd] (orchestrates border, background, execution count rendering) // classification: tdd — coordinates multiple visual updates atomically
+- [ ] P10-T8 Implement `ejn--markdown-render-toggle` for preview/source switching in markdown cells [tdd] (markdown-to-html rendering using `shr` or `htmlize`) // classification: tdd — toggles between source and rendered markdown preview
+- [ ] P10-T9 Wire mouse event handlers in `ejn-mode-map` using `local-set-key` on mouse maps [smoke] (mouse map registration only) // classification: smoke — simple keymap wiring, no logic
+
 ## Open questions
 
 - [x] Which LSP client? → `lsp-mode` (user selected)
@@ -269,5 +296,7 @@ Create an Emacs package that replicates Jupyter Notebook functionality with full
 1. **Phase 4 kernel protocol**: ZeroMQ-based Jupyter messaging confirmed. ✅ Resolved
 2. **LSP virtual buffer approach**: Performance trade-off accepted, no incremental sync. ✅ Resolved
 3. **Test coverage for kernel/LSP**: Mocks confirmed for CI testing. ✅ Resolved
+4. **Phase 10 visual appearance**: Jupyter-style cell borders, backgrounds, and execution count display. **NEW — please review face color choices and visual design decisions.**
 
 **SPEC.md is approved and ready for the build loop.**
+
