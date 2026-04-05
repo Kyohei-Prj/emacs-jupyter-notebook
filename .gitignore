@@ -25,3 +25,4 @@ dist/
 # executable
 /bin/ellsp
 /bin/ellsp.exe
+/.serena/
