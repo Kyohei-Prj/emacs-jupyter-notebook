@@ -1,200 +1,206 @@
-# SPEC.md — emacs-jupyter-notebook (ejn.el)
-
-> **Status:** Phase 1 scoped. The build loop runs Phase 1 in isolation; remaining phases
-> are tracked in `plan/roadmap.md` and will be pulled into SPEC.md incrementally.
-
----
+# Phase 2 — Data Model and `.ipynb` I/O
 
 ## Goal
 
-Establish a complete, runnable project skeleton for the `ejn.el` package: a directory tree,
-a package entry point, stub module files with a foundational utility module, a Cask-based
-test harness, three notebook fixtures, a Makefile with install/compile/lint/test/clean/all
-targets, skeleton buttercup tests, a GitHub Actions CI workflow, `.dir-locals.el`, and a
-skeleton README. At the end of this phase the project compiles cleanly, runs an empty test
-suite (placeholder tests only), and is loadable in a bare Emacs 29.1 instance.
-
----
+Define the in-memory data structures that represent a Jupyter notebook and its cells, and implement round-trip `.ipynb` (nbformat 4) parsing and serialization. This is pure data — no buffers, no kernels, no UI. Every change to notebook content flows through these structs.
 
 ## Features
 
-1. Create directory tree (`ejn.el`, `lisp/`, `test/`, `fixtures/`, `docs/`,
-   `.github/workflows/`) plus config files (`.elpaignore`, `.dir-locals.el`) → every listed
-   file exists and every directory is non-empty
-2. Write `ejn.el` package entry point → file contains an ELPA package header with
-   `Package-Requires: ((emacs "29.1") (jupyter) (lsp-mode) (dash) (s))`, a commentary block
-   of 3–5 sentences, guarded `(require ...)` calls for each `lisp/ejn-*.el`, a
-   `(provide 'ejn)` form, and a `;;; ejn.el ends here` footer; no functional code
-3. Write 10 stub module files (`ejn-data.el` through `ejn-util.el` excluded) → each stub
-   uses `lexical-binding: t`, requires only `ejn-util`, has a correct `provide` and footer
-   comment, and contains `(require 'ejn-util)` followed by `;; TODO: implementation`
-4. Write `ejn-util.el` with `ejn--debug-p`, `ejn--log`, `ejn--uuid`, `ejn--assert` → all
-   four symbols are defined and importable; `ejn--uuid` returns a 36-character hyphenated
-   UUID-like string; `(require 'ejn-util)` succeeds without requiring any other `ejn-*` module
-5. Write `Cask` dependency manifest → file declares `(source gnu)`, `(source melpa)`,
-   `(package-file "ejn.el")`, runtime depends-on (emacs 29.1, jupyter, lsp-mode, dash, s),
-   and development depends-on (buttercup, el-mock, undercover)
-6. Write `Makefile` with 6 targets (install, compile, test, lint, clean, all) → each target
-   has a documented comment; `make compile` uses `cask exec emacs --batch --eval` with
-   `byte-compile-error-on-warn t` and `batch-byte-compile lisp/*.el ejn.el`; all targets are
-   declared `.PHONY`
-7. Write `test/test-helper.el` → adds `lisp/` and project root to `load-path`, requires all
-   `ejn-*.el` modules, defines `ejn-test--fixture-path` and `ejn-test--with-temp-notebook`,
-   requires buttercup and el-mock
-8. Create 3 notebook fixtures (`simple.ipynb`, `mixed-lang.ipynb`, `with-outputs.ipynb`) →
-   each is valid nbformat 4.5 JSON; `simple.ipynb` has 2 Python code cells with explicit
-   UUID `id` fields and no outputs; `mixed-lang.ipynb` has 1 Markdown + 2 Python cells;
-   `with-outputs.ipynb` has 1 cell with `text/plain` output and 1 cell with `image/png`
-   output (1×1 pixel base64-encoded)
-9. Write 6 skeleton test files (`ejn-data-test.el` through `ejn-lsp-test.el`) → each file
-   requires `test-helper` then its corresponding `ejn-*.el` module; each contains a single
-   placeholder test `(expect t :to-be t)` so `make test` outputs `1 passing`
-10. Write `.dir-locals.el` → sets `indent-tabs-mode: nil`, `fill-column: 80` for all
-    files, and `checkdoc-minor-mode: t` for `emacs-lisp-mode`
-11. Write `.github/workflows/ci.yml` → triggers on `push` to `main` and on PRs; matrix of
-    Emacs versions `29.1`, `29.4`, `30.1`; steps: checkout → install Emacs → install Cask
-    → `make install` → `make compile` → `make test`; uploads artifacts on failure
-12. Write `README.md` skeleton → contains package name, one-paragraph description, status
-    badge wired to CI workflow, stub sections (Installation, Quick Start, Architecture,
-    Contributing, License), and a note that Emacs 29.1+, `jupyter.el`, and `lsp-mode` are
-    required
-13. Phase 1 validation: `make all` succeeds → `make install`, `make compile` (zero warnings,
-    zero errors), `make test` (all placeholder tests passing), `make lint` (no errors),
-    `(require 'ejn)` loads cleanly in Emacs 29.1, CI workflow passes on GitHub
+1. Define `ejn-cell` struct — `cl-defstruct` with slots `id`, `type`, `language`, `source`, `outputs`, `execution-count`, `metadata`. Public constructor `ejn-make-cell` and predicate `ejn-cell-p`. All slots accessible via `cl-struct`-generated accessor functions.
 
----
+2. Define `ejn-output` struct — `cl-defstruct` with slots `output-type`, `data`, `metadata`, `text`, `name`, `ename`, `evalue`, `traceback`. All slots accessible via accessor functions.
+
+3. Define `ejn-notebook` struct — `cl-defstruct` with slots `path`, `nbformat`, `nbformat-minor`, `metadata`, `kernel-name`, `language`, `cells`, `dirty-p`. All slots accessible via accessor functions.
+
+4. Parse `.ipynb` files — `ejn-io-read PATH` reads a file, validates `nbformat == 4`, constructs and returns an `ejn-notebook` struct. Unknown metadata keys are preserved in the passthrough `metadata` hash-table. Cell source arrays are joined into a single string.
+
+5. Serialize `.ipynb` files — `ejn-io-write NOTEBOOK PATH` converts an `ejn-notebook` struct to JSON-serializable structure, splits `source` strings into line arrays, writes with 2-space indentation. Sets `dirty-p` to `nil` after write.
+
+6. Cell manipulation helpers — five functions on `ejn-notebook` structs that return new structs without mutation: `ejn-notebook-insert-cell` (insert at index), `ejn-notebook-delete-cell` (remove by UUID), `ejn-notebook-move-cell` (swap adjacent by `'up`/`'down`), `ejn-notebook-cell-by-id` (lookup by UUID), `ejn-notebook-update-cell-source` (update source, set `dirty-p` to `t`).
+
+7. Test data model — ERT tests in `ejn-data-test.el` covering struct construction, slot access, all five cell manipulation helpers including edge cases (insert at 0, insert at end, delete only cell, move first cell up, move last cell down).
+
+8. Test `.ipynb` I/O — ERT tests in `ejn-io-test.el` covering `ejn-io-read` against three fixtures (`simple.ipynb`, `mixed-lang.ipynb`, `with-outputs.ipynb`), `ejn-io-write` serialization, and the round-trip invariant (read → write to temp → read → compare).
 
 ## Out of scope
 
-- Any functional code beyond the stubs and utilities in Phase 1 (no cell model, no I/O,
-  no kernel communication, no LSP, no buffer management, no display layer)
-- Real kernel or LSP integration in CI (mocks only, from later phases)
-- MELPA recipe, user manual, or release artifacts (Phase 10)
-- Test coverage targets (Phase 10)
-- Documentation files beyond the README skeleton (`docs/ARCHITECTURE.md` and
-  `docs/CONTRIBUTING.md` are created as empty stubs only)
-
----
+- Kernel communication (Phase 3)
+- Cell buffer / indirect buffer management (Phase 4)
+- LSP integration (Phase 5)
+- Shadow buffer for cross-cell LSP (Phase 6)
+- Display layer / ewoc UI (Phase 7)
+- Tree-sitter integration (Phase 8)
+- Output rendering in the editor (Phase 9)
+- Any user-facing commands or key bindings
 
 ## Architecture
 
-### Directory layout
+### Data model
 
-```
-ejn.el/                        # project root
-├── ejn.el                     # package entry point
-├── lisp/
-│   ├── ejn-data.el            # data model (stub)
-│   ├── ejn-io.el              # .ipynb I/O (stub)
-│   ├── ejn-kernel.el          # kernel adapter (stub)
-│   ├── ejn-buffer.el          # buffer management (stub)
-│   ├── ejn-shadow.el          # shadow document (stub)
-│   ├── ejn-lsp.el             # LSP adapter (stub)
-│   ├── ejn-display.el         # ewoc display (stub)
-│   ├── ejn-output.el          # output rendering (stub)
-│   ├── ejn-treesit.el         # tree-sitter helpers (stub)
-│   └── ejn-util.el            # shared utilities (functional)
-├── test/
-│   ├── test-helper.el         # test bootstrap
-│   ├── ejn-data-test.el       # placeholder test
-│   ├── ejn-io-test.el         # placeholder test
-│   ├── ejn-kernel-test.el     # placeholder test
-│   ├── ejn-buffer-test.el     # placeholder test
-│   ├── ejn-shadow-test.el     # placeholder test
-│   └── ejn-lsp-test.el        # placeholder test
-├── fixtures/
-│   ├── simple.ipynb           # 2 Python code cells, no outputs
-│   ├── mixed-lang.ipynb       # 1 Markdown + 2 Python
-│   └── with-outputs.ipynb     # text output + 1×1 PNG output
-├── docs/
-│   ├── ARCHITECTURE.md        # empty stub
-│   └── CONTRIBUTING.md        # empty stub
-├── .github/
-│   └── workflows/
-│       └── ci.yml             # GitHub Actions CI
-├── Makefile
-├── Cask
-├── .dir-locals.el
-├── .elpaignore
-├── README.md
-├── LICENSE
-├── .gitignore
-└── plan/
-    └── roadmap.md
-```
+**`ejn-cell`** (created via `ejn-make-cell`):
 
-### File formats
+| Slot | Type | Constraints | Default |
+|------|------|-------------|---------|
+| `id` | string | 36-char hyphenated UUID (8-4-4-4-12) | — (required) |
+| `type` | symbol | `'code`, `'markdown`, or `'raw` | `'code` |
+| `language` | string | Kernel language for code cells; `"markdown"` for markdown; `"raw"` for raw | `"python"` |
+| `source` | string | Raw cell source text (may contain newlines) | `""` |
+| `outputs` | list | Ordered list of `ejn-output` structs | `nil` |
+| `execution-count` | integer or nil | Jupyter execution counter | `nil` |
+| `metadata` | hash-table | `:test 'equal` — passthrough, preserves unknown keys | new empty hash-table |
 
-- **`.el` files**: `-*- lexical-binding: t; -*-`, `SPDX-License-Identifier: GPL-3.0-or-later`,
-  commentary block (3–5 sentences), `(provide 'ejn-<module>)` footer, `;;; ejn-<module>.el ends here`
-- **`.ipynb` files**: nbformat 4.5 JSON, `json-parse-string :object-type 'hash-table`
-  compatible, cells have explicit `id` string fields (UUID format)
-- **`Cask`**: Cask DSL format as specified in section 1.5 of roadmap
-- **`Makefile`**: POSIX make, tab-indented recipe lines, `.PHONY` declaration
+**`ejn-output`**:
 
-### `ejn-util.el` API
+| Slot | Type | Constraints | Default |
+|------|------|-------------|---------|
+| `output-type` | symbol | `'stream`, `'display_data`, `'execute_result`, or `'error` | — (required) |
+| `data` | hash-table | `:test 'equal` — MIME-type → content map | new empty hash-table |
+| `metadata` | hash-table | `:test 'equal` — output metadata passthrough | new empty hash-table |
+| `text` | string or nil | Convenience slot for `'stream` output body | `nil` |
+| `name` | string or nil | Stream name: `"stdout"` or `"stderr"` | `nil` |
+| `ename` | string or nil | Error name (e.g., `"NameError"`) | `nil` |
+| `evalue` | string or nil | Error value / message | `nil` |
+| `traceback` | string or nil | Full traceback as single string | `nil` |
 
-| Symbol | Signature | Description |
-|--------|-----------|-------------|
-| `ejn--debug-p` | `defvar` | Boolean; nil by default |
-| `ejn--log` | `(fmt &rest args)` | Writes to `*ejn-log*` buffer if `ejn--debug-p` is non-nil |
-| `ejn--uuid` | `()` | Returns a 36-character hyphenated UUID-like string |
-| `ejn--assert` | `(condition message)` | Signals `(error message)` if condition is nil |
+**`ejn-notebook`** (created via `ejn-make-notebook`):
 
-### `test/test-helper.el` API
+| Slot | Type | Constraints | Default |
+|------|------|-------------|---------|
+| `path` | string | Absolute path to `.ipynb` file on disk | `""` |
+| `nbformat` | integer | Must be 4 for supported notebooks | `4` |
+| `nbformat-minor` | integer | Sub-version (0–5) | `5` |
+| `metadata` | hash-table | `:test 'equal` — top-level notebook metadata | new empty hash-table |
+| `kernel-name` | string | e.g., `"python3"` | `""` |
+| `language` | string | Primary kernel language, e.g., `"python"` | `""` |
+| `cells` | list | Ordered list of `ejn-cell` structs | `nil` |
+| `dirty-p` | boolean | Non-nil when unsaved changes exist | `nil` |
 
-| Symbol | Signature | Description |
-|--------|-----------|-------------|
-| `ejn-test--fixture-path` | `(name)` | Returns absolute path to `fixtures/<name>` |
-| `ejn-test--with-temp-notebook` | `(body-fn)` | Macro: copies `fixtures/simple.ipynb` to a temp dir, runs `body-fn` with the temp path, cleans up |
+### Interface contracts
+
+**`ejn-make-cell` & `&key id type language source outputs execution-count metadata`** → `ejn-cell`
+
+- Required argument: `id` (string). All others optional with defaults from data model table.
+- Returns an `ejn-cell` struct. Does not validate UUID format (parsers enforce it).
+- `metadata` defaults to a new empty hash-table (never `nil` or shared).
+
+**`ejn-make-notebook` &key path nbformat nbformat-minor metadata kernel-name language cells dirty-p** → `ejn-notebook`
+
+- No required arguments. All have defaults from data model table.
+- `metadata` and all per-cell `metadata` slots default to new empty hash-tables.
+
+**`ejn-io-read` path** → `ejn-notebook`
+
+- `path`: string, absolute or relative path to `.ipynb` file.
+- Errors with `(error "Unsupported nbformat: %s" version)` if `nbformat != 4`.
+- Errors with `(error "File not found: %s" path)` if file does not exist.
+- Errors with `(error "Invalid JSON: %s" error-message)` if file content is not valid JSON.
+- Joins `"source"` array (nbformat convention) into a single string via `(mapconcat #'identity source-array "\n")`.
+- Preserves all known and unknown keys from `"metadata"` hash-tables.
+
+**`ejn-io--parse-cell` raw-cell** → `ejn-cell`
+
+- Private helper. Dispatches on `raw-cell["cell_type"]`.
+- `"code"`: maps `"language"` from cell metadata or falls back to `"python"`.
+- `"markdown"`: sets `language` to `"markdown"`.
+- `"raw"`: sets `language` to `"raw"`.
+- `"source"` is always joined to a single string regardless of type.
+- `"id"` is required; errors with `(error "Cell missing required 'id' field")` if absent.
+
+**`ejn-io--parse-output` raw-output** → `ejn-output`
+
+- Private helper. Maps `"output_type"` → `output-type` symbol.
+- `"stream"`: reads `"name"` → `name`, `"text"` → `text` (joined array if array).
+- `"display_data"`: reads `"data"` hash-table → `data`.
+- `"execute_result"`: reads `"data"` → `data`, `"execution_count"` → `execution-count` (stored in cell, not output).
+- `"error"`: reads `"ename"` → `ename`, `"evalue"` → `evalue`, `"traceback"` → `traceback` (joined array if array).
+- Preserves all unknown keys in `"metadata"`.
+
+**`ejn-io-write` notebook path**
+
+- `notebook`: `ejn-notebook` struct. `path`: string, destination path.
+- Converts to nested hash-tables/lists matching nbformat 4 schema.
+- Splits `source` strings into arrays of lines using `(split-string source "\n" t)`.
+- Writes with `(json-encode ...)` to `path` with 2-space indent: `(format "%s\n" (json-encode obj))`.
+- Sets `(setf (ejn-notebook-dirty-p notebook) nil)` after successful write.
+- Errors with `(error "Cannot write to read-only file: %s" path)` if file exists and is not writable.
+
+**`ejn-notebook-insert-cell` notebook cell index** → `ejn-notebook`
+
+- Returns a new notebook with `cell` inserted at position `index` in the `cells` list.
+- `index` 0 → prepend. `index` ≥ length → append.
+- Sets `dirty-p` to `t` on the returned notebook.
+- Errors with `(error "Cell index out of range: %d" index)` if `index < 0`.
+
+**`ejn-notebook-delete-cell` notebook uuid** → `ejn-notebook`
+
+- Returns a new notebook with the cell matching `uuid` removed.
+- If no cell matches, returns a copy of the original notebook (no-op, no error).
+- Sets `dirty-p` to `t` on the returned notebook.
+
+**`ejn-notebook-move-cell` notebook uuid direction** → `ejn-notebook`
+
+- `direction`: `'up` or `'down`.
+- Returns a new notebook with the cell at `uuid` swapped with its neighbor in the given direction.
+- If cell is first and `direction` is `'up`, or last and `direction` is `'down`, returns a copy unchanged (no error, no error).
+- Sets `dirty-p` to `t` on the returned notebook.
+
+**`ejn-notebook-cell-by-id` notebook uuid** → `ejn-cell` or `nil`
+
+- Returns the first `ejn-cell` whose `id` slot equals `uuid`, or `nil` if not found.
+- No side effects.
+
+**`ejn-notebook-update-cell-source` notebook uuid new-source** → `ejn-notebook`
+
+- Returns a new notebook with the cell matching `uuid` having its `source` replaced by `new-source`.
+- If no cell matches, returns a copy of the original notebook unchanged.
+- Sets `dirty-p` to `t` on the returned notebook.
 
 ### Tech stack
 
-| Tool | Rationale |
-|------|-----------|
-| Emacs 29.1+ | Baseline requirement; treesit and json features used |
-| Cask | Build and test harness (dependency resolution, batch execution) |
-| Buttercup | Emacs testing framework for all test files |
-| el-mock | Function mocking for kernel and LSP tests |
-| Undercover | Test coverage measurement (Phase 10) |
-| GitHub Actions (purcell/setup-emacs) | CI across Emacs 29.1, 29.4, 30.1 |
-| package-lint | ELPA package linting |
-| checkdoc | Emacs Lisp documentation checking |
+- Emacs 29.1+ built-in `cl-lib` → `cl-defstruct` for data types
+- Emacs 29.1+ built-in `json` → `json-parse-string` and `json-encode` for serialization
+- Emacs 29.1+ built-in `subr` → `make-hash-table`, `file-contents`, `split-string`, `mapconcat`
+- `dash` (Phase 1 dependency, not yet used by Phase 2)
+- `buttercup` + `el-mock` (dev-only, loaded optionally by test-helper)
 
----
+### Non-goals
+
+- Immutable data semantics beyond returning new structs (no persistent data structures)
+- Cell validation beyond nbformat presence checks
+- Notebook diffing or patch operations
+- Incremental file writes (full re-serialize on every save)
+- Support for nbformat 3 or nbformat 5
+
+## Current phase
+
+### Phase 2 — Data Model and `.ipynb` I/O
+
+- [x] P2-T1 Define `ejn-cell` struct with slots, `ejn-make-cell` constructor, `ejn-cell-p` predicate [smoke] ✅
+- [x] P2-T2 Define `ejn-output` struct with slots including `ename`, `evalue`, `traceback` for error outputs [smoke] ✅
+- [x] P2-T3 Define `ejn-notebook` struct with slots and `ejn-make-notebook` constructor [smoke] ✅
+- [x] P2-T4 Implement `ejn-io--parse-output` helper — maps raw JSON output dict to `ejn-output` struct; `'error` type populates `ename`/`evalue`/`traceback` slots [tdd] ✅
+- [x] P2-T5 Implement `ejn-io--parse-cell` helper — maps raw JSON cell dict to `ejn-cell` struct [tdd] ✅
+- [x] P2-T6 Implement `ejn-io-read` — full parser with nbformat validation, file reading, JSON parsing, and `ejn-notebook` construction [tdd] ✅
+- [x] P2-T7 Implement `ejn-io-write` — serializer that converts `ejn-notebook` to JSON, splits source to line arrays, writes with 2-space indent [tdd] ✅
+- [x] P2-T8 Implement `ejn-notebook-insert-cell` — returns new notebook with cell inserted at index [tdd] ✅
+- [x] P2-T9 Implement `ejn-notebook-delete-cell` — returns new notebook with cell removed by UUID [tdd] ✅
+- [x] P2-T10 Implement `ejn-notebook-move-cell` — returns new notebook with cell swapped in given direction [tdd] ✅
+- [x] P2-T11 Implement `ejn-notebook-cell-by-id` — lookup cell by UUID in notebook [smoke] ✅
+- [x] P2-T12 Implement `ejn-notebook-update-cell-source` — returns new notebook with source replaced and `dirty-p` set [tdd] ✅
+- [x] P2-T13 Write tests for `ejn-cell`, `ejn-output`, `ejn-notebook` construction and slot access [tdd] ✅
+- [x] P2-T14 Write `ejn-io-read` tests against all three fixtures — verify cell counts, UUIDs, source text, kernel-name, cell types, output struct construction [tdd] ✅
+- [x] P2-T15 Write `ejn-io` round-trip test — read fixture, write to temp path via `ejn-test--with-temp-notebook`, re-read, compare cell UUIDs and source text [tdd] ✅
+- [x] P2-T16 Write `ejn-io-read` error tests — unsupported nbformat, missing file, invalid JSON, cell missing `id` [tdd] ✅
+- [x] P2-T17 Write cell manipulation tests — insert at 0, insert at end, delete existing/non-existing cell, move first/middle/last cell up/down [tdd] ✅
 
 ## Task list
 
-### Phase 1 — Project Scaffolding
+### Phase 2 — Data Model and `.ipynb` I/O
 
-- [ ] P1-T1 Create directory tree (`lisp/`, `test/`, `fixtures/`, `docs/`, `.github/workflows/`) [scaffold] (no importable code, no observable behavior)
-- [ ] P1-T2 Write `ejn-util.el` with `ejn--debug-p`, `ejn--log`, `ejn--uuid`, `ejn--assert` [tdd] (functional code with conditional branches, I/O, and state mutation)
-- [ ] P1-T3 Write 10 stub module files (`ejn-data.el` through `ejn-treesit.el`, excluding `ejn-util.el`) [smoke] (importable code with structural requirements — wrong requires or missing provides would be a runtime failure)
-- [ ] P1-T4 Write `ejn.el` package entry point with ELPA header, guarded requires, provide, footer [smoke] (importable code — structural wiring, wrong header or missing provide is a runtime failure)
-- [ ] P1-T5 Write `Cask` dependency manifest [scaffold] (static config file with no computed values)
-- [ ] P1-T6 Write `Makefile` with 6 documented targets and `.PHONY` declaration [scaffold] (static config file; `make` is an external tool, not importable code)
-- [ ] P1-T7 Create 3 notebook fixture files (`simple.ipynb`, `mixed-lang.ipynb`, `with-outputs.ipynb`) as valid nbformat 4.5 JSON [scaffold] (data files with no executable code)
-- [ ] P1-T8 Write `test/test-helper.el` (load-path setup, requires, `ejn-test--fixture-path`, `ejn-test--with-temp-notebook` macro, buttercup/el-mock requires) [scaffold] (test infrastructure — structural glue, no real test assertions)
-- [ ] P1-T9 Write 6 skeleton test files with placeholder buttercup tests [scaffold] (placeholder tests only, no real assertions, no logic)
-- [ ] P1-T10 Write `.dir-locals.el` [scaffold] (static project-local settings, no code)
-- [ ] P1-T11 Write `.elpaignore` listing files to exclude from ELPA packaging [scaffold] (static config file)
-- [ ] P1-T12 Write `.github/workflows/ci.yml` with Emacs version matrix, Cask install, compile, test steps [scaffold] (static CI config file; no importable code)
-- [ ] P1-T13 Write `README.md` skeleton with package name, description, CI badge, stub sections, dependency notes [scaffold] (static documentation file)
-- [ ] P1-T14 Create empty stubs for `docs/ARCHITECTURE.md` and `docs/CONTRIBUTING.md` [scaffold] (empty files, no content)
-
-### Phase 1 Validation Checklist
-
-Before proceeding to Phase 2, confirm all of the following:
-
-- [ ] `make install` completes without error
-- [ ] `make compile` produces zero warnings and zero errors
-- [ ] `make test` outputs `X passing` with no failures (where X equals the number of skeleton test files)
-- [ ] `make lint` reports no `package-lint` or `checkdoc` errors
-- [ ] `(require 'ejn)` loads cleanly in a bare Emacs 29.1
-- [ ] GitHub Actions CI workflow runs and passes for all Emacs versions in the matrix
-
----
+(All tasks completed — see Current phase above.)
 
 ## Open questions
 
-- [x] Author name for copyright headers → **Answer:** `Kyohei-Prj` (confirmed by user)
+- [x] **Error output struct slots** — Resolved: added `ename`, `evalue`, `traceback` as optional slots to `ejn-output` (default `nil`). Only non-nil for `'error` outputs. The `ejn-io--parse-output` contract was updated to map error JSON fields directly to these slots.
+- [x] **UUID v4 format** — Resolved: no change needed. Phase 1's `ejn--uuid` produces 36-char hyphenated strings sufficient for Phase 2. UUID format validation is deferred to Phase 10's error handling audit.
+- [x] **`nbformat` validation strictness** — Resolved: accept any `nbformat == 4` (all 4.x sub-versions). Reject anything other than 4. The `nbformat-minor` value is preserved from the file without validation.

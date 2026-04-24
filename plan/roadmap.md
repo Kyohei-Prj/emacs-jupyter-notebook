@@ -1100,7 +1100,7 @@ coherent settings page.
 Document:
 
 - Installation (via MELPA, via `use-package`).
-- Prerequisites: Emacs 29.1+, `jupyter.el`, `lsp-mode`, a Jupyter kernel installed
+- Prerequisites: Emacs 30.1+, `jupyter.el`, `lsp-mode`, a Jupyter kernel installed
   on the system.
 - Opening a notebook: `M-x ejn-open-file`.
 - Key bindings reference table.

@@ -1,0 +1,8 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Files to exclude from ELPA packaging
+
+*.elc
+-eask/
+dist/
+_test/
+bin/ellsp

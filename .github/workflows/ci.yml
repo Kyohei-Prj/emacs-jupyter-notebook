@@ -1,0 +1,47 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# CI workflow for emacs-jupyter-notebook
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        emacs-version: ['29.1', '29.4', '30.1']
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Emacs
+        uses: purcell/setup-emacs@master
+        with:
+          version: ${{ matrix.emacs-version }}
+
+      - name: Install Cask
+        run: |
+          wget https://github.com/cask/cask/releases/download/v0.25.0/cask -O ~/cask
+          chmod +x ~/cask
+
+      - name: Install dependencies
+        run: ~/cask install
+
+      - name: Compile
+        run: make compile
+
+      - name: Test
+        run: make test
+
+      - name: Upload artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: emacs-${{ matrix.emacs-version }}-logs
+          path: |
+            **/*.log
+            **/test-results/*

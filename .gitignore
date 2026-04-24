@@ -7,6 +7,7 @@
 
 # ignore generated files
 *.elc
+.cask/
 
 # eask packages
 .eask/
