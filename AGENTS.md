@@ -1,0 +1,2 @@
+- Use `elisp-dev` to refer to Emacs Lisp (elisp) document.
+- Write one function/code block at a time. Do not write all at once.
