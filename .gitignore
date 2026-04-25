@@ -1,1 +1,33 @@
+gitignore_content = """# --- Emacs / Elisp General ---
+*.elc
+site-lisp/
+*-autoloads.el
+*-pkg.el
+
+# --- Eask Specific ---
+# Eask's local workspace and dependency folder
+.eask/
+# Build artifacts
+dist/
+# Log files
+eask-debug.log
+
+# --- Backup and Temporary Files ---
+*~
+#*#
+.#*
+flycheck_*.el
+.dir-locals?.el
+
+# --- Package Management ---
+# If you use Cask (occasionally used alongside Eask)
+.cask/
+# If you use elpa folder locally
+elpa/
+
+# --- Misc ---
 /.serena/
+
+# --- IDE/Editor Specific (Optional) ---
+.python-version
+.DS_Store
