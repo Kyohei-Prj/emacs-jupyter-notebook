@@ -14,8 +14,8 @@ Create the canonical directory layout for an Eask-based Emacs package:
 
 ```
 ejn/
+│── ejn.el
 ├── lisp/
-│   ├── ejn.el
 │   ├── ejn-core.el
 │   ├── ejn-network.el
 │   └── ejn-lsp.el
