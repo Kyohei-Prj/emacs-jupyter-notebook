@@ -56,16 +56,16 @@ Not applicable in Phase 1. No functions are exported.
 
 ### Phase 1 — Scaffolding & Environment
 
-- [ ] P1-T1 Create `lisp/` and `test/` directories [scaffold] (no code, directory setup)
-- [ ] P1-T2 Add `.ejn-cache/` to `.gitignore` [scaffold] (static config change)
-- [ ] P1-T3 Create `Eask` file with pinned dependencies [scaffold] (static config file)
-- [ ] P1-T4 Create `Makefile` with install, test, and lint targets [scaffold] (static config file)
-- [ ] P1-T5 Create `README.md` placeholder [scaffold] (no code, static content)
-- [ ] P1-T6 Create `ejn.el` skeleton at repo root (package header, requires, provide) [smoke] (structural — import path resolution; file will be loaded at runtime)
-- [ ] P1-T7 Create `lisp/ejn-core.el` skeleton (package header, provide) [smoke] (structural — import path resolution; file will be loaded at runtime)
-- [ ] P1-T8 Create `lisp/ejn-network.el` skeleton (package header, require, provide) [smoke] (structural — import path resolution; file will be loaded at runtime)
-- [ ] P1-T9 Create `lisp/ejn-lsp.el` skeleton (package header, require, provide) [smoke] (structural — import path resolution; file will be loaded at runtime)
-- [ ] P1-T10 Create `test/ejn-test.el` with empty buttercup test suite [smoke] (structural — test file must load and produce exit code 0)
+- [x] P1-T1 Create `lisp/` and `test/` directories [scaffold] (no code, directory setup)
+- [x] P1-T2 Add `.ejn-cache/` to `.gitignore` [scaffold] (static config change)
+- [x] P1-T3 Create `Eask` file with pinned dependencies [scaffold] (static config file)
+- [x] P1-T4 Create `Makefile` with install, test, and lint targets [scaffold] (static config file)
+- [x] P1-T5 Create `README.md` placeholder [scaffold] (no code, static content)
+- [x] P1-T6 Create `ejn.el` skeleton at repo root (package header, requires, provide) [smoke] (structural — import path resolution; file will be loaded at runtime)
+- [x] P1-T7 Create `lisp/ejn-core.el` skeleton (package header, provide) [smoke] (structural — import path resolution; file will be loaded at runtime)
+- [x] P1-T8 Create `lisp/ejn-network.el` skeleton (package header, require, provide) [smoke] (structural — import path resolution; file will be loaded at runtime)
+- [x] P1-T9 Create `lisp/ejn-lsp.el` skeleton (package header, require, provide) [smoke] (structural — import path resolution; file will be loaded at runtime)
+- [x] P1-T10 Create `test/ejn-test.el` with empty buttercup test suite [smoke] (structural — test file must load and produce exit code 0)
 
 ## Open questions
 

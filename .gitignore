@@ -28,6 +28,9 @@ elpa/
 # --- Misc ---
 /.serena/
 
+# --- EJN Runtime Cache ---
+.ejn-cache/
+
 # --- IDE/Editor Specific (Optional) ---
 .python-version
 .DS_Store
