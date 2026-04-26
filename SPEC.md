@@ -217,62 +217,66 @@ All structural commands reserve a hook point for Phase 5 global undo via
 - Performance optimization for large notebooks — lazy initialization is a Phase 5 concern. All buffers are created at open time in Phase 2.
 - nbconvert or export functionality — exporting to HTML/PDF is out of scope.
 
+## Current phase
+
+Phase 2 — Buffer-Cell Mapping & Virtual File System
+
 ## Task list
 
 ### Phase 2 — Buffer-Cell Mapping & Virtual File System
 
 #### EIEIO Data Model
 
-- [ ] P2-T1 Define `ejn-notebook` and `ejn-cell` EIEIO classes in `lisp/ejn-core.el` [tdd] (data model — EIEIO defclass with slot types, initargs, and all fields from data model table. `ejn-notebook` slot `cells` holds ordered `ejn-cell` list. `ejn-cell` slot `type` is symbol (`'code`, `'markdown`, `'raw`). `ejn-notebook` slot `ejn-cell-kill-ring` is list.)
+- [x] P2-T1 Define `ejn-notebook` and `ejn-cell` EIEIO classes in `lisp/ejn-core.el` [tdd] (data model — EIEIO defclass with slot types, initargs, and all fields from data model table. `ejn-notebook` slot `cells` holds ordered `ejn-cell` list. `ejn-cell` slot `type` is symbol (`'code`, `'markdown`, `'raw`). `ejn-notebook` slot `ejn-cell-kill-ring` is list.)
 
 #### JSON Parser & `.ipynb` Loader
 
-- [ ] P2-T2 Implement `ejn-notebook-load` in `lisp/ejn-core.el` [tdd] (parsing logic + I/O — reads file with `json-parse-buffer`, detects nbformat version, dispatches to nbformat 4.x or 3.x parser, returns `ejn-notebook` object)
-- [ ] P2-T3 Implement nbformat 4.x cell parser in `lisp/ejn-core.el` [tdd] (conditional data transformation — reads `notebook["cells"]` array, maps each JSON cell to `ejn-cell` via `ejn--parse-cell-data` helper, returns list of `ejn-cell` objects)
-- [ ] P2-T4 Implement nbformat 3.x cell parser in `lisp/ejn-core.el` [tdd] (conditional data transformation — reads `notebook["worksheets"][0]["cells"]` array, same mapping as nbformat 4.x but with different source path)
-- [ ] P2-T5 Implement `ejn--parse-cell-data` helper in `lisp/ejn-core.el` [tdd] (data transformation + error handling — takes a single cell JSON object, extracts `cell_type`, `source`, `outputs`, `execution_count`, creates `ejn-cell` instance, returns object)
+- [x] P2-T2 Implement `ejn-notebook-load` in `lisp/ejn-core.el` [tdd] (parsing logic + I/O — reads file with `json-parse-buffer`, detects nbformat version, dispatches to nbformat 4.x or 3.x parser, returns `ejn-notebook` object)
+- [x] P2-T3 Implement nbformat 4.x cell parser in `lisp/ejn-core.el` [tdd] (conditional data transformation — reads `notebook["cells"]` array, maps each JSON cell to `ejn-cell` via `ejn--parse-cell-data` helper, returns list of `ejn-cell` objects)
+- [x] P2-T4 Implement nbformat 3.x cell parser in `lisp/ejn-core.el` [tdd] (conditional data transformation — reads `notebook["worksheets"][0]["cells"]` array, same mapping as nbformat 4.x but with different source path)
+- [x] P2-T5 Implement `ejn--parse-cell-data` helper in `lisp/ejn-core.el` [tdd] (data transformation + error handling — takes a single cell JSON object, extracts `cell_type`, `source`, `outputs`, `execution_count`, creates `ejn-cell` instance, returns object)
 
 #### Shadow File Layer
 
-- [ ] P2-T6 Implement `ejn-shadow-write-cell` in `lisp/ejn-core.el` [tdd] (I/O + state mutation — creates `.ejn-cache/<notebook-stem>/` directory via `make-directory`, zero-pads filename based on cell index, determines extension by cell type (`code`→`.py`, `markdown`→`.md`, `raw`→`.raw`), writes `:source` to disk, updates `:shadow-file` slot, returns file path)
-- [ ] P2-T7 Implement `ejn-shadow-sync-cell` in `lisp/ejn-core.el` [tdd] (state mutation + conditional + I/O — reads buffer content via `:buffer`, compares against `:source`, if different updates `:source`, writes atomically using `.tmp` + `rename-file`, clears `:dirty` flag, returns t; if identical returns nil)
-- [ ] P2-T8 Attach `after-change-functions` hook in cell buffers in `lisp/ejn-cell.el` [tdd] (state mutation + hook registration — in `ejn-cell-open-buffer`, registers `ejn--cell-after-change-hook` as a buffer-local hook, hook calls `ejn-shadow-sync-cell` and sets `:dirty` slot, ensures hook is removed when buffer is killed)
-- [ ] P2-T9 Implement `ejn--flush-all-dirty-cells` in `lisp/ejn-core.el` [tdd] (state mutation + I/O — iterates notebook's `:cells` list, for each cell with `:dirty` set and `:buffer` live, calls `ejn-shadow-sync-cell` to flush buffer content into `:source` slot)
+- [x] P2-T6 Implement `ejn-shadow-write-cell` in `lisp/ejn-core.el` [tdd] (I/O + state mutation — creates `.ejn-cache/<notebook-stem>/` directory via `make-directory`, zero-pads filename based on cell index, determines extension by cell type (`code`→`.py`, `markdown`→`.md`, `raw`→`.raw`), writes `:source` to disk, updates `:shadow-file` slot, returns file path)
+- [x] P2-T7 Implement `ejn-shadow-sync-cell` in `lisp/ejn-core.el` [tdd] (state mutation + conditional + I/O — reads buffer content via `:buffer`, compares against `:source`, if different updates `:source`, writes atomically using `.tmp` + `rename-file`, clears `:dirty` flag, returns t; if identical returns nil)
+- [x] P2-T8 Attach `after-change-functions` hook in cell buffers in `lisp/ejn-cell.el` [tdd] (state mutation + hook registration — in `ejn-cell-open-buffer`, registers `ejn--cell-after-change-hook` as a buffer-local hook, hook calls `ejn-shadow-sync-cell` and sets `:dirty` slot, ensures hook is removed when buffer is killed)
+- [x] P2-T9 Implement `ejn--flush-all-dirty-cells` in `lisp/ejn-core.el` [tdd] (state mutation + I/O — iterates notebook's `:cells` list, for each cell with `:dirty` set and `:buffer` live, calls `ejn-shadow-sync-cell` to flush buffer content into `:source` slot)
 
 #### Master View Buffer
 
-- [ ] P2-T10 Implement `ejn--create-master-view` in `lisp/ejn-master.el` [tdd] (interactive I/O + state mutation — creates `special-mode` buffer, stores `ejn-notebook` as buffer-local variable, sets up `kill-buffer-hook` to call `ejn--cleanup-master-view`, populates initial cell list via `ejn--render-master-cells`, returns buffer)
-- [ ] P2-T11 Implement `ejn--render-master-cells` in `lisp/ejn-master.el` [tdd] (data transformation + I/O — iterates notebook's `:cells` list, for each cell creates button text with format `[Type | In [N]] source_preview`, uses `insert-text-button` with `ejn-cell-open-buffer` as the action, separates cells with newline, refreshes display)
-- [ ] P2-T12 Implement `ejn--render-master-cells` refresh variant in `lisp/ejn-master.el` [tdd] (state mutation — same logic as P2-T11 but called after structural cell operations to re-render without recreating the buffer, handles button removal and re-insertion)
+- [x] P2-T10 Implement `ejn--create-master-view` in `lisp/ejn-master.el` [tdd] (interactive I/O + state mutation — creates `special-mode` buffer, stores `ejn-notebook` as buffer-local variable, sets up `kill-buffer-hook` to call `ejn--cleanup-master-view`, populates initial cell list via `ejn--render-master-cells`, returns buffer)
+- [x] P2-T11 Implement `ejn--render-master-cells` in `lisp/ejn-master.el` [tdd] (data transformation + I/O — iterates notebook's `:cells` list, for each cell creates button text with format `[Type | In [N]] source_preview`, uses `insert-text-button` with `ejn-cell-open-buffer` as the action, separates cells with newline, refreshes display)
+- [x] P2-T12 Implement `ejn--render-master-cells` refresh variant in `lisp/ejn-master.el` [tdd] (state mutation — same logic as P2-T11 but called after structural cell operations to re-render without recreating the buffer, handles button removal and re-insertion)
 
 #### Cell Buffers & Two-Way Sync
 
-- [ ] P2-T13 Implement `ejn-cell-open-buffer` in `lisp/ejn-cell.el` [tdd] (state mutation + conditional I/O — if `:buffer` is live switches to it, otherwise creates new buffer with `:source` content, sets `major-mode` (`python-mode` for code, `markdown-mode` for markdown), attaches `after-change-functions` hook, sets buffer-local `ejn-notebook` back-pointer, updates `:buffer` and `:shadow-file` slots)
-- [ ] P2-T14 Implement `ejn-cell-refresh-buffer` in `lisp/ejn-cell.el` [tdd] (state mutation — calls `replace-buffer-contents` with `:source`, preserves point position and undo history)
-- [ ] P2-T15 Implement `ejn-notebook-of-buffer` in `lisp/ejn-core.el` [smoke] (simple accessor — reads buffer-local `ejn-notebook` from master view buffer, returns `ejn-notebook` object or nil)
+- [x] P2-T13 Implement `ejn-cell-open-buffer` in `lisp/ejn-cell.el` [tdd] (state mutation + conditional I/O — if `:buffer` is live switches to it, otherwise creates new buffer with `:source` content, sets `major-mode` (`python-mode` for code, `markdown-mode` for markdown), attaches `after-change-functions` hook, sets buffer-local `ejn-notebook` back-pointer, updates `:buffer` and `:shadow-file` slots)
+- [x] P2-T14 Implement `ejn-cell-refresh-buffer` in `lisp/ejn-cell.el` [tdd] (state mutation — calls `replace-buffer-contents` with `:source`, preserves point position and undo history)
+- [x] P2-T15 Implement `ejn-notebook-of-buffer` in `lisp/ejn-core.el` [smoke] (simple accessor — reads buffer-local `ejn-notebook` from master view buffer, returns `ejn-notebook` object or nil)
 
 #### Cell Structural Operations
 
-- [ ] P2-T16 Implement `ejn--make-cell` helper in `lisp/ejn-cell.el` [tdd] (state mutation — creates `ejn-cell` via `cl-gensym` for `:id`, accepts `:type` and `:source`, inserts at correct index in notebook's `:cells` list using `cl-position`, calls `ejn-shadow-write-cell`, calls `ejn--render-master-cells`, reserves `ejn--record-structural-change` hook)
-- [ ] P2-T17 Implement `ejn:worksheet-insert-cell-above` and `ejn:worksheet-insert-cell-below` in `lisp/ejn-cell.el` [smoke] (structural wiring — delegates to `ejn--make-cell` with correct index: `cl-position` of current cell at point minus 1 for above, plus 1 for below. Interactive commands.)
-- [ ] P2-T18 Implement `ejn:worksheet-move-cell-up` and `ejn:worksheet-move-cell-down` in `lisp/ejn-cell.el` [tdd] (state mutation + I/O — gets cell at point via `cl-position`, swaps with predecessor or successor in `:cells` list via `cl-substitute` or manual splice, renames shadow files for affected cells by recalculating indices, calls `ejn--render-master-cells`)
-- [ ] P2-T19 Implement `ejn:worksheet-kill-cell` in `lisp/ejn-cell.el` [tdd] (I/O + conditional — gets cell at point, if `:dirty` prompts for confirmation via `y-or-n-p`, removes from `:cells` list via `cl-position` + `delq`, kills buffer if live via `kill-buffer`, removes shadow file via `delete-file`, calls `ejn--render-master-cells`)
-- [ ] P2-T20 Implement `ejn:worksheet-split-cell-at-point` in `lisp/ejn-cell.el` [tdd] (data transformation + state mutation — gets current cell at point, splits `:source` string at the line of point into `before` and `after` parts, creates new cell with `after` part below current cell, sets current cell's `:source` to `before`, both share original `:type`, calls `ejn-shadow-write-cell` on both, calls `ejn--render-master-cells`)
-- [ ] P2-T21 Implement `ejn:worksheet-merge-cell` in `lisp/ejn-cell.el` [tdd] (data transformation + state mutation — gets current cell and cell below, concatenates sources with blank line separator, updates current cell's `:source`, removes lower cell from `:cells` via `cl-position` + `delq`, calls `ejn-shadow-write-cell` on current cell, calls `ejn--render-master-cells`)
-- [ ] P2-T22 Implement `ejn:worksheet-copy-cell` in `lisp/ejn-cell.el` [tdd] (state mutation — gets cell at point, creates shallow copy of `:source` and `:type` onto `ejn-notebook`'s `ejn-cell-kill-ring` slot (cons onto list). `C-c C-w` additionally calls `ejn:worksheet-kill-cell`. `C-c M-w` only copies.)
-- [ ] P2-T23 Implement `ejn:worksheet-yank-cell` in `lisp/ejn-cell.el` [tdd] (state mutation + I/O — pops top entry from `ejn-notebook`'s `ejn-cell-kill-ring`, creates new cell below point with copied `:source` and `:type`, calls `ejn-shadow-write-cell`, calls `ejn--render-master-cells`)
-- [ ] P2-T24 Implement `ejn:worksheet-goto-next-input` and `ejn:worksheet-goto-prev-input` in `lisp/ejn-cell.el` [smoke] (structural — if in master view, moves point to next/previous cell button via `next-button`/`previous-button` in `special-mode`. If in cell buffer, switches to the next/previous cell's buffer via `ejn-cell-open-buffer`.)
+- [x] P2-T16 Implement `ejn--make-cell` helper in `lisp/ejn-cell.el` [tdd] (state mutation — creates `ejn-cell` via `cl-gensym` for `:id`, accepts `:type` and `:source`, inserts at correct index in notebook's `:cells` list using `cl-position`, calls `ejn-shadow-write-cell`, calls `ejn--render-master-cells`, reserves `ejn--record-structural-change` hook)
+- [x] P2-T17 Implement `ejn:worksheet-insert-cell-above` and `ejn:worksheet-insert-cell-below` in `lisp/ejn-cell.el` [smoke] (structural wiring — delegates to `ejn--make-cell` with correct index: `cl-position` of current cell at point minus 1 for above, plus 1 for below. Interactive commands.)
+- [x] P2-T18 Implement `ejn:worksheet-move-cell-up` and `ejn:worksheet-move-cell-down` in `lisp/ejn-cell.el` [tdd] (state mutation + I/O — gets cell at point via `cl-position`, swaps with predecessor or successor in `:cells` list via `cl-substitute` or manual splice, renames shadow files for affected cells by recalculating indices, calls `ejn--render-master-cells`)
+- [x] P2-T19 Implement `ejn:worksheet-kill-cell` in `lisp/ejn-cell.el` [tdd] (I/O + conditional — gets cell at point, if `:dirty` prompts for confirmation via `y-or-n-p`, removes from `:cells` list via `cl-position` + `delq`, kills buffer if live via `kill-buffer`, removes shadow file via `delete-file`, calls `ejn--render-master-cells`)
+- [x] P2-T20 Implement `ejn:worksheet-split-cell-at-point` in `lisp/ejn-cell.el` [tdd] (data transformation + state mutation — gets current cell at point, splits `:source` string at the line of point into `before` and `after` parts, creates new cell with `after` part below current cell, sets current cell's `:source` to `before`, both share original `:type`, calls `ejn-shadow-write-cell` on both, calls `ejn--render-master-cells`)
+- [x] P2-T21 Implement `ejn:worksheet-merge-cell` in `lisp/ejn-cell.el` [tdd] (data transformation + state mutation — gets current cell and cell below, concatenates sources with blank line separator, updates current cell's `:source`, removes lower cell from `:cells` via `cl-position` + `delq`, calls `ejn-shadow-write-cell` on current cell, calls `ejn--render-master-cells`)
+- [x] P2-T22 Implement `ejn:worksheet-copy-cell` in `lisp/ejn-cell.el` [tdd] (state mutation — gets cell at point, creates shallow copy of `:source` and `:type` onto `ejn-notebook`'s `ejn-cell-kill-ring` slot (cons onto list). `C-c C-w` additionally calls `ejn:worksheet-kill-cell`. `C-c M-w` only copies.)
+- [x] P2-T23 Implement `ejn:worksheet-yank-cell` in `lisp/ejn-cell.el` [tdd] (state mutation + I/O — pops top entry from `ejn-notebook`'s `ejn-cell-kill-ring`, creates new cell below point with copied `:source` and `:type`, calls `ejn-shadow-write-cell`, calls `ejn--render-master-cells`)
+- [x] P2-T24 Implement `ejn:worksheet-goto-next-input` and `ejn:worksheet-goto-prev-input` in `lisp/ejn-cell.el` [smoke] (structural — if in master view, moves point to next/previous cell button via `next-button`/`previous-button` in `special-mode`. If in cell buffer, switches to the next/previous cell's buffer via `ejn-cell-open-buffer`.)
 
 #### Notebook File Commands
 
-- [ ] P2-T25 Implement `ejn:notebook-save-notebook-command` in `lisp/ejn-notebook.el` [tdd] (I/O + conditional — retrieves notebook via `ejn-notebook-of-buffer`, calls `ejn--flush-all-dirty-cells` to sync all dirty buffers, serializes notebook to `.ipynb` JSON at `:path` using `json-encode`, clears all `:dirty` flags, returns t. Interactive command.)
-- [ ] P2-T26 Implement `ejn:notebook-rename-command` in `lisp/ejn-notebook.el` [tdd] (I/O + state mutation — prompts for new filename via `read-file-name`, renames `.ipynb` file via `rename-file`, updates `:path` slot, extracts new stem and renames `.ejn-cache/<old-stem>/` directory to `.ejn-cache/<new-stem>/`, returns t. Interactive command.)
-- [ ] P2-T27 Implement `ejn:file-open` alias in `lisp/ejn-notebook.el` [smoke] (structural — alias for `ejn-open-file`.)
+- [x] P2-T25 Implement `ejn:notebook-save-notebook-command` in `lisp/ejn-notebook.el` [tdd] (I/O + conditional — retrieves notebook via `ejn-notebook-of-buffer`, calls `ejn--flush-all-dirty-cells` to sync all dirty buffers, serializes notebook to `.ipynb` JSON at `:path` using `json-encode`, clears all `:dirty` flags, returns t. Interactive command.)
+- [x] P2-T26 Implement `ejn:notebook-rename-command` in `lisp/ejn-notebook.el` [tdd] (I/O + state mutation — prompts for new filename via `read-file-name`, renames `.ipynb` file via `rename-file`, updates `:path` slot, extracts new stem and renames `.ejn-cache/<old-stem>/` directory to `.ejn-cache/<new-stem>/`, returns t. Interactive command.)
+- [x] P2-T27 Implement `ejn:file-open` alias in `lisp/ejn-notebook.el` [smoke] (structural — alias for `ejn-open-file`.)
 
 #### Keymap & Stubs
 
-- [ ] P2-T28 Define `ejn-mode` minor mode in `ejn.el` [smoke] (structural wiring — `define-minor-mode` registering keymap, binds all commands from `keymap.md`. Activates in master view and cell buffers.)
-- [ ] P2-T29 Define stub commands in `ejn.el` [smoke] (structural — `ejn:pytools-not-move-cell-down-km` and `ejn:pytools-not-move-cell-up-km` as `ignore` functions. `ejn:notebook-open`, `ejn:worksheet-execute-cell-and-insert-below`, and other Phase 4 stubs display "not yet implemented" via `user-error`.)
+- [x] P2-T28 Define `ejn-mode` minor mode in `ejn.el` [smoke] (structural wiring — `define-minor-mode` registering keymap, binds all commands from `keymap.md`. Activates in master view and cell buffers.)
+- [x] P2-T29 Define stub commands in `ejn.el` [smoke] (structural — `ejn:pytools-not-move-cell-down-km` and `ejn:pytools-not-move-cell-up-km` as `ignore` functions. `ejn:notebook-open`, `ejn:worksheet-execute-cell-and-insert-below`, and other Phase 4 stubs display "not yet implemented" via `user-error`.)
 
 ## Open questions
 
