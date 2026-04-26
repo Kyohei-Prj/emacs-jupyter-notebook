@@ -217,10 +217,6 @@ All structural commands reserve a hook point for Phase 5 global undo via
 - Performance optimization for large notebooks — lazy initialization is a Phase 5 concern. All buffers are created at open time in Phase 2.
 - nbconvert or export functionality — exporting to HTML/PDF is out of scope.
 
-## Current phase
-
-Phase 2 — Buffer-Cell Mapping & Virtual File System
-
 ## Task list
 
 ### Phase 2 — Buffer-Cell Mapping & Virtual File System
