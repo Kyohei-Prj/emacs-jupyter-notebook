@@ -49,7 +49,16 @@
     (expect (lookup-key ejn-mode-map (kbd "C-c C-a"))
             :to-equal #'ejn:worksheet-insert-cell-above)
     (expect (lookup-key ejn-mode-map (kbd "C-c C-k"))
-            :to-equal #'ejn:worksheet-kill-cell)))
+            :to-equal #'ejn:worksheet-kill-cell)
+    (expect (lookup-key ejn-mode-map (kbd "C-c C-w"))
+            :to-equal #'ejn:worksheet-cut-cell)
+    (expect (lookup-key ejn-mode-map (kbd "C-c M-w"))
+            :to-equal #'ejn:worksheet-copy-cell)))
+
+(describe "P2-T32 cut-cell (C-c C-w)"
+  (it "defines ejn:worksheet-cut-cell as an interactive command"
+    (expect (fboundp 'ejn:worksheet-cut-cell) :to-be-truthy)
+    (expect (commandp 'ejn:worksheet-cut-cell) :to-be-truthy)))
 
 (describe "P2-T29 stub commands"
   (it "defines ignore-based stubs as aliases to ignore"

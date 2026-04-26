@@ -998,4 +998,162 @@
       (should-not result))
     (kill-buffer buf)))
 
+;;; Tests — P2-T33: ejn--reindex-shadow-files
+
+(ert-deftest ejn-core-p2-t33--reindex-updates-shadow-files-after-cell-removal ()
+  "Verify reindex corrects shadow files after a cell is removed from the middle.
+
+Setup: 3 cells → write shadow files (000, 001, 002) → remove cell at index 1
+→ reindex → cell_000.py and cell_001.py exist with correct content,
+cell_002.py is deleted."
+  (let* ((tmpdir (make-temp-file "ejn-test-reindex-" t))
+         (nbpath (expand-file-name "mynotebook.ipynb" tmpdir))
+         (cachedir (expand-file-name ".ejn-cache/mynotebook" tmpdir))
+         (cell-0 (make-instance 'ejn-cell :type 'code :source "source-0"))
+         (cell-1 (make-instance 'ejn-cell :type 'code :source "source-1"))
+         (cell-2 (make-instance 'ejn-cell :type 'code :source "source-2"))
+         (nb (make-instance 'ejn-notebook
+                            :path nbpath
+                            :cells (list cell-0 cell-1 cell-2))))
+    ;; Create notebook file on disk
+    (with-temp-buffer
+      (insert "{\"nbformat\": 4, \"cells\": [], \"metadata\": {}}")
+      (write-file nbpath))
+    ;; Write initial shadow files for all 3 cells
+    (ejn-shadow-write-cell cell-0 nb)
+    (ejn-shadow-write-cell cell-1 nb)
+    (ejn-shadow-write-cell cell-2 nb)
+    ;; Remove cell-1 from :cells (simulating a kill)
+    (oset nb cells (list cell-0 cell-2))
+    ;; Now cell-2 is at index 1 but its shadow-file still points to cell_002.py
+    ;; Reindex should fix this
+    (ejn--reindex-shadow-files nb)
+    ;; Verify cell_000.py exists with source-0
+    (should (file-exists-p (expand-file-name "cell_000.py" cachedir)))
+    (with-temp-buffer
+      (insert-file-contents (expand-file-name "cell_000.py" cachedir))
+      (should (string= (buffer-substring-no-properties (point-min) (point-max))
+                       "source-0")))
+    ;; Verify cell_001.py exists with source-2 (cell-2 moved to index 1)
+    (should (file-exists-p (expand-file-name "cell_001.py" cachedir)))
+    (with-temp-buffer
+      (insert-file-contents (expand-file-name "cell_001.py" cachedir))
+      (should (string= (buffer-substring-no-properties (point-min) (point-max))
+                       "source-2")))
+    ;; Verify orphaned cell_002.py was deleted
+    (should-not (file-exists-p (expand-file-name "cell_002.py" cachedir)))
+    ;; Verify cell-2's :shadow-file slot was updated
+    (should (string= (file-name-nondirectory (slot-value cell-2 'shadow-file))
+                     "cell_001.py"))
+    ;; Cleanup
+    (delete-file nbpath)
+    (delete-directory tmpdir 'recursive)))
+
+(ert-deftest ejn-core-p2-t33--reindex-cleans-stale-shadow-files ()
+  "Verify reindex deletes old shadow files when cell's :shadow-file slot is stale.
+
+Setup: 2 cells with :shadow-file pointing to incorrect paths.
+Reindex should delete the stale files and write correct ones."
+  (let* ((tmpdir (make-temp-file "ejn-test-reindex-" t))
+         (nbpath (expand-file-name "mynotebook.ipynb" tmpdir))
+         (cachedir (expand-file-name ".ejn-cache/mynotebook" tmpdir))
+         (stale-0 (expand-file-name "stale_cell_999.py" cachedir))
+         (stale-1 (expand-file-name "stale_cell_888.py" cachedir))
+         (cell-0 (make-instance 'ejn-cell :type 'code :source "source-0"))
+         (cell-1 (make-instance 'ejn-cell :type 'code :source "source-1"))
+         (nb (make-instance 'ejn-notebook
+                            :path nbpath
+                            :cells (list cell-0 cell-1))))
+    ;; Create notebook file on disk
+    (with-temp-buffer
+      (insert "{\"nbformat\": 4, \"cells\": [], \"metadata\": {}}")
+      (write-file nbpath))
+    ;; Create cache dir and stale shadow files
+    (make-directory cachedir t)
+    (with-temp-file stale-0
+      (insert "old-stale-content-0"))
+    (with-temp-file stale-1
+      (insert "old-stale-content-1"))
+    ;; Manually set shadow-file slots to stale paths
+    (oset cell-0 shadow-file stale-0)
+    (oset cell-1 shadow-file stale-1)
+    ;; Reindex should delete stale files and create correct ones
+    (ejn--reindex-shadow-files nb)
+    ;; Stale files should be deleted
+    (should-not (file-exists-p stale-0))
+    (should-not (file-exists-p stale-1))
+    ;; Correct files should exist
+    (should (file-exists-p (expand-file-name "cell_000.py" cachedir)))
+    (should (file-exists-p (expand-file-name "cell_001.py" cachedir)))
+    ;; Verify content
+    (with-temp-buffer
+      (insert-file-contents (expand-file-name "cell_000.py" cachedir))
+      (should (string= (buffer-substring-no-properties (point-min) (point-max))
+                       "source-0")))
+    (with-temp-buffer
+      (insert-file-contents (expand-file-name "cell_001.py" cachedir))
+      (should (string= (buffer-substring-no-properties (point-min) (point-max))
+                       "source-1")))
+    ;; Cleanup
+    (delete-file nbpath)
+    (delete-directory tmpdir 'recursive)))
+
+(ert-deftest ejn-core-p2-t33--reindex-is-idempotent ()
+  "Verify running reindex twice on correct state has no side effects.
+
+Setup: 2 cells with correct shadow files. Run reindex twice.
+Second run should not delete/create anything differently."
+  (let* ((tmpdir (make-temp-file "ejn-test-reindex-" t))
+         (nbpath (expand-file-name "mynotebook.ipynb" tmpdir))
+         (cachedir (expand-file-name ".ejn-cache/mynotebook" tmpdir))
+         (cell-0 (make-instance 'ejn-cell :type 'code :source "source-0"))
+         (cell-1 (make-instance 'ejn-cell :type 'markdown :source "source-1"))
+         (nb (make-instance 'ejn-notebook
+                            :path nbpath
+                            :cells (list cell-0 cell-1))))
+    (with-temp-buffer
+      (insert "{\"nbformat\": 4, \"cells\": [], \"metadata\": {}}")
+      (write-file nbpath))
+    ;; Write initial shadow files
+    (ejn-shadow-write-cell cell-0 nb)
+    (ejn-shadow-write-cell cell-1 nb)
+    ;; Capture shadow paths after first write
+    (let ((shadow-0-after-first (slot-value cell-0 'shadow-file))
+          (shadow-1-after-first (slot-value cell-1 'shadow-file)))
+      ;; First reindex
+      (ejn--reindex-shadow-files nb)
+      ;; Second reindex
+      (ejn--reindex-shadow-files nb)
+      ;; Shadow paths should be unchanged
+      (should (string= (slot-value cell-0 'shadow-file) shadow-0-after-first))
+      (should (string= (slot-value cell-1 'shadow-file) shadow-1-after-first))
+      ;; cell_000.py should exist (cell-0 is code at index 0)
+      (should (file-exists-p (expand-file-name "cell_000.py" cachedir)))
+      ;; cell_001.md should exist (cell-1 is markdown at index 1)
+      (should (file-exists-p (expand-file-name "cell_001.md" cachedir)))
+      ;; Spurious files should not exist
+      (should-not (file-exists-p (expand-file-name "cell_000.md" cachedir)))
+      (should-not (file-exists-p (expand-file-name "cell_001.py" cachedir))))
+    ;; Cleanup
+    (delete-file nbpath)
+    (delete-directory tmpdir 'recursive)))
+
+(ert-deftest ejn-core-p2-t33--reindex-handles-empty-notebook ()
+  "Verify reindex does not error on a notebook with nil or empty cells."
+  (let* ((tmpdir (make-temp-file "ejn-test-reindex-" t))
+         (nbpath (expand-file-name "mynotebook.ipynb" tmpdir))
+         (nb (make-instance 'ejn-notebook :path nbpath)))
+    (with-temp-buffer
+      (insert "{\"nbformat\": 4, \"cells\": [], \"metadata\": {}}")
+      (write-file nbpath))
+    ;; nil cells
+    (should-not (slot-value nb 'cells))
+    (should-not (ejn--reindex-shadow-files nb))
+    ;; empty list
+    (oset nb cells '())
+    (should-not (ejn--reindex-shadow-files nb))
+    ;; Cleanup
+    (delete-file nbpath)
+    (delete-directory tmpdir 'recursive)))
+
 ;;; ejn-core-tests.el ends here

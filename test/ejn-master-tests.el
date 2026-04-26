@@ -33,6 +33,7 @@
 (require 'ejn-core)
 (require 'ejn-cell)
 (require 'ejn-master)
+(require 'ejn)
 
 ;;; Tests — P2-T10: ejn--create-master-view
 
@@ -399,6 +400,24 @@
           ;; Buffer should be empty
           (with-current-buffer buf
             (should (= (buffer-size) 0))))
+      (when (and buf (buffer-live-p buf))
+        (kill-buffer buf))
+      (delete-file nbpath)
+      (delete-directory tmpdir 'recursive))))
+
+;;; Tests — P2-T30: ejn-mode enabled in master view buffers
+
+(ert-deftest ejn-master-p2-t30--ejn-mode-enabled-in-master-view ()
+  "Verify `ejn-mode' is enabled in the master view buffer after creation."
+  (let* ((tmpdir (make-temp-file "ejn-test-t30-" t))
+         (nbpath (expand-file-name "test.ipynb" tmpdir))
+         (nb (make-instance 'ejn-notebook :path nbpath))
+         (buf nil))
+    (unwind-protect
+        (progn
+          (setq buf (ejn--create-master-view nb))
+          (with-current-buffer buf
+            (should ejn-mode)))
       (when (and buf (buffer-live-p buf))
         (kill-buffer buf))
       (delete-file nbpath)

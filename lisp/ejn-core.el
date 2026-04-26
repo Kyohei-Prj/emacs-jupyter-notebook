@@ -109,6 +109,12 @@
   (unless (slot-value cell 'id)
     (oset cell id (ejn-cell--generate-id))))
 
+(defun ejn--json-null-to-nil (value)
+  "Convert JSON :null symbol to nil, pass through other values unchanged.
+
+Emacs's json-parse-buffer represents JSON null as the symbol :null."
+  (if (eq value :null) nil value))
+
 (defun ejn--parse-cell-data (cell-json)
   "Parse a single cell JSON hash table CELL-JSON into an ejn-cell.
 
@@ -116,12 +122,15 @@ CELL-JSON is a hash table with keys:
 cell_type, source, outputs, execution_count.
 Returns a new ejn-cell instance."
   (let* ((cell-type (gethash "cell_type" cell-json))
-          (source (gethash "source" cell-json))
+          (source (ejn--json-null-to-nil (gethash "source" cell-json)))
           (outputs (gethash "outputs" cell-json))
-          (exec-count (gethash "execution_count" cell-json)))
+          (exec-count (ejn--json-null-to-nil
+                       (gethash "execution_count" cell-json))))
     ;; JSON arrays parse as vectors; convert to list for EIEIO type constraint
     (when (vectorp outputs)
       (setq outputs (append outputs nil)))
+    ;; Normalize :null to nil for outputs
+    (setq outputs (ejn--json-null-to-nil outputs))
     ;; Handle source which may be a list of strings (nbformat 4) or a plain string
     (when (listp source)
       (setq source (string-join source "")))
@@ -188,7 +197,8 @@ Signals `json-error' if the file is not valid JSON or not a recognized nbformat.
                             nbformat file-path))))
 
     ;; Create notebook object
-    (let* ((metadata (gethash "metadata" notebook-json))
+    (let* ((metadata (ejn--json-null-to-nil
+                      (gethash "metadata" notebook-json)))
            (nb (make-instance 'ejn-notebook
                               :path file-path
                               :metadata metadata))
@@ -278,6 +288,46 @@ Returns nil."
     (when (and (slot-value cell 'dirty)
                (buffer-live-p (slot-value cell 'buffer)))
       (ejn-shadow-sync-cell cell))))
+
+(defun ejn--reindex-shadow-files (notebook)
+  "Reindex all shadow files in NOTEBOOK to match current cell order.
+
+Iterates NOTEBOOK's `:cells' list. For each cell at index N:
+1. Computes the expected shadow file path for the cell's current position.
+2. Collects all expected paths, then deletes old shadow files that are NOT
+   any cell's expected path (avoids deleting a file that another cell needs).
+3. Calls `ejn-shadow-write-cell' to write the cell at its correct index.
+Returns nil."
+  (let* ((cells (slot-value notebook 'cells))
+         (nb-path (slot-value notebook 'path))
+         (nb-stem (file-name-sans-extension
+                   (file-name-nondirectory nb-path)))
+         (cache-dir (expand-file-name
+                     (concat ".ejn-cache/" nb-stem)
+                     (file-name-directory nb-path)))
+         (expected-paths '()))
+    ;; First pass: collect all expected shadow paths
+    (cl-loop for idx from 0
+             for cell in cells
+             do (let* ((ext (cl-case (slot-value cell 'type)
+                              (code ".py")
+                              (markdown ".md")
+                              (raw ".raw")))
+                       (expected-filename (format "cell_%03d%s" idx ext))
+                       (expected-path (expand-file-name
+                                       expected-filename cache-dir)))
+                (push expected-path expected-paths)))
+    ;; Second pass: delete old shadow files not needed by any cell
+    (cl-loop for cell in cells
+             do (let ((old-shadow (slot-value cell 'shadow-file)))
+                (when (and old-shadow
+                           (not (member old-shadow expected-paths))
+                           (file-exists-p old-shadow))
+                  (delete-file old-shadow))))
+    ;; Third pass: write all shadow files at their correct indices
+    (cl-loop for idx from 0
+             for cell in cells
+             do (ejn-shadow-write-cell cell notebook))))
 
 (defvar ejn--notebook nil
   "Buffer-local variable storing the ejn-notebook for the current view.")

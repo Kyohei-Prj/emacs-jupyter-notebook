@@ -5,6 +5,8 @@
 (require 'ejn-core)
 (require 'ejn-cell)
 
+(declare-function ejn-mode "ejn" (&optional arg))
+
 (defvar ejn--notebook nil
   "Buffer-local variable storing the ejn-notebook for the master view.")
 (make-variable-buffer-local 'ejn--notebook)
@@ -83,7 +85,8 @@ Returns the buffer."
       (set (make-local-variable 'ejn--notebook) notebook)
       (add-hook 'kill-buffer-hook #'ejn--cleanup-master-view 'append 'local)
       (oset notebook master-buffer buf)
-      (ejn--render-master-cells notebook))
+      (ejn--render-master-cells notebook)
+      (ejn-mode 1))
     buf))
 
 (provide 'ejn-master)

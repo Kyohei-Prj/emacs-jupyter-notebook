@@ -217,6 +217,10 @@ All structural commands reserve a hook point for Phase 5 global undo via
 - Performance optimization for large notebooks — lazy initialization is a Phase 5 concern. All buffers are created at open time in Phase 2.
 - nbconvert or export functionality — exporting to HTML/PDF is out of scope.
 
+## Current phase
+
+Phase 2 — Buffer-Cell Mapping & Virtual File System
+
 ## Task list
 
 ### Phase 2 — Buffer-Cell Mapping & Virtual File System
@@ -273,6 +277,19 @@ All structural commands reserve a hook point for Phase 5 global undo via
 
 - [x] P2-T28 Define `ejn-mode` minor mode in `ejn.el` [smoke] (structural wiring — `define-minor-mode` registering keymap, binds all commands from `keymap.md`. Activates in master view and cell buffers.)
 - [x] P2-T29 Define stub commands in `ejn.el` [smoke] (structural — `ejn:pytools-not-move-cell-down-km` and `ejn:pytools-not-move-cell-up-km` as `ignore` functions. `ejn:notebook-open`, `ejn:worksheet-execute-cell-and-insert-below`, and other Phase 4 stubs display "not yet implemented" via `user-error`.)
+
+#### Phase 2 Fixes — Inspection Defects
+
+- [x] P2-T30 Enable `ejn-mode` in master view buffers in `lisp/ejn-master.el` [smoke] (structural wiring — call `(ejn-mode 1)` at the end of `ejn--create-master-view` after `special-mode` is set, so the keymap is active in the master view.)
+- [x] P2-T31 Enable `ejn-mode` in cell buffers in `lisp/ejn-cell.el` [smoke] (structural wiring — call `(ejn-mode 1)` inside the `with-current-buffer` block of `ejn-cell-open-buffer`, after major-mode is set, so the keymap is active in every cell editing buffer.)
+- [x] P2-T32 Bind `C-c C-w` as cut (copy + kill) in `ejn.el` [smoke] (keymap — define `ejn:worksheet-cut-cell` interactive wrapper that calls `(ejn:worksheet-copy-cell t)`, bind `C-c C-w` to it in `ejn-mode-map`. Keeps `C-c M-w` → copy-only.)
+- [x] P2-T33 Implement `ejn--reindex-shadow-files` in `lisp/ejn-core.el` [tdd] (I/O + state mutation — iterates all cells in NOTEBOOK's `:cells` list, for each cell deletes its old shadow file if it exists and differs from the new path, then calls `ejn-shadow-write-cell` to write at the correct zero-padded index. Used after structural operations to prevent stale paths.)
+- [x] P2-T34 Call `ejn--reindex-shadow-files` in `ejn--make-cell` in `lisp/ejn-cell.el` [tdd] (structural wiring — after inserting a new cell at an index, all cells from that index onward shift by one. Call `ejn--reindex-shadow-files` to update their shadow file paths.)
+- [x] P2-T35 Call `ejn--reindex-shadow-files` in `ejn:worksheet-kill-cell` in `lisp/ejn-cell.el` [tdd] (structural wiring — after removing a cell, all cells below the removed index shift down by one. Call `ejn--reindex-shadow-files` to update their shadow file paths.)
+- [x] P2-T36 Call `ejn--reindex-shadow-files` in `ejn:worksheet-split-cell-at-point` in `lisp/ejn-cell.el` [tdd] (structural wiring — after splitting a cell, the new cell is inserted and all subsequent cells shift. Call `ejn--reindex-shadow-files` to update all affected shadow file paths.)
+- [x] P2-T37 Call `ejn--reindex-shadow-files` in `ejn:worksheet-merge-cell` in `lisp/ejn-cell.el` [tdd] (structural wiring — after removing the lower cell, all cells below shift down. Call `ejn--reindex-shadow-files` to update all affected shadow file paths.)
+- [x] P2-T38 Implement save round-trip tests in `test/ejn-notebook-tests.el` [tdd] (I/O — test `ejn:notebook-save-notebook-command` flushes dirty buffers, serializes to valid nbformat 4.x JSON, and re-opens with identical cell count, types, and sources.)
+- [x] P2-T39 Implement `ejn:file-open` alias test in `test/ejn-notebook-tests.el` [smoke] (structural — verify `ejn:file-open` is `fboundp` and is equivalent to `ejn-open-file`.)
 
 ## Open questions
 

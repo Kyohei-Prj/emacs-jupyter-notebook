@@ -34,6 +34,7 @@
 (require 'ejn-core)
 (require 'ejn-cell)
 (require 'ejn-master)
+(require 'ejn)
 
 ;;; Tests — P2-T8: ejn-cell-open-buffer creates buffer with source content
 
@@ -1746,5 +1747,267 @@
   "Verify both navigation commands are defined and interactive."
   (should (commandp 'ejn:worksheet-goto-next-input))
   (should (commandp 'ejn:worksheet-goto-prev-input)))
+
+;;; Tests — P2-T35: ejn:worksheet-kill-cell calls ejn--reindex-shadow-files
+
+(ert-deftest ejn-cell-p2-t35--kill-cell-reindexes-shadow-files ()
+  "Verify `ejn:worksheet-kill-cell' reindexes shadow files after removing a cell.
+
+When a middle cell is killed, all cells below it shift down by one.
+After kill, every remaining cell's shadow file path must reflect its
+current index in the cells list (cell_000.py, cell_001.py, etc.),
+and stale shadow files (like the killed cell's) must be cleaned up."
+  (let* ((nb (make-instance 'ejn-notebook
+                             :path "/tmp/test-kill-reindex.ipynb"
+                             :cells nil))
+         (cell-a (make-instance 'ejn-cell :type 'code :source "A"))
+         (cell-b (make-instance 'ejn-cell :type 'code :source "B"))
+         (cell-c (make-instance 'ejn-cell :type 'code :source "C"))
+         (cell-d (make-instance 'ejn-cell :type 'code :source "D"))
+         (master-buf nil)
+         (buf-b nil))
+    (oset nb cells (list cell-a cell-b cell-c cell-d))
+    (setq master-buf (ejn--create-master-view nb))
+    (unwind-protect
+        (progn
+          ;; Initialize all shadow files by opening buffers
+          (ejn-cell-open-buffer cell-a nb)
+          (ejn-cell-open-buffer cell-b nb)
+          (ejn-cell-open-buffer cell-c nb)
+          (ejn-cell-open-buffer cell-d nb)
+          ;; Verify initial shadow file paths: A=0, B=1, C=2, D=3
+          (should (string-match-p "cell_000\\.py" (slot-value cell-a 'shadow-file)))
+          (should (string-match-p "cell_001\\.py" (slot-value cell-b 'shadow-file)))
+          (should (string-match-p "cell_002\\.py" (slot-value cell-c 'shadow-file)))
+          (should (string-match-p "cell_003\\.py" (slot-value cell-d 'shadow-file)))
+          ;; Record the old shadow path for D before kill (cell_003.py)
+          (let ((shadow-d-old (slot-value cell-d 'shadow-file)))
+            ;; Kill cell-b (index 1)
+            (setq buf-b (get-buffer (slot-value cell-b 'buffer)))
+            (with-current-buffer buf-b
+              (ejn:worksheet-kill-cell))
+            ;; After kill, cells list is: A(0), C(1), D(2)
+            (let ((cells (slot-value nb 'cells)))
+              (should (= (length cells) 3))
+              (should (eq (nth 0 cells) cell-a))
+              (should (eq (nth 1 cells) cell-c))
+              (should (eq (nth 2 cells) cell-d)))
+            ;; Shadow files must be reindexed: A=0, C=1, D=2
+            (should (string-match-p "cell_000\\.py" (slot-value cell-a 'shadow-file)))
+            (should (string-match-p "cell_001\\.py" (slot-value cell-c 'shadow-file)))
+            (should (string-match-p "cell_002\\.py" (slot-value cell-d 'shadow-file)))
+            ;; All shadow files must exist on disk
+            (should (file-exists-p (slot-value cell-a 'shadow-file)))
+            (should (file-exists-p (slot-value cell-c 'shadow-file)))
+            (should (file-exists-p (slot-value cell-d 'shadow-file)))
+            ;; Content must match each cell's source
+            (should (string= "A"
+                             (with-temp-buffer
+                               (insert-file-contents (slot-value cell-a 'shadow-file))
+                               (buffer-string))))
+            (should (string= "C"
+                             (with-temp-buffer
+                               (insert-file-contents (slot-value cell-c 'shadow-file))
+                               (buffer-string))))
+            (should (string= "D"
+                             (with-temp-buffer
+                               (insert-file-contents (slot-value cell-d 'shadow-file))
+                               (buffer-string))))
+            ;; D's old shadow file (cell_003.py) must be cleaned up
+            ;; since no cell occupies index 3 anymore
+            (should-not (file-exists-p shadow-d-old)))
+        )
+      ;; Cleanup buffers
+      (when (buffer-live-p (slot-value cell-a 'buffer))
+        (kill-buffer (slot-value cell-a 'buffer)))
+      (when (buffer-live-p (slot-value cell-c 'buffer))
+        (kill-buffer (slot-value cell-c 'buffer)))
+      (when (buffer-live-p (slot-value cell-d 'buffer))
+        (kill-buffer (slot-value cell-d 'buffer)))
+      (kill-buffer master-buf))))
+
+;;; Tests — P2-T36: ejn:worksheet-split-cell-at-point calls ejn--reindex-shadow-files
+
+(ert-deftest ejn-cell-p2-t36--split-reindexes-shadow-files ()
+  "Verify `ejn:worksheet-split-cell-at-point' reindexes shadow files after splitting.
+
+When a middle cell is split, a new cell is inserted and all subsequent
+cells shift. After split, every cell's shadow file path must reflect its
+current index in the cells list (cell_000.py, cell_001.py, etc.), and
+all shadow files must exist with correct content."
+  (let* ((nb (make-instance 'ejn-notebook
+                             :path "/tmp/test-split-reindex.ipynb"
+                             :cells nil))
+         (cell-a (make-instance 'ejn-cell :type 'code :source "A"))
+         (cell-b (make-instance 'ejn-cell :type 'code :source "x = 1\ny = 2"))
+         (cell-c (make-instance 'ejn-cell :type 'code :source "C"))
+         (cell-d (make-instance 'ejn-cell :type 'code :source "D"))
+         (master-buf nil)
+         (buf-b nil))
+    (oset nb cells (list cell-a cell-b cell-c cell-d))
+    (setq master-buf (ejn--create-master-view nb))
+    (unwind-protect
+        (progn
+          ;; Initialize all shadow files by opening buffers
+          (ejn-cell-open-buffer cell-a nb)
+          (ejn-cell-open-buffer cell-b nb)
+          (ejn-cell-open-buffer cell-c nb)
+          (ejn-cell-open-buffer cell-d nb)
+          ;; Verify initial shadow file paths: A=0, B=1, C=2, D=3
+          (should (string-match-p "cell_000\\.py" (slot-value cell-a 'shadow-file)))
+          (should (string-match-p "cell_001\\.py" (slot-value cell-b 'shadow-file)))
+          (should (string-match-p "cell_002\\.py" (slot-value cell-c 'shadow-file)))
+          (should (string-match-p "cell_003\\.py" (slot-value cell-d 'shadow-file)))
+          ;; Record old paths for C and D before split
+          (let ((shadow-c-old (slot-value cell-c 'shadow-file))
+                (shadow-d-old (slot-value cell-d 'shadow-file)))
+            ;; Split cell-b at line 2 (between "x = 1" and "y = 2")
+            (setq buf-b (get-buffer (slot-value cell-b 'buffer)))
+            (with-current-buffer buf-b
+              (goto-char (point-min))
+              (forward-line 1)
+              (ejn:worksheet-split-cell-at-point))
+            ;; After split, cells list is: A(0), B-before(1), B-after(2), C(3), D(4)
+            (let ((cells (slot-value nb 'cells)))
+              (should (= (length cells) 5))
+              (should (eq (nth 0 cells) cell-a))
+              (should (eq (nth 1 cells) cell-b))
+              (should (eq (nth 3 cells) cell-c))
+              (should (eq (nth 4 cells) cell-d))
+              ;; All shadow files must have correct contiguous zero-padded names
+              (should (string-match-p "cell_000\\.py" (slot-value (nth 0 cells) 'shadow-file)))
+              (should (string-match-p "cell_001\\.py" (slot-value (nth 1 cells) 'shadow-file)))
+              (should (string-match-p "cell_002\\.py" (slot-value (nth 2 cells) 'shadow-file)))
+              (should (string-match-p "cell_003\\.py" (slot-value (nth 3 cells) 'shadow-file)))
+              (should (string-match-p "cell_004\\.py" (slot-value (nth 4 cells) 'shadow-file)))
+              ;; All shadow files must exist on disk
+              (should (file-exists-p (slot-value (nth 0 cells) 'shadow-file)))
+              (should (file-exists-p (slot-value (nth 1 cells) 'shadow-file)))
+              (should (file-exists-p (slot-value (nth 2 cells) 'shadow-file)))
+              (should (file-exists-p (slot-value (nth 3 cells) 'shadow-file)))
+              (should (file-exists-p (slot-value (nth 4 cells) 'shadow-file)))
+              ;; Content must match each cell's source
+              (should (string= "A"
+                               (with-temp-buffer
+                                 (insert-file-contents (slot-value (nth 0 cells) 'shadow-file))
+                                 (buffer-string))))
+              (should (string= "x = 1\n"
+                               (with-temp-buffer
+                                 (insert-file-contents (slot-value (nth 1 cells) 'shadow-file))
+                                 (buffer-string))))
+              (should (string= "y = 2"
+                               (with-temp-buffer
+                                 (insert-file-contents (slot-value (nth 2 cells) 'shadow-file))
+                                 (buffer-string))))
+              (should (string= "C"
+                               (with-temp-buffer
+                                 (insert-file-contents (slot-value (nth 3 cells) 'shadow-file))
+                                 (buffer-string))))
+              (should (string= "D"
+                               (with-temp-buffer
+                                 (insert-file-contents (slot-value (nth 4 cells) 'shadow-file))
+                                 (buffer-string))))
+              ;; Old shadow file cell_002.py must be cleaned up since
+              ;; no cell occupies index 2 after reindex (B-after is at 2)
+              ;; Actually cell_002.py IS used by B-after, so it exists.
+              ;; But C's old path (was cell_002.py) now points to cell_003.py
+              ;; and D's old path (was cell_003.py) now points to cell_004.py
+              ;; C's old shadow file content should have been "C"
+              ;; D's old shadow file was cell_003.py but now C moved to cell_003.py
+              ;; so D's old file was overwritten. Let's check cell_004.py exists.
+              (should (file-exists-p
+                       (expand-file-name "cell_004.py"
+                                         (file-name-directory shadow-d-old)))))))
+      ;; Cleanup buffers
+      (when (buffer-live-p (slot-value cell-a 'buffer))
+        (kill-buffer (slot-value cell-a 'buffer)))
+      (when (buffer-live-p (slot-value cell-b 'buffer))
+        (kill-buffer (slot-value cell-b 'buffer)))
+      (when (buffer-live-p (slot-value cell-c 'buffer))
+        (kill-buffer (slot-value cell-c 'buffer)))
+      (when (buffer-live-p (slot-value cell-d 'buffer))
+        (kill-buffer (slot-value cell-d 'buffer)))
+      ;; Kill new cell's buffer if open
+      (let ((cells (slot-value nb 'cells)))
+        (when (nth 2 cells)
+          (let ((new-buf (slot-value (nth 2 cells) 'buffer)))
+            (when (buffer-live-p new-buf) (kill-buffer new-buf)))))
+      (kill-buffer master-buf))))
+
+;;; Tests — P2-T37: ejn:worksheet-merge-cell calls ejn--reindex-shadow-files
+
+(ert-deftest ejn-cell-p2-t37--merge-reindexes-shadow-files ()
+  "Verify merge-cell reindexes shadow files after removing the lower cell.
+
+When cells A, B, C, D exist at indices 0,1,2,3 and B is merged with C
+(from B's buffer), the cells list becomes: A(0), merged-BC(1), D(2).
+Cell D shifts from index 3 to index 2, so its shadow file must be
+reindexed from cell_003.py to cell_002.py."
+  (let* ((nb (make-instance 'ejn-notebook
+                             :path "/tmp/test-merge-reindex.ipynb"
+                             :cells nil))
+         (cell-a (make-instance 'ejn-cell :type 'code :source "A"))
+         (cell-b (make-instance 'ejn-cell :type 'code :source "B"))
+         (cell-c (make-instance 'ejn-cell :type 'code :source "C"))
+         (cell-d (make-instance 'ejn-cell :type 'code :source "D"))
+         (master-buf nil)
+         (buf-b nil))
+    (oset nb cells (list cell-a cell-b cell-c cell-d))
+    (setq master-buf (ejn--create-master-view nb))
+    (unwind-protect
+        (progn
+          ;; Initialize all shadow files by opening buffers
+          (ejn-cell-open-buffer cell-a nb)
+          (ejn-cell-open-buffer cell-b nb)
+          (ejn-cell-open-buffer cell-c nb)
+          (ejn-cell-open-buffer cell-d nb)
+          ;; Verify initial shadow file paths
+          (should (string-match-p "cell_000\\.py" (slot-value cell-a 'shadow-file)))
+          (should (string-match-p "cell_001\\.py" (slot-value cell-b 'shadow-file)))
+          (should (string-match-p "cell_002\\.py" (slot-value cell-c 'shadow-file)))
+          (should (string-match-p "cell_003\\.py" (slot-value cell-d 'shadow-file)))
+          ;; Record D's old shadow path before merge
+          (let ((shadow-d-old (slot-value cell-d 'shadow-file)))
+            ;; Merge cell-b with cell-c (from B's buffer)
+            (setq buf-b (get-buffer (slot-value cell-b 'buffer)))
+            (with-current-buffer buf-b
+              (ejn:worksheet-merge-cell))
+            ;; After merge, cells list is: A(0), merged-BC(1), D(2)
+            (let ((cells (slot-value nb 'cells)))
+              (should (= (length cells) 3))
+              (should (eq (nth 0 cells) cell-a))
+              (should (eq (nth 1 cells) cell-b))
+              (should (eq (nth 2 cells) cell-d)))
+            ;; Shadow files must be reindexed: A=0, BC=1, D=2
+            (should (string-match-p "cell_000\\.py" (slot-value cell-a 'shadow-file)))
+            (should (string-match-p "cell_001\\.py" (slot-value cell-b 'shadow-file)))
+            (should (string-match-p "cell_002\\.py" (slot-value cell-d 'shadow-file)))
+            ;; All shadow files must exist on disk
+            (should (file-exists-p (slot-value cell-a 'shadow-file)))
+            (should (file-exists-p (slot-value cell-b 'shadow-file)))
+            (should (file-exists-p (slot-value cell-d 'shadow-file)))
+            ;; Content must match each cell's source
+            (should (string= "A"
+                             (with-temp-buffer
+                               (insert-file-contents (slot-value cell-a 'shadow-file))
+                               (buffer-string))))
+            (should (string= "B\n\nC"
+                             (with-temp-buffer
+                               (insert-file-contents (slot-value cell-b 'shadow-file))
+                               (buffer-string))))
+            (should (string= "D"
+                             (with-temp-buffer
+                               (insert-file-contents (slot-value cell-d 'shadow-file))
+                               (buffer-string))))
+            ;; D's old shadow file must be cleaned up
+            (should-not (file-exists-p shadow-d-old))))
+       ;; Cleanup buffers
+       (when (buffer-live-p (slot-value cell-a 'buffer))
+         (kill-buffer (slot-value cell-a 'buffer)))
+       (when (buffer-live-p (slot-value cell-b 'buffer))
+         (kill-buffer (slot-value cell-b 'buffer)))
+       (when (buffer-live-p (slot-value cell-d 'buffer))
+         (kill-buffer (slot-value cell-d 'buffer)))
+       (kill-buffer master-buf))))
 
 ;;; ejn-cell-tests.el ends here

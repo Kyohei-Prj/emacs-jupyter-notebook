@@ -33,6 +33,8 @@
 (require 'cl-lib)
 (require 'ejn-core)
 (declare-function markdown-mode 'markdown-mode ())
+(declare-function ejn-mode 'ejn (arg))
+(declare-function ejn--reindex-shadow-files 'ejn-core (notebook))
 
 ;; Buffer-local variable holding the ejn-cell for the current cell buffer
 (defvar ejn--cell nil
@@ -95,6 +97,7 @@ file via `ejn-shadow-write-cell' (when NOTEBOOK is given), update
                ((command-error void-function)
                 (fundamental-mode))))
             (raw (fundamental-mode)))
+          (ejn-mode 1)
           (set (make-local-variable 'ejn--cell) cell)
           (when notebook
             (set (make-local-variable 'ejn--notebook) notebook))
@@ -130,6 +133,7 @@ Returns the new cell."
          (after (cl-subseq cells index)))
     (oset notebook cells (append before (list new-cell) after))
     (ejn-shadow-write-cell new-cell notebook)
+    (ejn--reindex-shadow-files notebook)
     (when (fboundp 'ejn--refresh-master-cells)
       (with-current-buffer (slot-value notebook 'master-buffer)
         (ejn--refresh-master-cells)))
@@ -239,6 +243,7 @@ the master view."
 Removes the cell at point from the notebook's `:cells' list.
 If the cell is `:dirty', prompts for confirmation via `y-or-n-p'.
 Kills the cell's buffer if live, removes its shadow file from disk,
+reindexes shadow files for remaining cells via `ejn--reindex-shadow-files',
 and refreshes the master view.
 Signals an error if there is no cell at point."
   (interactive)
@@ -263,6 +268,8 @@ Signals an error if there is no cell at point."
       ;; Remove from :cells list
       (let ((cells (slot-value notebook 'cells)))
         (oset notebook cells (delq current-cell cells)))
+      ;; Reindex shadow files so remaining cells get correct paths
+      (ejn--reindex-shadow-files notebook)
       ;; Refresh master view
       (when (fboundp 'ejn--refresh-master-cells)
         (with-current-buffer (slot-value notebook 'master-buffer)
@@ -293,6 +300,9 @@ Both cells share the original `:type'."
                                     (1+ current-index)
                                     cell-type
                                     after)))
+      ;; Reindex all shadow files — split inserts a new cell and shifts
+      ;; all subsequent cells, so every shadow file path must be updated
+      (ejn--reindex-shadow-files notebook)
       ;; Refresh current cell buffer to reflect before part
       (ejn-cell-refresh-buffer current-cell)
       ;; Open new cell's buffer
@@ -305,8 +315,8 @@ Concatenates the current cell's `:source` with the cell below's
 `:source` using a blank line (\"\\n\\n\") as separator. Updates the
 current cell's `:source`, kills the lower cell's buffer if live,
 removes the lower cell's shadow file, removes the lower cell from
-the notebook's `:cells` list, rewrites the current cell's shadow
-file, and refreshes the master view.
+the notebook's `:cells` list, reindexes all shadow files via
+`ejn--reindex-shadow-files`, and refreshes the master view.
 Signals an error if the current cell is the last cell in the notebook."
   (interactive)
   (let* ((notebook (ejn-notebook-of-buffer))
@@ -332,8 +342,8 @@ Signals an error if the current cell is the last cell in the notebook."
         (delete-file lower-shadow))
       ;; Remove lower cell from :cells list
       (oset notebook cells (delq lower-cell cells))
-      ;; Rewrite current cell's shadow file
-      (ejn-shadow-write-cell current-cell notebook)
+      ;; Reindex all shadow files so remaining cells get correct paths
+      (ejn--reindex-shadow-files notebook)
       ;; Refresh master view
       (when (fboundp 'ejn--refresh-master-cells)
         (with-current-buffer (slot-value notebook 'master-buffer)

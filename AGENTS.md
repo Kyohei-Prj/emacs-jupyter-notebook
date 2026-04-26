@@ -27,6 +27,30 @@ ejn/
 
 ---
 
+### [P2-T38] JSON :null symbol fails EIEIO type constraints on round-trip
+
+**Date:** 2026-04-27
+**Task:** Implement save round-trip tests in `test/ejn-notebook-tests.el`
+
+**Struggle:**
+Both round-trip tests failed at Step 4 with `(invalid-slot-type ejn-notebook metadata (or list hash-table null) :null)` and `(invalid-slot-type ejn-cell exec-count (or integer null) :null)`. The tests save a notebook to `.ipynb`, then call `ejn-notebook-load` to re-open it. The save produces valid JSON, but loading fails because `json-parse-buffer` represents JSON `null` as the symbol `:null`, and EIEIO's type constraints don't accept `:null`.
+
+**Root cause:**
+Emacs's `json-parse-buffer` converts JSON `null` to the symbol `:null`, not to Emacs `nil`. When `ejn-notebook-save` writes a notebook with `nil` metadata/exec-count, these become `null` in the JSON file. On reload, `json-parse-buffer` returns `:null`, which EIEIO's type constraint `(or list hash-table null)` (note: `null` means the type, not the symbol `nil`) rejects, because `:null` is a symbol, not `nil`.
+
+**Resolution:**
+Added `ejn--json-null-to-nil` helper function in `lisp/ejn-core.el`:
+```elisp
+(defun ejn--json-null-to-nil (value)
+  (if (eq value :null) nil value))
+```
+Applied it to `metadata` in `ejn-notebook-load` and to `source`, `outputs`, `exec-count` in `ejn--parse-cell-data`.
+
+**Pattern:** `json-null-symbol-eieio-type-mismatch`
+When loading JSON into EIEIO objects via `make-instance`, always normalize `:null` (from `json-parse-buffer`) to `nil` before passing as slot initargs. EIEIO type constraints use `null` to mean `nil`, not the symbol `:null`.
+
+---
+
 ### [P2-T21] let vs let* — later bindings cannot reference earlier ones in let
 
 **Date:** 2026-04-26

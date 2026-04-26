@@ -139,6 +139,14 @@
   (interactive)
   (ejn--stub-error))
 
+(defun ejn:worksheet-cut-cell ()
+  "Cut the current cell (copy to kill ring and kill).
+
+Wraps `ejn:worksheet-copy-cell' with the `kill' flag, so the cell
+is copied to the notebook's kill ring and then removed."
+  (interactive)
+  (ejn:worksheet-copy-cell t))
+
 ;;;###autoload
 (defun ejn-open-file ()
   "Open a Jupyter Notebook .ipynb file.
@@ -179,6 +187,7 @@ Returns nil."
     (define-key map (kbd "C-c RET") #'ejn:worksheet-merge-cell)
 
     ;; Cell copy and yank (keymap.md)
+    (define-key map (kbd "C-c C-w") #'ejn:worksheet-cut-cell)
     (define-key map (kbd "C-c M-w") #'ejn:worksheet-copy-cell)
     (define-key map (kbd "C-c C-y") #'ejn:worksheet-yank-cell)
 
