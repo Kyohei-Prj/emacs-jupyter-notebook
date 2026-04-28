@@ -104,6 +104,34 @@ T21 → T23
 
 Legend: T = P3-T. Tasks T14, T16, T24 have no ordering constraints beyond loading after their dependencies.
 
+## Current phase
+
+Phase 3 — LSP Integration (24 tasks, 24 done)
+- [x] P3-T17 [smoke]
+- [x] P3-T18 [smoke]
+- [x] P3-T19 [tdd]
+- [x] P3-T20 [tdd]
+- [x] P3-T21 [smoke]
+- [x] P3-T22 [smoke]
+- [x] P3-T23 [smoke]
+- [x] P3-T24 [smoke]
+- [x] P3-T16 [smoke]
+- [x] P3-T01 [scaffold]
+- [x] P3-T02 [tdd]
+- [x] P3-T03 [tdd]
+- [x] P3-T04 [tdd]
+- [x] P3-T05 [tdd]
+- [x] P3-T06 [tdd]
+- [x] P3-T07 [smoke]
+- [x] P3-T08 [tdd]
+- [x] P3-T09 [tdd]
+- [x] P3-T10 [tdd]
+- [x] P3-T11 [tdd]
+- [x] P3-T12 [tdd]
+- [x] P3-T13 [tdd]
+- [x] P3-T14 [smoke]
+- [x] P3-T15 [tdd]
+
 ## Task list
 
 ### Phase 3 — LSP Integration
@@ -126,16 +154,16 @@ Legend: T = P3-T. Tasks T14, T16, T24 have no ordering constraints beyond loadin
 
 #### 3.3 LSP Virtual Buffer Registration
 
-- [ ] P3-T11 Implement `ejn-lsp--register-virtual-buffer` — calls `lsp-virtual-buffer-register` with `:real-buffer`, `:virtual-file` (composite path), and `:offset-line` (from `ejn-lsp-pos-to-composite`); sets `ejn--cell-lsp-attached-p` to `t` [tdd] (I/O — calls external API; state mutation — buffer-local flag)
-- [ ] P3-T12 Implement `ejn-lsp--register-fallback` — for older lsp-mode without `lsp-virtual-buffer-register`: generates composite, calls `lsp` on the composite path, displays a warning message about limited position translation [tdd] (conditional — checks `(fboundp 'lsp-virtual-buffer-register)`; I/O — file generation + LSP invocation; error handling — message on failure)
-- [ ] P3-T13 Implement `ejn-lsp-register-cell` — checks `ejn--cell-lsp-attached-p`; if not set, dispatches to `ejn-lsp--register-virtual-buffer` (preferred) or `ejn-lsp--register-fallback` [tdd] (conditional — idempotency guard + API availability check; state mutation — flag setting)
-- [ ] P3-T14 Implement `ejn-lsp-unregister-cell` — calls `lsp-virtual-buffer-unregister` if available and the cell was registered, or `lsp-kill-workspace` for fallback; clears `ejn--cell-lsp-attached-p` [smoke] (structural — calls external cleanup API; no conditional logic beyond API availability)
+- [x] P3-T11 Implement `ejn-lsp--register-virtual-buffer` — calls `lsp-virtual-buffer-register` with `:real-buffer`, `:virtual-file` (composite path), and `:offset-line` (from `ejn-lsp-pos-to-composite`); sets `ejn--cell-lsp-attached-p` to `t` [tdd] (I/O — calls external API; state mutation — buffer-local flag)
+- [x] P3-T12 Implement `ejn-lsp--register-fallback` — for older lsp-mode without `lsp-virtual-buffer-register`: generates composite, calls `lsp` on the composite path, displays a warning message about limited position translation [tdd] (conditional — checks `(fboundp 'lsp-virtual-buffer-register)`; I/O — file generation + LSP invocation; error handling — message on failure)
+- [x] P3-T13 Implement `ejn-lsp-register-cell` — checks `ejn--cell-lsp-attached-p`; if not set, dispatches to `ejn-lsp--register-virtual-buffer` (preferred) or `ejn-lsp--register-fallback` [tdd] (conditional — idempotency guard + API availability check; state mutation — flag setting)
+- [x] P3-T14 Implement `ejn-lsp-unregister-cell` — calls `lsp-virtual-buffer-unregister` if available and the cell was registered, or `lsp-kill-workspace` for fallback; clears `ejn--cell-lsp-attached-p` [smoke] (structural — calls external cleanup API; no conditional logic beyond API availability)
 
 #### 3.4 LSP Lifecycle Management
 
-- [ ] P3-T15 Implement `ejn-lsp-setup-cell-buffer` — in the cell's buffer: sets `default-directory` to notebook directory, calls `ejn-lsp-generate-composite` if composite doesn't exist, calls `ejn-lsp-register-cell`; guarded by `ejn--cell-lsp-attached-p` [tdd] (conditional — idempotency check + file existence; I/O — composite generation; state mutation — buffer-local directory and flag)
-- [ ] P3-T16 Stub `ejn-kernel-complete` — signals `user-error` with message `"Kernel completion requires Phase 4"` [scaffold] (stub function — no logic, signals immediately)
-- [ ] P3-T17 Add `ejn-lsp-setup-cell-buffer` call to `ejn-cell-open-buffer` in `ejn-cell.el` [smoke] (structural wiring — inserts call after shadow file write; uses `declare-function` for forward reference to `ejn-lsp.el`)
+- [x] P3-T15 Implement `ejn-lsp-setup-cell-buffer` — in the cell's buffer: sets `default-directory` to notebook directory, calls `ejn-lsp-generate-composite` if composite doesn't exist, calls `ejn-lsp-register-cell`; guarded by `ejn--cell-lsp-attached-p` [tdd] (conditional — idempotency check + file existence; I/O — composite generation; state mutation — buffer-local directory and flag)
+- [x] P3-T16 Stub `ejn-kernel-complete` — signals `user-error` with message `"Kernel completion requires Phase 4"` [smoke] (stub function — no logic, signals immediately)
+- [x] P3-T17 Add `ejn-lsp-setup-cell-buffer` call to `ejn-cell-open-buffer` in `ejn-cell.el` [smoke] (structural wiring — inserts call after shadow file write; uses `declare-function` for forward reference to `ejn-lsp.el`)
 
 #### 3.5 Completion Wiring
 

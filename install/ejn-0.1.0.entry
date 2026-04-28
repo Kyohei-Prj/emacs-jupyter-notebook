@@ -1,0 +1,5 @@
+(ejn
+ . [(0 1 0) ((emacs (24 1))) "Emacs Jupyter Notebook" tar
+    ((:url
+      . "https://github.com/emacs-jupyter-notebook/emacs-jupyter-notebook")
+     (:keywords "jupyter" "notebook" "tools" "convenience"))])
