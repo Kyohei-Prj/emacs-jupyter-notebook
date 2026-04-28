@@ -20,6 +20,7 @@ ejn/
 ### Tips
 - Use `elisp-dev` to refer to Emacs Lisp (elisp) document.
 - Write one function/code block at a time. Do not write all at once.
+- Official `jupyter.el` repository is cloned under `/home/kyohei/Projects/jupyter` as a reference.
 
 ## TDD Lessons
 
