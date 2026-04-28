@@ -27,6 +27,69 @@ ejn/
 
 ---
 
+### [P3-T11] Stub function must be defined before dependent module loads
+
+**Date:** 2026-04-27
+**Task:** Implement `ejn-lsp--register-virtual-buffer` in `lisp/ejn-lsp.el`
+
+**Struggle:**
+The first test (verifying `lsp-virtual-buffer-register` is called with correct args) failed at Step 4 with `(void-function lsp-virtual-buffer-register)`, despite defining a stub `defun lsp-virtual-buffer-register` in the test file. The stub was defined in the test file AFTER `require 'ejn` and `require 'ejn-lsp`. Various approaches failed: `cl-letf` shadowing, `advice-add`, global capture variables, and `defsubst` stubs.
+
+**Root cause:**
+The `lsp-virtual-buffer-register` function doesn't exist in the installed lsp-mode version (it's not in lsp-mode 20260424). The test file requires `ejn` first (which transitively loads `ejn-lsp`), and `ejn-lsp.el` contains `(declare-function lsp-virtual-buffer-register ... "lsp-virtual-buffer")`. When `ejn-lsp.el` loads, it resolves `lsp-virtual-buffer-register` via this declaration. If the library `"lsp-virtual-buffer"` isn't loaded and the symbol isn't bound, the function reference is void. Defining the stub AFTER the requires means the declaration was already processed without finding the function.
+
+The `cl-letf` approach failed because `ejn-lsp.el` has `lexical-binding: t`, causing function calls to use lexical lookup that bypasses dynamic shadowing. The `defsubst` stub was inlined at compile time and couldn't be intercepted.
+
+**Resolution:**
+Moved the stub `defun lsp-virtual-buffer-register` definition to BEFORE the `(require 'ejn)` call in the test file, along with a `defvar ejn-lsp--test-captured-args` for capturing arguments. When `ejn-lsp.el` loads, the `declare-function` finds the pre-defined stub and the function reference resolves correctly.
+
+```elisp
+;; Stub defined BEFORE require 'ejn / require 'ejn-lsp
+(defvar ejn-lsp--test-captured-args nil
+  "Test variable: args passed to stub lsp-virtual-buffer-register.")
+
+(defun lsp-virtual-buffer-register (&rest args)
+  "Stub for lsp-virtual-buffer-register that captures arguments for testing."
+  (setq ejn-lsp--test-captured-args args)
+  nil)
+
+(require 'ejn)
+(require 'ejn-lsp)
+```
+
+**Pattern:** `stub-before-load-for-declare-function`
+When a module uses `declare-function` to forward-declare an external function, define any test stub for that function BEFORE requiring the module, so `declare-function` resolves to the stub rather than a missing library.
+
+---
+
+### [P3-T09] cl-return inside cl-loop with nested let fails under lexical-binding
+
+**Date:** 2026-04-27
+**Task:** Implement `ejn-lsp-pos-from-composite` in `lisp/ejn-lsp.el`
+
+**Struggle:**
+All P3-T09 content-mapping tests failed with `(no-catch --cl-block-ejn-lsp-pos-from-composite-- nil)` when using `cl-return-from`, and later returned `nil` (instead of `(cell . cell-line)`) when using `cl-return` inside a `cl-loop` with nested `let` bindings. The function was correctly defined but `cl-return` silently failed to exit the loop.
+
+**Root cause:**
+In Emacs Lisp with `lexical-binding: t`, `cl-return` inside a `cl-loop` that contains nested `let`/`let*` bindings may not reliably propagate the return value. The `cl-return` macro generates a `throw` to a `catch` block at the `cl-loop` level, but lexical scoping can interfere with the control flow when the return is nested inside `let` bindings within the loop body.
+
+**Resolution:**
+Replaced `cl-loop` + `cl-return` with `catch`/`throw` + `dolist`:
+```elisp
+(catch 'tag
+  (dolist (cell code-cells)
+    (let* ((source ...) ...)
+      (when match-condition
+        (throw 'tag result))))
+  nil)
+```
+This pattern works reliably regardless of nesting depth and lexical binding settings.
+
+**Pattern:** `cl-return-lexical-binding-reliability`
+When `cl-return` inside `cl-loop` silently fails under lexical-binding (returns wrong value or signals no-catch error), replace with `catch`/`throw` + `dolist`. `catch`/`throw` is the canonical Emacs Lisp non-local exit pattern and works reliably in all scoping contexts.
+
+---
+
 ### [P2-T38] JSON :null symbol fails EIEIO type constraints on round-trip
 
 **Date:** 2026-04-27

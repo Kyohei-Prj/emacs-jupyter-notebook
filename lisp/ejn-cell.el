@@ -35,6 +35,9 @@
 (declare-function markdown-mode 'markdown-mode ())
 (declare-function ejn-mode 'ejn (arg))
 (declare-function ejn--reindex-shadow-files 'ejn-core (notebook))
+(declare-function ejn-lsp--debounced-composite-regen 'ejn-lsp (start end pre-change-length))
+(declare-function ejn-lsp-setup-cell-buffer 'ejn-lsp (cell notebook))
+(declare-function ejn-lsp-unregister-cell 'ejn-lsp (cell))
 
 ;; Buffer-local variable holding the ejn-cell for the current cell buffer
 (defvar ejn--cell nil
@@ -48,8 +51,12 @@ PRE-CHANGE-LENGTH (all unused here)."
     (oset ejn--cell dirty t)))
 
 (defun ejn--cell-kill-buffer-hook ()
-  "Remove `ejn--cell-after-change-hook' from `after-change-functions'.
-Called by `kill-buffer-hook' to clean up when the cell buffer is killed."
+  "Clean up when the cell buffer is killed.
+Remove `ejn--cell-after-change-hook' from `after-change-functions',
+and unregister the cell from LSP via `ejn-lsp-unregister-cell'."
+  (when (and (boundp 'ejn--cell) ejn--cell)
+    (when (fboundp 'ejn-lsp-unregister-cell)
+      (ejn-lsp-unregister-cell ejn--cell)))
   (remove-hook 'after-change-functions #'ejn--cell-after-change-hook 'local))
 
 (defun ejn-cell-refresh-buffer (cell)
@@ -103,11 +110,16 @@ file via `ejn-shadow-write-cell' (when NOTEBOOK is given), update
             (set (make-local-variable 'ejn--notebook) notebook))
           (add-hook 'after-change-functions
                     #'ejn--cell-after-change-hook 'append 'local)
+          (when (fboundp 'ejn-lsp--debounced-composite-regen)
+            (add-hook 'after-change-functions
+                      #'ejn-lsp--debounced-composite-regen 'append 'local))
           (add-hook 'kill-buffer-hook
                     #'ejn--cell-kill-buffer-hook 'append 'local))
         (when notebook
           (ejn-shadow-write-cell cell notebook))
         (oset cell buffer new-buf)
+        (when (and notebook (fboundp 'ejn-lsp-setup-cell-buffer))
+          (ejn-lsp-setup-cell-buffer cell notebook))
         new-buf))))
 
 (defun ejn--record-structural-change (_notebook _operation _data)

@@ -29,6 +29,9 @@
 ;;; Code:
 
 (require 'cl-lib)
+
+(declare-function ejn:pytools-jump-back 'ejn-lsp ())
+
 (require 'ejn-core)
 (require 'ejn-cell)
 (require 'ejn-master)
@@ -196,6 +199,9 @@ Returns nil."
     (define-key map (kbd "C-x C-w") #'ejn:notebook-rename-command)
     (define-key map (kbd "C-c C-f") #'ejn:file-open)
 
+    ;; M-. — jump to definition (pytools compatibility)
+    (define-key map (kbd "M-.") #'ejn:pytools-jump-to-source)
+
     ;; M-<down> / M-<up> — pytools compatibility, bound to `ignore`
     (define-key map [M-down] #'ejn:pytools-not-move-cell-down-km)
     (define-key map [M-up] #'ejn:pytools-not-move-cell-up-km)
@@ -219,6 +225,9 @@ Returns nil."
     (define-key map (kbd "C-c C-/") #'ejn:notebook-scratchsheet-open)
     (define-key map (kbd "C-c C-;") #'ejn:shared-output-show-code-cell-at-point)
     (define-key map (kbd "C-c C-x C-r") #'ejn:notebook-restart-session)
+
+    ;; LSP navigation (keymap.md)
+    (define-key map (kbd "M-,") #'ejn:pytools-jump-back)
     map)
   "Keymap for `ejn-mode'.")
 
