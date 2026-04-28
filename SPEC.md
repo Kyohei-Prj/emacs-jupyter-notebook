@@ -104,53 +104,25 @@ T21 → T23
 
 Legend: T = P3-T. Tasks T14, T16, T24 have no ordering constraints beyond loading after their dependencies.
 
-## Current phase
-
-Phase 3 — LSP Integration (24 tasks, 24 done)
-- [x] P3-T17 [smoke]
-- [x] P3-T18 [smoke]
-- [x] P3-T19 [tdd]
-- [x] P3-T20 [tdd]
-- [x] P3-T21 [smoke]
-- [x] P3-T22 [smoke]
-- [x] P3-T23 [smoke]
-- [x] P3-T24 [smoke]
-- [x] P3-T16 [smoke]
-- [x] P3-T01 [scaffold]
-- [x] P3-T02 [tdd]
-- [x] P3-T03 [tdd]
-- [x] P3-T04 [tdd]
-- [x] P3-T05 [tdd]
-- [x] P3-T06 [tdd]
-- [x] P3-T07 [smoke]
-- [x] P3-T08 [tdd]
-- [x] P3-T09 [tdd]
-- [x] P3-T10 [tdd]
-- [x] P3-T11 [tdd]
-- [x] P3-T12 [tdd]
-- [x] P3-T13 [tdd]
-- [x] P3-T14 [smoke]
-- [x] P3-T15 [tdd]
-
 ## Task list
 
 ### Phase 3 — LSP Integration
 
 #### 3.1 Composite Shadow File — helpers and generation
 
-- [ ] P3-T01 Add `lsp-mode` dependency to Eask [scaffold] (static dependency declaration — no code behaviour)
-- [ ] P3-T02 Implement `ejn-lsp-sentinel-line` — returns `"# ejn:cell:N\n"` for a given 0-based code cell index [tdd] (pure function — string formatting)
-- [ ] P3-T03 Implement `ejn-lsp-cell-line-count` — returns the number of lines in a source string, counting the final line even without trailing newline [tdd] (pure function — string parsing with edge case for empty/non-terminated strings)
-- [ ] P3-T04 Implement `ejn-lsp-composite-path` — returns the absolute path to `composite.py` in the notebook's cache directory [tdd] (pure function — path construction from notebook :path)
-- [ ] P3-T05 Implement `ejn-lsp-generate-composite` — iterates notebook code cells, concatenates sources with sentinel lines into `composite.py`, writes atomically via `.tmp` + `rename-file` [tdd] (I/O — filesystem write; conditional — skip non-code cells; data transformation — concatenation)
-- [ ] P3-T06 Implement `ejn-lsp--debounced-composite-regen` — callback that cancels any pending timer, then schedules `ejn-lsp-generate-composite` on a 0.3s idle timer; stores timer ID in a notebook-local variable [tdd] (state mutation — timer ID storage; conditional — pending timer cancellation)
-- [ ] P3-T07 Add `ejn-lsp--debounced-composite-regen` call to `ejn--cell-after-change-hook` in `ejn-cell.el` [smoke] (structural wiring — appends call to existing hook; uses `declare-function` for forward reference to `ejn-lsp.el`)
+- [x] P3-T01 Add `lsp-mode` dependency to Eask [scaffold] (static dependency declaration — no code behaviour)
+- [x] P3-T02 Implement `ejn-lsp-sentinel-line` — returns `"# ejn:cell:N\n"` for a given 0-based code cell index [tdd] (pure function — string formatting)
+- [x] P3-T03 Implement `ejn-lsp-cell-line-count` — returns the number of lines in a source string, counting the final line even without trailing newline [tdd] (pure function — string parsing with edge case for empty/non-terminated strings)
+- [x] P3-T04 Implement `ejn-lsp-composite-path` — returns the absolute path to `composite.py` in the notebook's cache directory [tdd] (pure function — path construction from notebook :path)
+- [x] P3-T05 Implement `ejn-lsp-generate-composite` — iterates notebook code cells, concatenates sources with sentinel lines into `composite.py`, writes atomically via `.tmp` + `rename-file` [tdd] (I/O — filesystem write; conditional — skip non-code cells; data transformation — concatenation)
+- [x] P3-T06 Implement `ejn-lsp--debounced-composite-regen` — callback that cancels any pending timer, then schedules `ejn-lsp-generate-composite` on a 0.3s idle timer; stores timer ID in a notebook-local variable [tdd] (state mutation — timer ID storage; conditional — pending timer cancellation)
+- [x] P3-T07 Add `ejn-lsp--debounced-composite-regen` call to `ejn--cell-after-change-hook` in `ejn-cell.el` [smoke] (structural wiring — appends call to existing hook; uses `declare-function` for forward reference to `ejn-lsp.el`)
 
 #### 3.2 Cursor Position Translation
 
-- [ ] P3-T08 Implement `ejn-lsp-pos-to-composite` — given a cell, notebook, 0-based buffer line and column, returns `(composite-line . composite-col)` by summing preceding code cell line counts plus sentinel lines [tdd] (algorithm — offset accumulation; input validation — boundary checks for line/column bounds)
-- [ ] P3-T09 Implement `ejn-lsp-pos-from-composite` — given a notebook and a 0-based composite line, returns `(cell . cell-line)` by scanning the code cell offset table; returns `nil` for sentinel/separator lines [tdd] (algorithm — linear scan with boundary detection; conditional — sentinel vs content line)
-- [ ] P3-T10 Implement `ejn-lsp-cell-code-index` — returns the 0-based index of a cell among code-only cells in the notebook; returns `-1` for non-code cells [tdd] (data transformation — filtered list position; conditional — type guard on cell type)
+- [x] P3-T08 Implement `ejn-lsp-pos-to-composite` — given a cell, notebook, 0-based buffer line and column, returns `(composite-line . composite-col)` by summing preceding code cell line counts plus sentinel lines [tdd] (algorithm — offset accumulation; input validation — boundary checks for line/column bounds)
+- [x] P3-T09 Implement `ejn-lsp-pos-from-composite` — given a notebook and a 0-based composite line, returns `(cell . cell-line)` by scanning the code cell offset table; returns `nil` for sentinel/separator lines [tdd] (algorithm — linear scan with boundary detection; conditional — sentinel vs content line)
+- [x] P3-T10 Implement `ejn-lsp-cell-code-index` — returns the 0-based index of a cell among code-only cells in the notebook; returns `-1` for non-code cells [tdd] (data transformation — filtered list position; conditional — type guard on cell type)
 
 #### 3.3 LSP Virtual Buffer Registration
 
@@ -167,16 +139,16 @@ Phase 3 — LSP Integration (24 tasks, 24 done)
 
 #### 3.5 Completion Wiring
 
-- [ ] P3-T18 Add LSP completion to `completion-at-point-functions` in cell buffers via `ejn-lsp-setup-cell-buffer` [smoke] (structural wiring — pushes `lsp-completion-at-point` onto buffer-local list)
+- [x] P3-T18 Add LSP completion to `completion-at-point-functions` in cell buffers via `ejn-lsp-setup-cell-buffer` [smoke] (structural wiring — pushes `lsp-completion-at-point` onto buffer-local list)
 
 #### 3.6 Source Navigation Keybindings
 
-- [ ] P3-T19 Implement `ejn:pytools-jump-to-source` — translates current point to composite position, calls `lsp-find-definition`, translates the target position back via `ejn-lsp-pos-from-composite`, and switches to the target cell's buffer at the resolved line [tdd] (position transformation — buffer→composite→buffer; error handling — nil xref result; conditional — target cell buffer detection)
-- [ ] P3-T20 Implement `ejn-lsp--translate-xref-to-cell` — given an xref object and notebook, extracts the target buffer/file and line, maps composite line to cell buffer via `ejn-lsp-pos-from-composite`, returns the target cell buffer and position [tdd] (data transformation — xref parsing; conditional — composite vs other file detection)
-- [ ] P3-T21 Implement `ejn:pytools-jump-back` — delegates to `xref-pop-marker-stack` [smoke] (structural delegation — single function call, no logic)
-- [ ] P3-T22 Wire `M-.` → `ejn:pytools-jump-to-source` into `ejn-mode-map` in `ejn.el` [smoke] (structural wiring — single `define-key` call)
-- [ ] P3-T23 Wire `M-,` → `ejn:pytools-jump-back` into `ejn-mode-map` in `ejn.el` [smoke] (structural wiring — single `define-key` call)
-- [ ] P3-T24 Update `ejn--cell-kill-buffer-hook` in `ejn-cell.el` to call `ejn-lsp-unregister-cell` [smoke] (structural wiring — adds cleanup call to existing hook; uses `declare-function` for forward reference)
+- [x] P3-T19 Implement `ejn:pytools-jump-to-source` — translates current point to composite position, calls `lsp-find-definition`, translates the target position back via `ejn-lsp-pos-from-composite`, and switches to the target cell's buffer at the resolved line [tdd] (position transformation — buffer→composite→buffer; error handling — nil xref result; conditional — target cell buffer detection)
+- [x] P3-T20 Implement `ejn-lsp--translate-xref-to-cell` — given an xref object and notebook, extracts the target buffer/file and line, maps composite line to cell buffer via `ejn-lsp-pos-from-composite`, returns the target cell buffer and position [tdd] (data transformation — xref parsing; conditional — composite vs other file detection)
+- [x] P3-T21 Implement `ejn:pytools-jump-back` — delegates to `xref-pop-marker-stack` [smoke] (structural delegation — single function call, no logic)
+- [x] P3-T22 Wire `M-.` → `ejn:pytools-jump-to-source` into `ejn-mode-map` in `ejn.el` [smoke] (structural wiring — single `define-key` call)
+- [x] P3-T23 Wire `M-,` → `ejn:pytools-jump-back` into `ejn-mode-map` in `ejn.el` [smoke] (structural wiring — single `define-key` call)
+- [x] P3-T24 Update `ejn--cell-kill-buffer-hook` in `ejn-cell.el` to call `ejn-lsp-unregister-cell` [smoke] (structural wiring — adds cleanup call to existing hook; uses `declare-function` for forward reference)
 
 ## Deliverable
 
