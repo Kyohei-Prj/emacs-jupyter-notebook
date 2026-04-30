@@ -39,7 +39,7 @@ The `Eask` file is the single source of truth for all runtime and development de
 (depends-on "dash"     "2.19.0")
 (depends-on "s"        "1.13.0")
 (depends-on "f"        "0.20.0")
-(depends-on "jupyter"  "0.8.0")
+(depends-on "jupyter"         )
 (depends-on "polymode" "0.2.2")
 
 (development

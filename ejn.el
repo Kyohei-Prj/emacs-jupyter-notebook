@@ -24,7 +24,7 @@
 ;; Emacs Jupyter Notebook - scaffolding only.
 
 ;; URL: https://github.com/emacs-jupyter-notebook/emacs-jupyter-notebook
-;; Package-Requires: ((emacs "24.1"))
+;; Package-Requires: ((emacs "30.1"))
 
 ;;; Code:
 
@@ -53,49 +53,213 @@
 
 ;; Phase 4 stubs — signal `user-error` when called
 (defun ejn:notebook-open ()
-  "Open a notebook via Jupyter server. Not yet implemented."
+  "Open a notebook via Jupyter server.
+
+Queries the Jupyter server's kernel list via `jupyter-current-server'
+and `jupyter-api-get-kernel', then presents a `completing-read' of
+running kernels to attach to.  The selected kernel is connected and
+stored in the notebook's `:kernel-id' slot.  The kernel manager minor
+mode is activated in the master buffer.
+
+Signals `user-error' if no notebook is associated with the current
+buffer, no Jupyter server is available, or no kernels are running."
   (interactive)
-  (ejn--stub-error))
+  (let* ((notebook (ejn-notebook-of-buffer))
+         (server (jupyter-current-server))
+         (kernels (jupyter-api-get-kernel server))
+         (kernel-ids (mapcar (lambda (kernel)
+                               (cdr (assq 'id kernel)))
+                             kernels)))
+    (unless server
+      (user-error "No Jupyter server available"))
+    (unless kernel-ids
+      (user-error "No running kernels available"))
+    (let* ((selected-id (completing-read "Select kernel: " kernel-ids nil t))
+           (kernel (jupyter-server-kernel :server server :id selected-id))
+           (client (jupyter-client kernel)))
+      (oset notebook kernel-id client)
+      (when-let* ((master-buf (slot-value notebook 'master-buffer)))
+        (with-current-buffer master-buf
+          (ejn-kernel-manager-mode 1))))))
 
 (defun ejn:worksheet-execute-cell-and-insert-below ()
-  "Execute current cell and insert a new cell below. Not yet implemented."
+  "Execute the current cell and insert a new code cell below it.
+
+Sends the current cell's source to the kernel via `ejn--execute-cell',
+updates the mode-line via `ejn--update-mode-line', then creates a new
+empty code cell below the current cell and switches to it.
+
+Signals a `user-error' if there is no cell at point."
   (interactive)
-  (ejn--stub-error))
+  (let* ((cell (bound-and-true-p ejn--cell))
+         (notebook (ejn-notebook-of-buffer)))
+    (unless cell
+      (user-error "No cell at point"))
+    (let* ((cells (slot-value notebook 'cells))
+           (current-index (cl-position cell cells)))
+      ;; Execute the current cell
+      (ejn--execute-cell cell)
+      (ejn--update-mode-line notebook)
+      ;; Insert a new empty code cell below
+      (let ((new-cell (ejn--make-cell notebook (1+ current-index) 'code)))
+        (switch-to-buffer (ejn-cell-open-buffer new-cell notebook))))))
 
 (defun ejn:worksheet-execute-cell-and-goto-next ()
-  "Execute current cell and go to next cell. Not yet implemented."
+  "Execute the current cell and switch to the next cell's buffer.
+
+Sends the current cell's source to the kernel via `ejn--execute-cell',
+updates the mode-line via `ejn--update-mode-line', then switches to the
+next cell's buffer using `ejn-cell-open-buffer' and `switch-to-buffer'.
+
+Signals a `user-error' if there is no cell at point or if the current
+cell is the last cell in the notebook (no next cell to navigate to)."
   (interactive)
-  (ejn--stub-error))
+  (let* ((cell (bound-and-true-p ejn--cell))
+         (notebook (ejn-notebook-of-buffer)))
+    (unless cell
+      (user-error "No cell at point"))
+    (let* ((cells (slot-value notebook 'cells))
+           (current-index (cl-position cell cells))
+           (next-index (1+ current-index)))
+      (unless (< next-index (length cells))
+        (user-error "No more cells below"))
+      ;; Execute the current cell
+      (ejn--execute-cell cell)
+      (ejn--update-mode-line notebook)
+      ;; Switch to the next cell's buffer
+      (let ((next-cell (nth next-index cells)))
+        (switch-to-buffer (ejn-cell-open-buffer next-cell notebook))))))
 
 (defun ejn:notebook-reconnect-session ()
-  "Reconnect to the current kernel session. Not yet implemented."
+  "Reconnect to the current kernel session.
+
+Calls `ejn-kernel-reconnect' on the current notebook to re-establish
+the client connection, then updates the mode-line to reflect the
+kernel state.  Re-activates `ejn-kernel-manager-mode' in the master
+buffer if it was not already active.
+
+Signals a `user-error' if there is no notebook or kernel attached."
   (interactive)
-  (ejn--stub-error))
+  (let ((notebook (ejn-notebook-of-buffer)))
+    (unless notebook
+      (user-error "No notebook associated with this buffer"))
+    (ejn-kernel-reconnect notebook)
+    (ejn--update-mode-line notebook)
+    (when-let* ((master-buf (slot-value notebook 'master-buffer)))
+      (with-current-buffer master-buf
+        (unless (bound-and-true-p ejn-kernel-manager-mode)
+          (ejn-kernel-manager-mode 1))))))
 
 (defun ejn:notebook-kill-kernel-then-close ()
-  "Kill the kernel and close the notebook. Not yet implemented."
-  (interactive)
-  (ejn--stub-error))
+  "Kill the kernel and close the notebook.
 
-(defun ejn:worksheet-execute-cell ()
-  "Execute the current cell. Not yet implemented."
+Interrupts the kernel, shuts it down, saves dirty cells, kills all
+buffers, and cleans up the cache directory."
   (interactive)
-  (ejn--stub-error))
+  (let ((notebook (ejn-notebook-of-buffer)))
+    (when (slot-value notebook 'kernel-id)
+      (ejn-kernel-interrupt notebook)
+      (ejn-kernel-stop notebook))
+    (ejn--flush-all-dirty-cells notebook)
+    (dolist (cell (slot-value notebook 'cells))
+      (let ((buf (slot-value cell 'buffer)))
+        (when (buffer-live-p buf)
+          (kill-buffer buf))))
+    (when-let ((master-buf (slot-value notebook 'master-buffer)))
+      (when (buffer-live-p master-buf)
+        (kill-buffer master-buf)))
+    (let* ((nb-stem (file-name-sans-extension
+                     (file-name-nondirectory
+                      (slot-value notebook 'path))))
+           (cache-dir (expand-file-name
+                      (concat ".ejn-cache/" nb-stem)
+                      (file-name-directory
+                       (slot-value notebook 'path)))))
+      (when (file-directory-p cache-dir)
+        (delete-directory cache-dir 'recursive)))))
+
+(defun ejn:worksheet-execute-cell (&optional arg)
+  "Execute the current cell.
+
+With prefix argument, execute all code cells in the notebook.
+
+Sends the cell's source to the kernel via `ejn--execute-cell',
+updates the mode-line to reflect the busy state via
+`ejn--update-mode-line', and registers an iopub callback
+to dispatch messages by type.
+
+Signals a `user-error' if there is no cell at point or no
+kernel started for the notebook."
+  (interactive "P")
+  (let* ((cell (bound-and-true-p ejn--cell))
+         (notebook (ejn-notebook-of-buffer)))
+    (unless cell
+      (user-error "No cell at point"))
+    (if arg
+        (progn
+          (ejn--execute-all-cells notebook)
+          (ejn--update-mode-line notebook))
+      (ejn--execute-cell cell)
+      (ejn--update-mode-line notebook))))
+
+(defun ejn:worksheet-execute-all-cells ()
+  "Execute all code cells in the current notebook.
+
+Iterates over all cells in the notebook and executes each code cell
+that has a live buffer, waiting for idle between each execution.
+
+Signals a `user-error' if no notebook is associated with the current
+buffer.
+
+Returns nil."
+  (interactive)
+  (let ((notebook (ejn-notebook-of-buffer)))
+    (unless notebook
+      (user-error "No notebook associated with this buffer"))
+    (ejn--execute-all-cells notebook)))
 
 (defun ejn:worksheet-toggle-output ()
-  "Toggle output visibility of current cell. Not yet implemented."
+  "Toggle output visibility of current cell.
+
+Calls `ejn--toggle-output-visibility' for the cell at point, which
+toggles the `invisible' text property on the output overlay's
+`after-string'.  Output data is preserved when hidden.
+
+Signals a `user-error' if there is no cell at point."
   (interactive)
-  (ejn--stub-error))
+  (let ((cell (bound-and-true-p ejn--cell)))
+    (unless cell
+      (user-error "No cell at point"))
+    (ejn--toggle-output-visibility cell)))
 
 (defun ejn:worksheet-clear-output ()
-  "Clear output of current cell. Not yet implemented."
+  "Clear output of current cell.
+
+Calls `ejn--clear-output' for the cell at point, which deletes the
+output overlay and clears the `:output-overlay' slot.
+
+Signals a `user-error' if there is no cell at point."
   (interactive)
-  (ejn--stub-error))
+  (let ((cell (bound-and-true-p ejn--cell)))
+    (unless cell
+      (user-error "No cell at point"))
+    (ejn--clear-output cell)))
 
 (defun ejn:worksheet-clear-all-output ()
-  "Clear all cell outputs. Not yet implemented."
+  "Clear all cell outputs in the current notebook.
+
+Iterates over all cells in the notebook and calls `ejn--clear-output'
+for each, which deletes the output overlay and clears the
+`:output-overlay' slot.
+
+Signals a `user-error' if no notebook is associated with the current
+buffer."
   (interactive)
-  (ejn--stub-error))
+  (let ((notebook (ejn-notebook-of-buffer)))
+    (unless notebook
+      (user-error "No notebook associated with this buffer"))
+    (dolist (cell (slot-value notebook 'cells))
+      (ejn--clear-output cell))))
 
 (defun ejn:worksheet-toggle-cell-type ()
   "Toggle the current cell's type. Not yet implemented."
@@ -108,14 +272,34 @@
   (ejn--stub-error))
 
 (defun ejn:worksheet-set-output-visibility-all ()
-  "Set output visibility for all cells. Not yet implemented."
+  "Set output visibility for all cells to the current cell's visibility state.
+
+Calls `ejn--set-output-visibility-all' with the notebook and the current cell's
+`output-visible-p' slot value, propagating that visibility to every cell in the
+notebook.
+
+Signals a `user-error' if there is no cell at point."
   (interactive)
-  (ejn--stub-error))
+  (let* ((cell (bound-and-true-p ejn--cell))
+         (notebook (ejn-notebook-of-buffer)))
+    (unless cell
+      (user-error "No cell at point"))
+    (ejn--set-output-visibility-all
+     notebook (slot-value cell 'output-visible-p))))
 
 (defun ejn:notebook-kernel-interrupt ()
-  "Interrupt the current kernel. Not yet implemented."
+  "Interrupt the current kernel.
+
+Calls `ejn-kernel-interrupt' on the current notebook, then updates
+the mode-line to reflect any state change.
+
+Signals a `user-error' if there is no notebook or no kernel attached."
   (interactive)
-  (ejn--stub-error))
+  (let ((notebook (ejn-notebook-of-buffer)))
+    (unless notebook
+      (user-error "No notebook associated with this buffer"))
+    (ejn-kernel-interrupt notebook)
+    (ejn--update-mode-line notebook)))
 
 (defun ejn:notebook-close ()
   "Close the current notebook. Not yet implemented."
@@ -138,9 +322,18 @@
   (ejn--stub-error))
 
 (defun ejn:notebook-restart-session ()
-  "Restart the kernel session. Not yet implemented."
+  "Restart the kernel session.
+
+Calls `ejn-kernel-restart' on the current notebook, then prompts to
+re-execute all cells.  If confirmed, calls `ejn--execute-all-cells'."
   (interactive)
-  (ejn--stub-error))
+  (let* ((notebook (ejn-notebook-of-buffer)))
+    (or notebook
+        (user-error "No notebook found in current buffer"))
+    (ejn-kernel-restart notebook)
+    (ejn--update-mode-line notebook)
+    (when (y-or-n-p "Re-execute all cells? ")
+      (ejn--execute-all-cells notebook))))
 
 (defun ejn:worksheet-cut-cell ()
   "Cut the current cell (copy to kill ring and kill).

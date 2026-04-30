@@ -28,7 +28,7 @@
 ;;   - ejn-cell      : individual cell object
 
 ;; URL: https://github.com/emacs-jupyter-notebook/emacs-jupyter-notebook
-;; Package-Requires: ((emacs "24.1"))
+;; Package-Requires: ((emacs "30.1"))
 
 ;;; Code:
 
@@ -51,9 +51,9 @@
           :type list
           :documentation "Ordered list of ejn-cell objects.")
    (kernel-id :initarg :kernel-id
-              :initform nil
-              :type (or string null)
-              :documentation "Kernel identifier. Reserved for Phase 4.")
+               :initform nil
+               :type (or object null)
+               :documentation "Kernel identifier (jupyter-kernel-client instance).")
    (ejn-cell-kill-ring :initarg :ejn-cell-kill-ring
                        :initform nil
                        :type list
@@ -95,10 +95,18 @@
                :type (or integer null)
                :documentation "Execution count from .ipynb.")
    (dirty :initarg :dirty
-          :initform nil
-          :type boolean
-          :documentation "Set by after-change-functions when buffer diverges."))
-  "Individual Jupyter notebook cell.")
+           :initform nil
+           :type boolean
+           :documentation "Set by after-change-functions when buffer diverges.")
+    (output-overlay :initarg :output-overlay
+                    :initform nil
+                    :type (or overlay null)
+                    :documentation "Overlay used to display cell output.")
+    (output-visible-p :initarg :output-visible-p
+                      :initform t
+                      :type boolean
+                      :documentation "Whether the output overlay is visible."))
+   "Individual Jupyter notebook cell.")
 
 (defun ejn-cell--generate-id ()
   "Generate a unique cell ID via cl-gensym."

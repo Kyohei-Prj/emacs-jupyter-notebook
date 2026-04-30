@@ -1156,4 +1156,125 @@ Second run should not delete/create anything differently."
     (delete-file nbpath)
     (delete-directory tmpdir 'recursive)))
 
+;;; Tests — P4-T31: ejn-notebook :kernel-id slot type changed to (or object null)
+
+(ert-deftest ejn-core-p4-t31--kernel-id-accepts-nil ()
+  "Verify `:kernel-id' slot accepts nil (default, no kernel attached)."
+  (let* ((tmpdir (make-temp-file "ejn-test-kernel-" t))
+         (nbpath (expand-file-name "test.ipynb" tmpdir)))
+    (with-temp-buffer
+      (insert "{\"nbformat\": 4, \"cells\": [], \"metadata\": {}}")
+      (write-file nbpath))
+    (let ((nb (make-instance 'ejn-notebook :path nbpath)))
+      (should-not (slot-value nb 'kernel-id))
+      ;; Also verify we can explicitly set to nil
+      (oset nb kernel-id nil)
+      (should-not (slot-value nb 'kernel-id)))
+    (delete-file nbpath)
+    (delete-directory tmpdir 'recursive)))
+
+(ert-deftest ejn-core-p4-t31--kernel-id-accepts-eieio-object ()
+  "Verify `:kernel-id' slot accepts an EIEIO object instance.
+
+This is the core acceptance criterion: the slot must accept a
+jupyter-kernel-client (or any EIEIO object) as its value.
+We use ejn-cell as a stand-in for jupyter-kernel-client."
+  (let* ((tmpdir (make-temp-file "ejn-test-kernel-" t))
+         (nbpath (expand-file-name "test.ipynb" tmpdir))
+         (mock-kernel (make-instance 'ejn-cell :type 'code :source "pass")))
+    (with-temp-buffer
+      (insert "{\"nbformat\": 4, \"cells\": [], \"metadata\": {}}")
+      (write-file nbpath))
+    (unwind-protect
+        (progn
+          ;; Setting via make-instance initarg
+          (let ((nb2 (make-instance 'ejn-notebook
+                                    :path nbpath
+                                    :kernel-id mock-kernel)))
+            (should (eql (slot-value nb2 'kernel-id) mock-kernel))
+            (should (eieio-object-p (slot-value nb2 'kernel-id))))
+          ;; Setting via oset
+          (let ((nb (make-instance 'ejn-notebook :path nbpath)))
+            (oset nb kernel-id mock-kernel)
+            (should (eql (slot-value nb 'kernel-id) mock-kernel))
+            (should (eieio-object-p (slot-value nb 'kernel-id)))))
+      (delete-file nbpath)
+      (delete-directory tmpdir 'recursive))))
+
+(ert-deftest ejn-core-p4-t31--kernel-id-rejects-string ()
+  "Verify `:kernel-id' slot rejects a plain string value.
+
+After the type change from (or string null) to (or object null),
+passing a string should signal an EIEIO type constraint error."
+  (let* ((tmpdir (make-temp-file "ejn-test-kernel-" t))
+         (nbpath (expand-file-name "test.ipynb" tmpdir)))
+    (with-temp-buffer
+      (insert "{\"nbformat\": 4, \"cells\": [], \"metadata\": {}}")
+      (write-file nbpath))
+    (unwind-protect
+        (progn
+          ;; Should error when trying to set kernel-id to a string
+          (should-error
+           (make-instance 'ejn-notebook :path nbpath :kernel-id "some-string-id")
+           :type 'error)
+          ;; Should also error when setting via oset
+          (let ((nb (make-instance 'ejn-notebook :path nbpath)))
+            (should-error
+             (oset nb kernel-id "some-string-id")
+             :type 'error)))
+      (delete-file nbpath)
+      (delete-directory tmpdir 'recursive))))
+
+;;; Tests — P4-T32: ejn-cell output-overlay and output-visible-p slots
+
+(ert-deftest ejn-core-p4-t32--ejn-cell-has-slot-output-overlay-default-nil ()
+  "Verify `ejn-cell' has an `output-overlay' slot defaulting to nil."
+  (let ((cell (make-instance 'ejn-cell :type 'code :source "pass")))
+    (should-not (slot-value cell 'output-overlay))))
+
+(ert-deftest ejn-core-p4-t32--ejn-cell-output-overlay-accepts-overlay ()
+  "Verify `:output-overlay' slot accepts an overlay object."
+  (let ((cell (make-instance 'ejn-cell :type 'code :source "pass"))
+        (ov (make-overlay 1 1 (current-buffer))))
+    (oset cell output-overlay ov)
+    (should (overlayp (slot-value cell 'output-overlay)))))
+
+(ert-deftest ejn-core-p4-t32--ejn-cell-output-overlay-accepts-nil ()
+  "Verify `:output-overlay' slot accepts nil."
+  (let ((cell (make-instance 'ejn-cell :type 'code :source "pass"))
+        (ov (make-overlay 1 1 (current-buffer))))
+    (oset cell output-overlay ov)
+    (oset cell output-overlay nil)
+    (should-not (slot-value cell 'output-overlay))))
+
+(ert-deftest ejn-core-p4-t32--ejn-cell-output-overlay-rejects-string ()
+  "Verify `:output-overlay' slot rejects a non-overlay non-nil value.
+
+Passing a string should signal an EIEIO type constraint error."
+  (let ((cell (make-instance 'ejn-cell :type 'code :source "pass")))
+    (should-error
+     (oset cell output-overlay "not-an-overlay")
+     :type 'error)))
+
+(ert-deftest ejn-core-p4-t32--ejn-cell-has-slot-output-visible-p-default-t ()
+  "Verify `ejn-cell' has an `output-visible-p' slot defaulting to t."
+  (let ((cell (make-instance 'ejn-cell :type 'code :source "pass")))
+    (should (slot-value cell 'output-visible-p))
+    (should (equal (slot-value cell 'output-visible-p) t))))
+
+(ert-deftest ejn-core-p4-t32--ejn-cell-output-visible-p-accepts-nil ()
+  "Verify `:output-visible-p' slot accepts nil (boolean false)."
+  (let ((cell (make-instance 'ejn-cell :type 'code :source "pass"
+                              :output-visible-p nil)))
+    (should-not (slot-value cell 'output-visible-p))))
+
+(ert-deftest ejn-core-p4-t32--ejn-cell-output-visible-p-can-toggle ()
+  "Verify `:output-visible-p' slot can be toggled between t and nil."
+  (let ((cell (make-instance 'ejn-cell :type 'code :source "pass")))
+    (should (slot-value cell 'output-visible-p))
+    (oset cell output-visible-p nil)
+    (should-not (slot-value cell 'output-visible-p))
+    (oset cell output-visible-p t)
+    (should (slot-value cell 'output-visible-p))))
+
 ;;; ejn-core-tests.el ends here

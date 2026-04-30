@@ -18,6 +18,7 @@ ejn/
 ```
 
 ### Tips
+- Whenever you encounter any errors, it is most likely unbalanced parenthesis. Use appropriate `skills` or `mcp` to handle it effeciently.
 - Use `elisp-dev` to refer to Emacs Lisp (elisp) document.
 - Write one function/code block at a time. Do not write all at once.
 - Official `jupyter.el` repository is cloned under `/home/kyohei/Projects/jupyter` as a reference.
@@ -25,6 +26,31 @@ ejn/
 ## TDD Lessons
 
 <!-- Each entry is appended by the tdd-lessons skill. Newest entries go at the top. -->
+
+---
+
+### [P4-T06] define-minor-mode stores lighter in minor-mode-alist, not as symbol property
+
+**Date:** 2026-04-28
+**Task:** Implement `ejn-kernel-manager-mode` minor mode in `lisp/ejn-network.el`
+
+**Struggle:**
+The test `ejn-network-p4-t06--has-correct-lighter` failed at Step 4 with `(equal nil " EJN")` when checking `(get 'ejn-kernel-manager-mode 'mode-lighter)`. The lighter was not found as a symbol property on the minor mode function, despite `define-minor-mode` being called with `:lighter " EJN"`.
+
+**Root cause:**
+`define-minor-mode` does NOT store the lighter as a `mode-lighter` property on the function symbol. Instead, it passes the lighter string to the built-in `add-minor-mode` function at load time, which registers it in the internal `minor-mode-alist` variable as a cons cell: `(mode-symbol lighter-value)`. The lighter value in `minor-mode-alist` is stored as a list (e.g., `(" EJN")`) for mode-line evaluation, not as a bare string.
+
+**Resolution:**
+Changed the test to check `minor-mode-alist` instead of symbol properties:
+```elisp
+(let ((lighter (cdr (assq 'ejn-kernel-manager-mode minor-mode-alist))))
+  (should (or (equal lighter " EJN")
+              (equal lighter '(" EJN")))))
+```
+The `or` handles both possible representations (bare string or list-wrapped string) since `minor-mode-alist` may store the lighter either way depending on the Emacs version.
+
+**Pattern:** `define-minor-mode-lighter-storage`
+When testing a minor mode's lighter string, do NOT use `(get 'mode-symbol 'mode-lighter)` — it will always return nil. Instead, check `minor-mode-alist` via `(assq 'mode-symbol minor-mode-alist)`. The lighter value may be a bare string or a list containing the string.
 
 ---
 
