@@ -114,10 +114,6 @@ Connect a live Jupyter kernel to an EJN notebook, execute cell code, and render 
 - No support for scratchsheet (reserved for Phase 5)
 - Kernel connection uses local kernel process by default; server kernel support via `jupyter-server-kernel` is optional
 
-## Current phase
-
-Phase 4 — Communication & Execution (35 tasks)
-
 ## Task list
 
 ### Phase 4 — Communication & Execution
