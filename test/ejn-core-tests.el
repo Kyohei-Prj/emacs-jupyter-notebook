@@ -32,6 +32,15 @@
                                 (or load-file-name buffer-file-name))))
 
 (require 'ejn-core)
+(require 'ejn-cell)
+(require 'ejn-master)
+(require 'ejn-ui)
+(require 'ejn)
+
+;; Minimal EIEIO class used as a fake kernel for testing
+(defclass ejn-test-fake-kernel ()
+  ((pid :initarg :pid :initform 12345))
+  "Minimal EIEIO class used as a fake kernel for testing.")
 
 ;;; Tests — P2-T1: EIEIO classes exist and are valid
 
@@ -1276,5 +1285,334 @@ Passing a string should signal an EIEIO type constraint error."
     (should-not (slot-value cell 'output-visible-p))
     (oset cell output-visible-p t)
     (should (slot-value cell 'output-visible-p))))
+
+;;; Tests — P5-T08: ejn-notebook :undo-stack slot
+
+(ert-deftest ejn-core-p5-t08--undo-stack-defaults-to-nil ()
+  "Verify `:undo-stack' slot defaults to nil on new `ejn-notebook' instances."
+  (let ((nb (make-instance 'ejn-notebook :path "/tmp/test.ipynb")))
+    (should-not (slot-value nb 'undo-stack))))
+
+(ert-deftest ejn-core-p5-t08--undo-stack-accepts-and-returns-list ()
+  "Verify `:undo-stack' slot accepts a list value and returns it via `slot-value'."
+  (let ((nb (make-instance 'ejn-notebook :path "/tmp/test.ipynb")))
+    (oset nb undo-stack '("action-a" "action-b"))
+    (should (equal (slot-value nb 'undo-stack) '("action-a" "action-b"))))
+  (let ((nb (make-instance 'ejn-notebook :path "/tmp/test.ipynb"
+                           :undo-stack '("init-action"))))
+    (should (equal (slot-value nb 'undo-stack) '("init-action")))))
+
+;;; Tests — P5-T22: ejn:notebook-close signals error when no notebook
+
+(ert-deftest ejn-core-p5-t22--signals-error-when-no-notebook ()
+  "Verify `ejn:notebook-close' signals user-error when current buffer has no notebook."
+  (with-temp-buffer
+    (should-error (ejn:notebook-close)
+                  :type 'user-error)))
+
+;;; Tests — P5-T22: kills all cell buffers
+
+(ert-deftest ejn-core-p5-t22--kills-all-cell-buffers ()
+  "Verify `ejn:notebook-close' kills all cell buffers that are live."
+  (let* ((nb (make-instance 'ejn-notebook
+                             :path "/tmp/test-close-kills.ipynb"
+                             :cells nil))
+         (cell-a (make-instance 'ejn-cell :type 'code :source "A"))
+         (cell-b (make-instance 'ejn-cell :type 'code :source "B"))
+         (master-buf nil)
+         (buf-a nil)
+         (buf-b nil))
+    (oset nb cells (list cell-a cell-b))
+    (setq master-buf (ejn--create-master-view nb))
+    (unwind-protect
+        (progn
+          (setq buf-a (ejn-cell-open-buffer cell-a nb))
+          (setq buf-b (ejn-cell-open-buffer cell-b nb))
+          (should (buffer-live-p buf-a))
+          (should (buffer-live-p buf-b))
+          (let ((buf-a-name (buffer-name buf-a))
+                (buf-b-name (buffer-name buf-b)))
+            (switch-to-buffer buf-a)
+            (ejn:notebook-close)
+            (switch-to-buffer (get-buffer-create "*scratch*"))
+            (should-not (get-buffer buf-a-name))
+            (should-not (get-buffer buf-b-name))))
+      (when (buffer-live-p buf-a) (kill-buffer buf-a))
+      (when (buffer-live-p buf-b) (kill-buffer buf-b))
+      (when (buffer-live-p master-buf) (kill-buffer master-buf)))))
+
+;;; Tests — P5-T22: kills master view buffer
+
+(ert-deftest ejn-core-p5-t22--kills-master-view-buffer ()
+  "Verify `ejn:notebook-close' kills the master view buffer."
+  (let* ((nb (make-instance 'ejn-notebook
+                             :path "/tmp/test-close-master.ipynb"
+                             :cells nil))
+         (cell (make-instance 'ejn-cell :type 'code :source "X"))
+         (master-buf nil)
+         (buf nil))
+    (oset nb cells (list cell))
+    (setq master-buf (ejn--create-master-view nb))
+    (setq buf (ejn-cell-open-buffer cell nb))
+    (should (buffer-live-p master-buf))
+    (let ((master-name (buffer-name master-buf)))
+      (unwind-protect
+          (progn
+            (switch-to-buffer buf)
+            (ejn:notebook-close)
+            (switch-to-buffer (get-buffer-create "*scratch*"))
+            (should-not (get-buffer master-name)))
+        (when (buffer-live-p buf) (kill-buffer buf))
+        (when (buffer-live-p master-buf) (kill-buffer master-buf))))))
+
+;;; Tests — P5-T22: cleans up cache directory
+
+(ert-deftest ejn-core-p5-t22--cleans-up-cache-directory ()
+  "Verify `ejn:notebook-close' removes `.ejn-cache/<stem>/' directory."
+  (let* ((tmpdir (make-temp-file "ejn-test-close-" t))
+         (nbpath (expand-file-name "mynotebook.ipynb" tmpdir))
+         (cachedir (expand-file-name ".ejn-cache/mynotebook" tmpdir))
+         (nb (make-instance 'ejn-notebook
+                            :path nbpath
+                            :cells nil))
+         (cell (make-instance 'ejn-cell :type 'code :source "X"))
+         (master-buf nil)
+         (buf nil))
+    (with-temp-buffer
+      (insert "{\"nbformat\": 4, \"cells\": [], \"metadata\": {}}")
+      (write-file nbpath))
+    (oset nb cells (list cell))
+    (setq master-buf (ejn--create-master-view nb))
+    (setq buf (ejn-cell-open-buffer cell nb))
+    (should (file-directory-p cachedir))
+    (unwind-protect
+        (progn
+          (switch-to-buffer buf)
+          (ejn:notebook-close)
+          (switch-to-buffer (get-buffer-create "*scratch*"))
+          (should-not (file-directory-p cachedir)))
+      (when (buffer-live-p buf) (kill-buffer buf))
+      (when (buffer-live-p master-buf) (kill-buffer master-buf))
+      (delete-file nbpath)
+      (delete-directory tmpdir 'recursive))))
+
+;;; Tests — P5-T22: does NOT kill the kernel
+
+(ert-deftest ejn-core-p5-t22--does-not-kill-kernel ()
+  "Verify `ejn:notebook-close' does NOT clear the kernel-id slot."
+  (let* ((nb (make-instance 'ejn-notebook
+                             :path "/tmp/test-close-kernel.ipynb"
+                             :cells nil))
+         (cell (make-instance 'ejn-cell :type 'code :source "X"))
+         (fake-kernel (make-instance 'ejn-test-fake-kernel))
+         (master-buf nil)
+         (buf nil))
+    (oset nb cells (list cell))
+    (oset nb kernel-id fake-kernel)
+    (setq master-buf (ejn--create-master-view nb))
+    (setq buf (ejn-cell-open-buffer cell nb))
+    (should (eq (slot-value nb 'kernel-id) fake-kernel))
+    (unwind-protect
+        (progn
+          (switch-to-buffer buf)
+          (ejn:notebook-close)
+          (switch-to-buffer (get-buffer-create "*scratch*"))
+          (should (eq (slot-value nb 'kernel-id) fake-kernel)))
+      (when (buffer-live-p buf) (kill-buffer buf))
+      (when (buffer-live-p master-buf) (kill-buffer master-buf)))))
+
+;;; Tests — P5-T22: prompts to save when dirty cells exist
+
+(ert-deftest ejn-core-p5-t22--prompts-to-save-when-dirty-cells ()
+  "Verify `ejn:notebook-close' calls `y-or-n-p' when cells are dirty."
+  (let* ((nb (make-instance 'ejn-notebook
+                             :path "/tmp/test-close-dirty.ipynb"
+                             :cells nil))
+         (cell (make-instance 'ejn-cell :type 'code :source "X"
+                              :dirty t))
+         (master-buf nil)
+         (buf nil)
+         (prompt-called-p nil))
+    (oset nb cells (list cell))
+    (setq master-buf (ejn--create-master-view nb))
+    (setq buf (ejn-cell-open-buffer cell nb))
+    (unwind-protect
+        (progn
+          (switch-to-buffer buf)
+          (cl-letf (((symbol-function 'y-or-n-p)
+                     (lambda (_prompt)
+                       (setq prompt-called-p t)
+                       nil)))
+            (ejn:notebook-close))
+          (switch-to-buffer (get-buffer-create "*scratch*"))
+          (should prompt-called-p))
+      (when (buffer-live-p buf) (kill-buffer buf))
+      (when (buffer-live-p master-buf) (kill-buffer master-buf)))))
+
+;;; Tests — P5-T23: :scratch-p slot on ejn-cell
+
+(ert-deftest ejn-core-p5-t23--ejn-cell-has-slot-scratch-p-default-nil ()
+  "Verify `ejn-cell' has a `scratch-p' slot defaulting to nil."
+  (let ((cell (make-instance 'ejn-cell :type 'code :source "pass")))
+    (should-not (slot-value cell 'scratch-p))))
+
+(ert-deftest ejn-core-p5-t23--ejn-cell-scratch-p-accepts-t ()
+  "Verify `:scratch-p' slot accepts t via make-instance initarg."
+  (let ((cell (make-instance 'ejn-cell
+                              :type 'code
+                              :source ""
+                              :scratch-p t)))
+    (should (slot-value cell 'scratch-p))
+    (should (equal (slot-value cell 'scratch-p) t))))
+
+(ert-deftest ejn-core-p5-t23--ejn-cell-scratch-p-can-toggle ()
+  "Verify `:scratch-p' slot can be toggled between nil and t."
+  (let ((cell (make-instance 'ejn-cell :type 'code :source "pass")))
+    (should-not (slot-value cell 'scratch-p))
+    (oset cell scratch-p t)
+    (should (slot-value cell 'scratch-p))
+    (oset cell scratch-p nil)
+    (should-not (slot-value cell 'scratch-p))))
+
+;;; Tests — P5-T23: ejn:notebook-scratchsheet-open
+
+(ert-deftest ejn-core-p5-t23--scratchsheet-signals-error-without-notebook ()
+  "Verify `ejn:notebook-scratchsheet-open' signals user-error when no notebook."
+  (with-temp-buffer
+    (should-error (ejn:notebook-scratchsheet-open)
+                  :type 'user-error)))
+
+(ert-deftest ejn-core-p5-t23--scratchsheet-creates-scratch-cell ()
+  "Verify scratchsheet-open creates a cell with :type code, :scratch-p t, empty source."
+  (let* ((tmpdir (make-temp-file "ejn-scratch-" t))
+         (nbpath (expand-file-name "test.ipynb" tmpdir))
+         (nb (make-instance 'ejn-notebook
+                            :path nbpath
+                            :cells (list (make-instance 'ejn-cell :type 'code :source "x=1"))))
+         (master-buf nil)
+         (cell-buf nil)
+         (scratch-cell nil)
+         (scratch-buf nil))
+    (with-temp-buffer
+      (insert "{\"nbformat\": 4, \"cells\": [], \"metadata\": {}}")
+      (write-file nbpath))
+    (setq master-buf (ejn--create-master-view nb))
+    (setq cell-buf (ejn-cell-open-buffer (car (slot-value nb 'cells)) nb))
+    (unwind-protect
+        (progn
+          (switch-to-buffer cell-buf)
+          (ejn:notebook-scratchsheet-open)
+          ;; After switch-to-buffer in implementation, current buffer is scratch
+          (setq scratch-buf (current-buffer))
+          (setq scratch-cell (bound-and-true-p ejn--cell))
+          (should scratch-cell)
+          (should (equal (slot-value scratch-cell 'type) 'code))
+          (should (slot-value scratch-cell 'scratch-p))
+          (should (or (equal (slot-value scratch-cell 'source) "")
+                      (equal (slot-value scratch-cell 'source) "\n"))))
+      (when (buffer-live-p cell-buf) (kill-buffer cell-buf))
+      (when (buffer-live-p master-buf) (kill-buffer master-buf))
+      (when (buffer-live-p scratch-buf) (kill-buffer scratch-buf))
+      ;; Kill any remaining scratch buffer
+      (dolist (buf (buffer-list))
+        (when (string-prefix-p "*ejn-cell:" (buffer-name buf))
+          (kill-buffer buf)))
+      (delete-file nbpath)
+      (delete-directory tmpdir 'recursive))))
+
+(ert-deftest ejn-core-p5-t23--scratchsheet-cell-not-in-notebook-cells ()
+  "Verify the scratch cell is NOT added to the notebook's :cells list."
+  (let* ((tmpdir (make-temp-file "ejn-scratch-" t))
+         (nbpath (expand-file-name "test.ipynb" tmpdir))
+         (nb (make-instance 'ejn-notebook
+                            :path nbpath
+                            :cells (list (make-instance 'ejn-cell :type 'code :source "x=1"))))
+         (master-buf nil)
+         (cell-buf nil))
+    (with-temp-buffer
+      (insert "{\"nbformat\": 4, \"cells\": [], \"metadata\": {}}")
+      (write-file nbpath))
+    (setq master-buf (ejn--create-master-view nb))
+    (setq cell-buf (ejn-cell-open-buffer (car (slot-value nb 'cells)) nb))
+    (unwind-protect
+        (progn
+          (switch-to-buffer cell-buf)
+          (ejn:notebook-scratchsheet-open)
+          (should (= (length (slot-value nb 'cells)) 1)))
+      (when (buffer-live-p cell-buf) (kill-buffer cell-buf))
+      (when (buffer-live-p master-buf) (kill-buffer master-buf))
+      (dolist (buf (buffer-list))
+        (when (string-prefix-p "*ejn-cell:" (buffer-name buf))
+          (kill-buffer buf)))
+      (delete-file nbpath)
+      (delete-directory tmpdir 'recursive))))
+
+(ert-deftest ejn-core-p5-t23--scratchsheet-writes-shadow-file ()
+  "Verify scratchsheet creates scratch.py in .ejn-cache/<stem>/."
+  (let* ((tmpdir (make-temp-file "ejn-scratch-" t))
+         (nbpath (expand-file-name "mynotebook.ipynb" tmpdir))
+         (cachedir (expand-file-name ".ejn-cache/mynotebook" tmpdir))
+         (scratch-file (expand-file-name "scratch.py" cachedir))
+         (nb (make-instance 'ejn-notebook
+                            :path nbpath
+                            :cells (list (make-instance 'ejn-cell :type 'code :source "x=1"))))
+         (master-buf nil)
+         (cell-buf nil))
+    (with-temp-buffer
+      (insert "{\"nbformat\": 4, \"cells\": [], \"metadata\": {}}")
+      (write-file nbpath))
+    (setq master-buf (ejn--create-master-view nb))
+    (setq cell-buf (ejn-cell-open-buffer (car (slot-value nb 'cells)) nb))
+    (unwind-protect
+        (progn
+          (switch-to-buffer cell-buf)
+          (ejn:notebook-scratchsheet-open)
+          (should (file-exists-p scratch-file)))
+      (when (buffer-live-p cell-buf) (kill-buffer cell-buf))
+      (when (buffer-live-p master-buf) (kill-buffer master-buf))
+      (dolist (buf (buffer-list))
+        (when (string-prefix-p "*ejn-cell:" (buffer-name buf))
+          (kill-buffer buf)))
+      (delete-file nbpath)
+      (delete-directory tmpdir 'recursive))))
+
+
+;; P5-T28: Refactor ejn-open-file to use lazy initialization
+
+(ert-deftest ejn-core-p5-t28--first-cell-initialized-after-open ()
+  "Verify first cell is initialized (buffer created, :initialized-p set to t) after open."
+  (let ((tmpfile (make-temp-file "ejn-p5t28-" nil ".ipynb"
+                                 "{\"nbformat\": 4, \"cells\": [{\"cell_type\": \"code\", \"source\": \"x = 1\"}, {\"cell_type\": \"code\", \"source\": \"y = 2\"}], \"metadata\": {}}")))
+    (unwind-protect
+        (cl-letf (((symbol-function 'read-file-name) (lambda (&rest _) tmpfile)))
+          (ejn-open-file)
+          (let* ((master-buf-name (cl-loop for buf in (buffer-list)
+                                           when (string-prefix-p "*ejn-master:" (buffer-name buf))
+                                           return (buffer-name buf)))
+                 (nb (with-current-buffer (get-buffer master-buf-name) ejn--notebook))
+                 (first-cell (car (slot-value nb 'cells))))
+            (should (slot-value first-cell 'initialized-p))
+            (should (slot-value first-cell 'buffer))
+            (should (buffer-live-p (slot-value first-cell 'buffer)))))
+      (mapc (lambda (buf) (when (buffer-live-p buf) (kill-buffer buf))) (buffer-list))
+      (when (file-exists-p tmpfile) (delete-file tmpfile)))))
+
+(ert-deftest ejn-core-p5-t28--subsequent-cells-not-initialized-after-open ()
+  "Verify subsequent cells remain uninitialized (no buffer) after open."
+  (let ((tmpfile (make-temp-file "ejn-p5t28-" nil ".ipynb"
+                                 "{\"nbformat\": 4, \"cells\": [{\"cell_type\": \"code\", \"source\": \"x = 1\"}, {\"cell_type\": \"code\", \"source\": \"y = 2\"}, {\"cell_type\": \"code\", \"source\": \"z = 3\"}], \"metadata\": {}}")))
+    (unwind-protect
+        (cl-letf (((symbol-function 'read-file-name) (lambda (&rest _) tmpfile)))
+          (ejn-open-file)
+          (let* ((master-buf-name (cl-loop for buf in (buffer-list)
+                                           when (string-prefix-p "*ejn-master:" (buffer-name buf))
+                                           return (buffer-name buf)))
+                 (nb (with-current-buffer (get-buffer master-buf-name) ejn--notebook))
+                 (cells (slot-value nb 'cells)))
+            (dolist (cell (cdr cells))
+              (should-not (slot-value cell 'initialized-p))
+              (should-not (slot-value cell 'buffer)))))
+      (mapc (lambda (buf) (when (buffer-live-p buf) (kill-buffer buf))) (buffer-list))
+      (when (file-exists-p tmpfile) (delete-file tmpfile)))))
 
 ;;; ejn-core-tests.el ends here

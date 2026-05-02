@@ -81,8 +81,8 @@
   (setq ejn-test--jupyter-server-kernel-last-id
 	(plist-get args :id))
   (push (list :server ejn-test--jupyter-server-kernel-last-server
-		:id ejn-test--jupyter-server-kernel-last-id)
-	  ejn-test--jupyter-server-kernel-calls)
+	      :id ejn-test--jupyter-server-kernel-last-id)
+	ejn-test--jupyter-server-kernel-calls)
   (list :server ejn-test--jupyter-server-kernel-last-server
 	:id ejn-test--jupyter-server-kernel-last-id))
 
@@ -192,28 +192,28 @@
 	   (setq ejn-test--jupyter-client-calls nil)
 	   (setq ejn-test--jupyter-server-kernel-calls nil))
 
-  (it "presents kernel IDs via completing-read and attaches to selected kernel"
-      (with-temp-buffer
-	(let* ((notebook (make-instance 'ejn-notebook :path "/tmp/test.ipynb"))
-	       (master-buf (generate-new-buffer "*ejn-master:test*")))
-	  (oset notebook master-buffer master-buf)
-	  (set (make-local-variable 'ejn--notebook) notebook)
-	  (unwind-protect
-	      (cl-letf (((symbol-function 'completing-read)
-			 (lambda (&rest args)
-			   "kernel-1")))
-		(ejn:notebook-open)
-		(expect (length ejn-test--jupyter-server-kernel-calls)
-			:to-equal 1)
-		(expect (length ejn-test--jupyter-client-calls)
-			:to-equal 1)
-		;; Kernel client stored in notebook's :kernel-id slot
-		(expect (slot-value notebook 'kernel-id) :to-be-truthy)
-		;; Kernel manager mode activated in master buffer
-		(with-current-buffer master-buf
-		  (expect (bound-and-true-p ejn-kernel-manager-mode)
-			:to-be-truthy)))
-	    (kill-buffer master-buf)))))
+	  (it "presents kernel IDs via completing-read and attaches to selected kernel"
+	      (with-temp-buffer
+		(let* ((notebook (make-instance 'ejn-notebook :path "/tmp/test.ipynb"))
+		       (master-buf (generate-new-buffer "*ejn-master:test*")))
+		  (oset notebook master-buffer master-buf)
+		  (set (make-local-variable 'ejn--notebook) notebook)
+		  (unwind-protect
+		      (cl-letf (((symbol-function 'completing-read)
+				 (lambda (&rest args)
+				   "kernel-1")))
+			(ejn:notebook-open)
+			(expect (length ejn-test--jupyter-server-kernel-calls)
+				:to-equal 1)
+			(expect (length ejn-test--jupyter-client-calls)
+				:to-equal 1)
+			;; Kernel client stored in notebook's :kernel-id slot
+			(expect (slot-value notebook 'kernel-id) :to-be-truthy)
+			;; Kernel manager mode activated in master buffer
+			(with-current-buffer master-buf
+			  (expect (bound-and-true-p ejn-kernel-manager-mode)
+				  :to-be-truthy)))
+		    (kill-buffer master-buf)))))
 
 	  (it "signals user-error when no kernels are available"
 	      (with-temp-buffer
@@ -223,6 +223,16 @@
 	  (it "signals user-error when no server is available"
 	      (with-temp-buffer
 		(setq ejn-test--jupyter-current-server-result nil)
-		(should-error (ejn:notebook-open) :type 'user-error))))
+    (should-error (ejn:notebook-open) :type 'user-error))))
 
+;;; P5-T29: ejn--master-scroll-hook
+
+(describe "P5-T29 ejn--master-scroll-hook"
+	  (it "is defined as a function"
+	      (expect (fboundp 'ejn--master-scroll-hook) :to-be-truthy))
+
+	  (it "does not signal on a window without ejn--notebook"
+	      (should-not (condition-case nil
+			      (progn (ejn--master-scroll-hook (selected-window)) nil)
+			    (error t)))))
 ;;; ejn-test.el ends here

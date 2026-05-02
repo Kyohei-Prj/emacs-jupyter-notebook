@@ -2089,4 +2089,38 @@ on the current cell, toggling `output-visible-p' from t to nil."
     ;; Act & Assert
     (should-error (ejn:notebook-reconnect-session) :type 'user-error)))
 
+;;; Tests — P5-T07: ejn--iopub-handler calls ejn-cell-refresh-header on status:idle
+
+(ert-deftest ejn-network-p5-t07--iopub-handler-refreshes-header-on-idle ()
+  "Verify `ejn--iopub-handler' calls `ejn-cell-refresh-header' on status:idle.
+
+This smoke test verifies the wiring: a status:idle iopub message triggers
+the header refresh on the cell buffer, observable as an updated before-string."
+  ;; Arrange: cell with exec-count, buffer, and initial visuals
+  (let* ((cell (make-instance 'ejn-cell
+                              :type 'code
+                              :exec-count 1
+                              :source "x = 1"))
+         (buf (generate-new-buffer "*ejn-p5-t07-cell*"))
+         (notebook (make-instance 'ejn-notebook :path "/tmp/test.ipynb")))
+    (oset cell buffer buf)
+    (with-current-buffer buf
+      (insert "x = 1"))
+    ;; Set up initial header via visuals
+    (ejn--setup-cell-visuals cell)
+    ;; Change exec-count so refresh will produce a different header
+    (oset cell exec-count 2)
+    ;; Status:idle message
+    (let ((msg '(msg_type "status"
+                         content (execution_state "idle"))))
+      ;; Act
+      (ejn--iopub-handler cell msg notebook)
+      ;; Assert: before-string was refreshed to reflect exec-count 2
+      (with-current-buffer buf
+        (goto-char (point-min))
+        (let ((before (get-text-property (point) 'before-string)))
+          (should (stringp before))
+          (should (string-match-p "In \\[2\\]:" before)))))
+    (kill-buffer buf)))
+
 ;;; ejn-network-tests.el ends here

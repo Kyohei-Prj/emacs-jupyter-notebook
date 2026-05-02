@@ -38,6 +38,7 @@
 (require 'ejn-notebook)
 (require 'ejn-network)
 (require 'ejn-lsp)
+(require 'ejn-ui)
 
 ;; ---------------------------------------------------------------------------
 ;; Stub commands — P2-T29
@@ -262,14 +263,90 @@ buffer."
       (ejn--clear-output cell))))
 
 (defun ejn:worksheet-toggle-cell-type ()
-  "Toggle the current cell's type. Not yet implemented."
+  "Toggle the current cell's type between code and markdown.
+
+Cycles the cell's `:type` slot between `code` and `markdown`.
+Updates the cell buffer's major mode accordingly, calls
+`ejn-markdown-render-cell` for markdown cells, refreshes the
+cell header, and re-renders the master view.
+
+Signals a `user-error' if there is no cell at point."
   (interactive)
-  (ejn--stub-error))
+  (let ((cell (bound-and-true-p ejn--cell)))
+    (unless cell
+      (user-error "No cell at point"))
+    (let* ((notebook (ejn-notebook-of-buffer))
+           (old-type (slot-value cell 'type))
+           (new-type (if (eq old-type 'code) 'markdown 'code)))
+      ;; Update cell type
+      (oset cell type new-type)
+      ;; Update buffer's major mode
+      (with-current-buffer (slot-value cell 'buffer)
+        (cl-case new-type
+          (code (python-mode))
+          (markdown
+           (condition-case nil
+               (markdown-mode)
+             ((command-error void-function)
+              (fundamental-mode)))))
+      ;; Render markdown if new type is markdown
+      (when (and (eq new-type 'markdown)
+                 (fboundp 'ejn-markdown-render-cell))
+        (ejn-markdown-render-cell cell))
+      ;; Refresh cell header
+      (when (fboundp 'ejn-cell-refresh-header)
+        (ejn-cell-refresh-header cell))
+      ;; Re-render master view
+      (when-let* ((master-buf (slot-value notebook 'master-buffer)))
+        (when (buffer-live-p master-buf)
+          (with-current-buffer master-buf
+            (when (fboundp 'ejn--poly-refresh-cells)
+              (ejn--poly-refresh-cells)))))))))
 
 (defun ejn:worksheet-change-cell-type ()
-  "Change the current cell's type. Not yet implemented."
+  "Change the current cell's type via `completing-read'.
+
+Presents the user with a choice of cell types: `code', `markdown',
+and `raw'.  Updates the cell's `:type' slot, sets the buffer's major
+mode accordingly (`python-mode' for code, `markdown-mode' or
+`fundamental-mode' for markdown, `fundamental-mode' for raw), calls
+`ejn-markdown-render-cell' for markdown cells, refreshes the cell
+header, and re-renders the master view.
+
+Signals a `user-error' if there is no cell at point."
   (interactive)
-  (ejn--stub-error))
+  (let ((cell (bound-and-true-p ejn--cell)))
+    (unless cell
+      (user-error "No cell at point"))
+    (let* ((notebook (ejn-notebook-of-buffer))
+           (type-str (completing-read "Cell type: '(" '("code" "markdown" "raw")
+                                      nil t))
+           (new-type (intern type-str)))
+      ;; Update cell type
+      (oset cell type new-type)
+      ;; Update buffer's major mode
+      (with-current-buffer (slot-value cell 'buffer)
+        (cl-case new-type
+          (code (python-mode))
+          (markdown
+           (condition-case nil
+               (markdown-mode)
+             ((command-error void-function)
+              (fundamental-mode))))
+          (raw (fundamental-mode))))
+      ;; Render markdown if new type is markdown
+      (when (and (eq new-type 'markdown)
+                 (fboundp 'ejn-markdown-render-cell))
+        (ejn-markdown-render-cell cell))
+      ;; Refresh cell header
+      (when (fboundp 'ejn-cell-refresh-header)
+        (ejn-cell-refresh-header cell))
+      ;; Re-render master view
+      (when-let* ((master-buf (slot-value notebook 'master-buffer)))
+        (when (buffer-live-p master-buf)
+          (with-current-buffer master-buf
+            (when (fboundp 'ejn--poly-refresh-cells)
+              (ejn--poly-refresh-cells))))))))
 
 (defun ejn:worksheet-set-output-visibility-all ()
   "Set output visibility for all cells to the current cell's visibility state.
@@ -302,24 +379,145 @@ Signals a `user-error' if there is no notebook or no kernel attached."
     (ejn--update-mode-line notebook)))
 
 (defun ejn:notebook-close ()
-  "Close the current notebook. Not yet implemented."
+  "Close the current notebook without killing the kernel.
+
+Kills all cell buffers and the master view buffer, then removes
+the cache directory.  Prompts to save dirty cells before closing.
+The kernel process is NOT stopped."
   (interactive)
-  (ejn--stub-error))
+  (let ((notebook (ejn-notebook-of-buffer)))
+    (unless notebook
+      (user-error "No notebook associated with this buffer"))
+    ;; Check for dirty cells and prompt to save
+    (let ((any-dirty-p (cl-some (lambda (cell)
+                                  (slot-value cell 'dirty))
+                                (slot-value notebook 'cells))))
+      (when (and any-dirty-p
+                 (y-or-n-p "Save dirty cells before closing? "))
+        (ejn:notebook-save-notebook-command)))
+    ;; Kill all cell buffers
+    (dolist (cell (slot-value notebook 'cells))
+      (let ((buf (slot-value cell 'buffer)))
+        (when (buffer-live-p buf)
+          (kill-buffer buf))))
+    ;; Kill master view buffer
+    (when-let ((master-buf (slot-value notebook 'master-buffer)))
+      (when (buffer-live-p master-buf)
+        (kill-buffer master-buf)))
+    ;; Clean up cache directory
+    (let* ((nb-path (slot-value notebook 'path))
+           (nb-stem (file-name-sans-extension
+                     (file-name-nondirectory nb-path)))
+           (cache-dir (expand-file-name
+                       (concat ".ejn-cache/" nb-stem)
+                       (file-name-directory nb-path))))
+      (when (file-directory-p cache-dir)
+        (delete-directory cache-dir 'recursive)))))
 
 (defun ejn:tb-show ()
-  "Show traceback viewer. Not yet implemented."
+  "Show the most recent kernel traceback in a dedicated buffer.
+
+Opens a buffer named `*ejn-tb*` with `python-mode`, displaying the
+traceback text from the current notebook's `:last-traceback` slot.
+ANSI escape sequences are processed via `ansi-color-apply` for
+syntax highlighting.  Returns the traceback buffer.
+
+Signals `user-error` if no notebook is associated with the current
+buffer, or if no traceback is available."
   (interactive)
-  (ejn--stub-error))
+  (let ((notebook (ejn-notebook-of-buffer)))
+    (unless notebook
+      (user-error "No notebook associated with this buffer"))
+    (let ((tb-text (slot-value notebook 'last-traceback)))
+      (unless (and tb-text (> (length tb-text) 0))
+        (user-error "No traceback available"))
+      (let ((tb-buf (get-buffer-create "*ejn-tb*")))
+        (with-current-buffer tb-buf
+          (erase-buffer)
+          (python-mode)
+          (insert tb-text)
+          (ansi-color-apply-on-region (point-min) (point-max))
+          (setq buffer-read-only t)
+          (use-local-map (copy-keymap python-mode-map)))
+        tb-buf))))
 
 (defun ejn:notebook-scratchsheet-open ()
-  "Open the scratchsheet buffer. Not yet implemented."
+  "Open a scratchsheet cell buffer for the current notebook.
+
+Creates a transient code cell with `:scratch-p' set to t.  The cell
+is NOT added to the notebook's `:cells' list, so it won't be
+persisted on save.  The scratch cell's shadow file is written to
+`.ejn-cache/<notebook-stem>/scratch.py'.
+
+Signals `user-error' if no notebook is associated with the current
+buffer."
   (interactive)
-  (ejn--stub-error))
+  (let ((notebook (ejn-notebook-of-buffer)))
+    (unless notebook
+      (user-error "No notebook associated with this buffer"))
+    ;; Create scratch cell — NOT added to notebook's :cells list
+    (let* ((scratch-cell (make-instance 'ejn-cell
+                                        :type 'code
+                                        :source "\n"
+                                        :scratch-p t))
+           (nb-stem (file-name-sans-extension
+                     (file-name-nondirectory
+                      (slot-value notebook 'path))))
+           (cache-dir (expand-file-name
+                       (concat ".ejn-cache/" nb-stem)
+                       (file-name-directory
+                        (slot-value notebook 'path))))
+           (scratch-path (expand-file-name "scratch.py" cache-dir)))
+      ;; Ensure cache directory exists and write shadow file
+      (make-directory cache-dir t)
+      (with-temp-file scratch-path
+        (insert ""))
+      (oset scratch-cell shadow-file scratch-path)
+      ;; Create buffer before calling ejn-cell-open-buffer so it takes the
+      ;; "buffer already exists" path and skips ejn-shadow-write-cell
+      ;; (which requires the cell to be in notebook's :cells list).
+      (let ((new-buf (generate-new-buffer
+                       (format "*ejn-cell:%s*" (slot-value scratch-cell 'id)))))
+        (with-current-buffer new-buf
+          (insert "\n")
+          (python-mode)
+          (ejn-mode 1)
+          (set (make-local-variable 'ejn--cell) scratch-cell)
+          (set (make-local-variable 'ejn--notebook) notebook)
+          (add-hook 'kill-buffer-hook
+                    #'ejn--cell-kill-buffer-hook 'append 'local))
+        (oset scratch-cell buffer new-buf)
+        (switch-to-buffer new-buf)))))
 
 (defun ejn:shared-output-show-code-cell-at-point ()
-  "Show the code cell for the output at point. Not yet implemented."
+  "Show source and output of the current code cell in a dedicated buffer.
+
+The buffer is named `*ejn-output:STEM*` where STEM is the notebook
+filename without extension.  The buffer contains the cell source
+followed by any text/plain outputs."
   (interactive)
-  (ejn--stub-error))
+  (let* ((notebook (and (boundp 'ejn--notebook) ejn--notebook))
+         (cell (and (boundp 'ejn--cell) ejn--cell)))
+    (or notebook (user-error "No notebook associated with this buffer"))
+    (or cell (user-error "No cell at point"))
+    (unless (eq (slot-value cell 'type) 'code)
+      (user-error "Current cell is not a code cell"))
+    (let* ((stem (file-name-sans-extension (file-name-nondirectory (slot-value notebook 'path))))
+           (buf-name (format "*ejn-output:%s*" stem))
+           (buf (get-buffer-create buf-name)))
+      (with-current-buffer buf
+        (erase-buffer)
+        (insert (slot-value cell 'source))
+        (let ((outputs (slot-value cell 'outputs)))
+          (when outputs
+            (dolist (output outputs)
+              (when (consp output)
+                (let ((text (cdr output)))
+                  (when (stringp text)
+                    (insert text)))))))
+        (special-mode)
+        (setq buffer-read-only nil))
+      buf)))
 
 (defun ejn:notebook-restart-session ()
   "Restart the kernel session.
@@ -348,8 +546,10 @@ is copied to the notebook's kill ring and then removed."
   "Open a Jupyter Notebook .ipynb file.
 
 Prompts for a file path, loads the notebook via `ejn-notebook-load',
-creates a master view buffer via `ejn--create-master-view', and opens
-the first cell's buffer via `ejn-cell-open-buffer'.
+creates a master view buffer via `ejn--create-master-view'.
+Cells are parsed into EIEIO objects but buffers, shadow files, and
+LSP connections are created lazily.  The first cell is initialized
+immediately for usability via `ejn-cell-initialize'.
 Returns nil."
   (interactive)
   (let* ((file-path (read-file-name "Open notebook: " nil nil t))
@@ -357,7 +557,7 @@ Returns nil."
          (cells (slot-value notebook 'cells)))
     (ejn--create-master-view notebook)
     (when cells
-      (ejn-cell-open-buffer (car cells) notebook))))
+      (ejn-cell-initialize (car cells) notebook))))
 
 (defvar ejn-mode-map
   (let ((map (make-sparse-keymap)))

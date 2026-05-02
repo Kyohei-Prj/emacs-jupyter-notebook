@@ -38,6 +38,9 @@
 (declare-function ejn-lsp--debounced-composite-regen 'ejn-lsp (start end pre-change-length))
 (declare-function ejn-lsp-setup-cell-buffer 'ejn-lsp (cell notebook))
 (declare-function ejn-lsp-unregister-cell 'ejn-lsp (cell))
+(declare-function ejn--setup-cell-visuals 'ejn-ui (cell))
+(declare-function ejn--undo-after-change 'ejn-ui (start end pre-change-length))
+(declare-function make-ejn-undo-record 'ejn-ui (&rest args))
 
 ;; Buffer-local variable holding the ejn-cell for the current cell buffer
 (defvar ejn--cell nil
@@ -57,7 +60,7 @@ and unregister the cell from LSP via `ejn-lsp-unregister-cell'."
   (when (and (boundp 'ejn--cell) ejn--cell)
     (when (fboundp 'ejn-lsp-unregister-cell)
       (ejn-lsp-unregister-cell ejn--cell)))
-  (remove-hook 'after-change-functions #'ejn--cell-after-change-hook 'local))
+  (remove-hook 'after-change-functions #'ejn--undo-after-change 'local))
 
 (defun ejn-cell-refresh-buffer (cell)
   "Replace the cell buffer's contents with CELL's `:source'.
@@ -95,37 +98,78 @@ file via `ejn-shadow-write-cell' (when NOTEBOOK is given), update
       (let ((new-buf (generate-new-buffer
                        (format "*ejn-cell:%s*" (slot-value cell 'id)))))
         (with-current-buffer new-buf
-          (insert (slot-value cell 'source))
-          (cl-case (slot-value cell 'type)
-            (code (python-mode))
-            (markdown
-             (condition-case nil
-                 (markdown-mode)
-               ((command-error void-function)
-                (fundamental-mode))))
-            (raw (fundamental-mode)))
-          (ejn-mode 1)
-          (set (make-local-variable 'ejn--cell) cell)
-          (when notebook
-            (set (make-local-variable 'ejn--notebook) notebook))
-          (add-hook 'after-change-functions
-                    #'ejn--cell-after-change-hook 'append 'local)
-          (when (fboundp 'ejn-lsp--debounced-composite-regen)
-            (add-hook 'after-change-functions
-                      #'ejn-lsp--debounced-composite-regen 'append 'local))
-          (add-hook 'kill-buffer-hook
-                    #'ejn--cell-kill-buffer-hook 'append 'local))
-        (when notebook
-          (ejn-shadow-write-cell cell notebook))
-        (oset cell buffer new-buf)
-        (when (and notebook (fboundp 'ejn-lsp-setup-cell-buffer))
-          (ejn-lsp-setup-cell-buffer cell notebook))
-        new-buf))))
+           (insert (slot-value cell 'source))
+           (cl-case (slot-value cell 'type)
+             (code (python-mode))
+             (markdown
+              (condition-case nil
+                  (markdown-mode)
+                ((command-error void-function)
+                 (fundamental-mode))))
+             (raw (fundamental-mode)))
+           (ejn-mode 1)
+           (set (make-local-variable 'ejn--cell) cell)
+           (when notebook
+             (set (make-local-variable 'ejn--notebook) notebook))
+           (add-hook 'kill-buffer-hook
+                     #'ejn--cell-kill-buffer-hook 'append 'local))
+         (oset cell buffer new-buf)
+         (when (fboundp 'ejn--setup-cell-visuals)
+           (ejn--setup-cell-visuals cell))
+         (when notebook
+           (ejn-shadow-write-cell cell notebook))
+         (when (and notebook (fboundp 'ejn-lsp-setup-cell-buffer))
+           (ejn-lsp-setup-cell-buffer cell notebook))
+         ;; Register after-change hooks AFTER all setup functions
+         ;; to avoid triggering them during initial buffer population.
+         (with-current-buffer new-buf
+           (remove-hook 'after-change-functions #'ejn--cell-after-change-hook 'local)
+           (when (fboundp 'ejn--undo-after-change)
+             (add-hook 'after-change-functions
+                       #'ejn--undo-after-change 'append 'local))
+           (when (fboundp 'ejn-lsp--debounced-composite-regen)
+             (add-hook 'after-change-functions
+                       #'ejn-lsp--debounced-composite-regen 'append 'local)))
+         new-buf))))
 
-(defun ejn--record-structural-change (_notebook _operation _data)
-  "No-op hook for Phase 5 global undo.
-NOTEBOOK, OPERATION, DATA are reserved arguments."
-  nil)
+(defun ejn-cell-initialize (cell notebook)
+  "Initialize CELL for lazy loading within NOTEBOOK.
+
+Creates buffer, writes shadow file, and attaches LSP.
+Idempotent — guarded by :initialized-p flag."
+  (unless (slot-value cell 'initialized-p)
+    (ejn-cell-open-buffer cell notebook)
+    (oset cell initialized-p t)))
+
+(defun ejn--record-structural-change (notebook operation data)
+  "Record a structural change on NOTEBOOK's undo stack.
+
+NOTEBOOK is an `ejn-notebook' instance.
+OPERATION is a symbol naming the structural operation
+(`:insert', `:delete', `:move', `:split', `:merge').
+DATA is a list containing the affected cell object(s) and any
+additional information needed for undo (e.g., cell index).
+
+This function captures the current cell list state as a snapshot
+of cell IDs, creates an `ejn-undo-record', and pushes it onto
+the notebook's undo stack.
+Returns nil."
+  (when notebook
+    (let* ((cells (slot-value notebook 'cells))
+           (cell-ids (mapcar (lambda (c) (slot-value c 'id)) cells))
+           (affected-cell (car data))
+           (cell-id (and affected-cell (slot-value affected-cell 'id)))
+           (record (make-ejn-undo-record
+                    :cell-id (or cell-id "structural")
+                    :before cell-ids
+                    :after cell-ids
+                    :timestamp (float-time)
+                    :operation operation
+                    :notebook notebook
+                    :data data))
+           (undo-stack (slot-value notebook 'undo-stack)))
+      (push record undo-stack)
+      (oset notebook undo-stack undo-stack))))
 
 (defun ejn--make-cell (notebook index type &optional source)
   "Create a new ejn-cell and insert it into NOTEBOOK at INDEX.

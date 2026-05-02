@@ -59,10 +59,18 @@
                        :type list
                        :documentation "Internal kill ring for cell copy/yank.")
    (master-buffer :initarg :master-buffer
-                  :initform nil
-                  :type (or buffer null)
-                  :documentation "Buffer-local back-pointer to the master view buffer."))
-  "Top-level object representing a Jupyter notebook.")
+                   :initform nil
+                   :type (or buffer null)
+                   :documentation "Buffer-local back-pointer to the master view buffer.")
+    (undo-stack :initarg :undo-stack
+                 :initform nil
+                 :type list
+                 :documentation "Stack of undo actions for the notebook.")
+     (last-traceback :initarg :last-traceback
+                     :initform nil
+                     :type (or string null)
+                     :documentation "Most recent kernel error traceback text."))
+    "Top-level object representing a Jupyter notebook.")
 
 ;;;###autoload
 (defclass ejn-cell ()
@@ -102,10 +110,18 @@
                     :initform nil
                     :type (or overlay null)
                     :documentation "Overlay used to display cell output.")
-    (output-visible-p :initarg :output-visible-p
-                      :initform t
-                      :type boolean
-                      :documentation "Whether the output overlay is visible."))
+   (output-visible-p :initarg :output-visible-p
+                       :initform t
+                       :type boolean
+                       :documentation "Whether the output overlay is visible.")
+    (initialized-p :initarg :initialized-p
+                    :initform nil
+                    :type boolean
+                    :documentation "Non-nil if the cell buffer/shadow/LSP have been initialized.")
+     (scratch-p :initarg :scratch-p
+               :initform nil
+               :type boolean
+               :documentation "Non-nil if this is a transient scratch cell (not persisted)."))
    "Individual Jupyter notebook cell.")
 
 (defun ejn-cell--generate-id ()

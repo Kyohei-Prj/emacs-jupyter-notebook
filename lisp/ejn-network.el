@@ -35,6 +35,9 @@
 ;; autoload avoids cl-check-type expansion errors in Emacs 30
 (autoload #'jupyter "jupyter" "Jupyter support" t)
 
+;; Forward declaration for function defined in ejn-ui.el
+(declare-function ejn-cell-refresh-header 'ejn-ui (cell))
+
 
 
 (define-minor-mode ejn-kernel-manager-mode
@@ -190,7 +193,8 @@ Reads the buffer-local `ejn--notebook' variable from the cell's buffer."  (let (
 (defun ejn--iopub-handler (cell msg &optional notebook)
   "Dispatch IOPUB message MSG for CELL by message type.
 
-Updates the mode-line on status messages.  Calls `ejn--render-output'
+Updates the mode-line on status messages.  Calls `ejn-cell-refresh-header'
+on status:idle messages to update the cell header.  Calls `ejn--render-output'
 for stream, execute_result, display_data, and error messages.
 NOTEBOOK is the notebook containing CELL (used for mode-line update).
 If NOTEBOOK is nil, it is looked up from the cell's buffer."  (when-let* ((msg-type (plist-get msg 'msg_type))
@@ -198,7 +202,11 @@ If NOTEBOOK is nil, it is looked up from the cell's buffer."  (when-let* ((msg-t
                      (ejn--cell-notebook cell))))
     (pcase msg-type
       ("status"
-       (ejn--update-mode-line nb))
+       (ejn--update-mode-line nb)
+       (when-let* ((content (plist-get msg 'content))
+                   (exec-state (plist-get content 'execution_state)))
+         (when (equal exec-state "idle")
+           (ejn-cell-refresh-header cell))))
       ((or "stream" "execute_result" "display_data" "error")
        (ejn--render-output cell msg)))))
 

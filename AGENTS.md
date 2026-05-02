@@ -18,6 +18,7 @@ ejn/
 ```
 
 ### Tips
+- Use `Makefile` for testing and linting.
 - Whenever you encounter any errors, it is most likely unbalanced parenthesis. Use appropriate `skills` or `mcp` to handle it effeciently.
 - Use `elisp-dev` to refer to Emacs Lisp (elisp) document.
 - Write one function/code block at a time. Do not write all at once.
