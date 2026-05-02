@@ -135,10 +135,6 @@ Replace the raw buffer scaffolding with a polished, cohesive notebook UI and sol
 - Scratchsheet cells are transient — never written to `.ipynb` on save
 - Polymode master view replaces button view entirely — no view-switching command
 
-## Current phase
-
-Phase H — Lazy Buffer Initialization (P5-T26 through P5-T30)
-
 ## Task list
 
 ### Phase 5 — UI Refinement & Global UX
