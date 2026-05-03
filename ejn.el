@@ -154,30 +154,21 @@ Signals a `user-error' if there is no notebook or kernel attached."
 (defun ejn:notebook-kill-kernel-then-close ()
   "Kill the kernel and close the notebook.
 
-Interrupts the kernel, shuts it down, saves dirty cells, kills all
-buffers, and cleans up the cache directory."
+Interrupts the kernel, shuts it down, saves dirty cells, and kills all
+buffers.  The cache directory is preserved for reopening."
   (interactive)
   (let ((notebook (ejn-notebook-of-buffer)))
     (when (slot-value notebook 'kernel-id)
       (ejn-kernel-interrupt notebook)
       (ejn-kernel-stop notebook))
     (ejn--flush-all-dirty-cells notebook)
-    (dolist (cell (slot-value notebook 'cells))
+   (dolist (cell (slot-value notebook 'cells))
       (let ((buf (slot-value cell 'buffer)))
         (when (buffer-live-p buf)
           (kill-buffer buf))))
     (when-let ((master-buf (slot-value notebook 'master-buffer)))
       (when (buffer-live-p master-buf)
-        (kill-buffer master-buf)))
-    (let* ((nb-stem (file-name-sans-extension
-                     (file-name-nondirectory
-                      (slot-value notebook 'path))))
-           (cache-dir (expand-file-name
-                      (concat ".ejn-cache/" nb-stem)
-                      (file-name-directory
-                       (slot-value notebook 'path)))))
-      (when (file-directory-p cache-dir)
-        (delete-directory cache-dir 'recursive)))))
+        (kill-buffer master-buf)))))
 
 (defun ejn:worksheet-execute-cell (&optional arg)
   "Execute the current cell.
@@ -319,7 +310,7 @@ Signals a `user-error' if there is no cell at point."
     (unless cell
       (user-error "No cell at point"))
     (let* ((notebook (ejn-notebook-of-buffer))
-           (type-str (completing-read "Cell type: '(" '("code" "markdown" "raw")
+           (type-str (completing-read "Cell type: " '("code" "markdown" "raw")
                                       nil t))
            (new-type (intern type-str)))
       ;; Update cell type
@@ -381,9 +372,9 @@ Signals a `user-error' if there is no notebook or no kernel attached."
 (defun ejn:notebook-close ()
   "Close the current notebook without killing the kernel.
 
-Kills all cell buffers and the master view buffer, then removes
-the cache directory.  Prompts to save dirty cells before closing.
-The kernel process is NOT stopped."
+Kills all cell buffers and the master view buffer.  Prompts to save
+dirty cells before closing.  The cache directory is preserved for
+reopening.  The kernel process is NOT stopped."
   (interactive)
   (let ((notebook (ejn-notebook-of-buffer)))
     (unless notebook
@@ -403,16 +394,7 @@ The kernel process is NOT stopped."
     ;; Kill master view buffer
     (when-let ((master-buf (slot-value notebook 'master-buffer)))
       (when (buffer-live-p master-buf)
-        (kill-buffer master-buf)))
-    ;; Clean up cache directory
-    (let* ((nb-path (slot-value notebook 'path))
-           (nb-stem (file-name-sans-extension
-                     (file-name-nondirectory nb-path)))
-           (cache-dir (expand-file-name
-                       (concat ".ejn-cache/" nb-stem)
-                       (file-name-directory nb-path))))
-      (when (file-directory-p cache-dir)
-        (delete-directory cache-dir 'recursive)))))
+        (kill-buffer master-buf)))))
 
 (defun ejn:tb-show ()
   "Show the most recent kernel traceback in a dedicated buffer.

@@ -1384,16 +1384,10 @@ with :real-buffer, :virtual-file (composite path), and :offset-line."
 
 ;;; Tests — P3-T16: ejn-kernel-complete
 
-(ert-deftest ejn-lsp-p3-t16--signals-user-error ()
-  "Verify `ejn-kernel-complete' signals `user-error' with the expected message."
-  (should-error (ejn-kernel-complete #'ignore)
-                :type 'user-error)
-  ;; Verify the error message content
-  (condition-case err
-      (ejn-kernel-complete #'ignore)
-    (user-error
-     (should (string= (car (cdr err))
-                      "Kernel completion requires Phase 4")))))
+(ert-deftest ejn-lsp-p4-t3--returns-nil-without-signaling ()
+  "Smoke: `ejn-kernel-complete' returns nil and does not signal an error."
+  (let ((result (ejn-kernel-complete #'ignore)))
+    (should-not result)))
 
 ;;; Tests — P3-T17: ejn-lsp-setup-cell-buffer call in ejn-cell-open-buffer
 

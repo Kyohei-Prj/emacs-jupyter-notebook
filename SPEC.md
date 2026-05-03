@@ -87,7 +87,7 @@ No data model changes. All EIEIO classes (`ejn-notebook`, `ejn-cell`) remain unc
 
 ## Current phase
 
-Phase 3 — Verification
+Phase 4 — UX Polish
 
 ## Task list
 
@@ -123,9 +123,9 @@ Verify LSP API correctness and add round-trip tests for position translation and
 
 Three targeted UX improvements.
 
-- [ ] P4-T1 Remove `delete-directory` calls from `ejn:notebook-kill-kernel-then-close` and `ejn:notebook-close` [smoke] (code removal — verify cache persists after close)
-- [ ] P4-T2 Change `completing-read` prompt in `ejn:worksheet-change-cell-type` from `"Cell type: '("` to `"Cell type: "` [smoke] (string literal change)
-- [ ] P4-T3 Replace `(signal 'user-error ...)` in `ejn-kernel-complete` with `(message "Kernel completion not yet available")` returning `nil` [smoke] (error → graceful no-op)
+- [x] P4-T1 Remove `delete-directory` calls from `ejn:notebook-kill-kernel-then-close` and `ejn:notebook-close` [smoke] (code removal — verify cache persists after close)
+- [x] P4-T2 Change `completing-read` prompt in `ejn:worksheet-change-cell-type` from `"Cell type: '("` to `"Cell type: "` [smoke] (string literal change)
+- [x] P4-T3 Replace `(signal 'user-error ...)` in `ejn-kernel-complete` with `(message "Kernel completion not yet available")` returning `nil` [smoke] (error → graceful no-op)
 
 ---
 

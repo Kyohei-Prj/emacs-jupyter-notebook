@@ -235,4 +235,93 @@
 	      (should-not (condition-case nil
 			      (progn (ejn--master-scroll-hook (selected-window)) nil)
 			    (error t)))))
+
+;;; P4-T2: ejn:worksheet-change-cell-type prompt string
+
+(describe "P4-T2 ejn:worksheet-change-cell-type prompt"
+	  (it "uses 'Cell type: ' prompt without leading quote-paren"
+	      (let* ((src (prin1-to-string (symbol-function 'ejn:worksheet-change-cell-type)))
+		     (old-prompt "\"Cell type: '\\(\""))
+		(should (stringp src))
+		(should (string= nil (string-match (regexp-quote old-prompt) src))))))
+
+    ;;; P4-T1: Cache directory persists after close
+
+(describe "P4-T1 cache-directory-persists-after-close"
+      (it "ejn:notebook-kill-kernel-then-close preserves .ejn-cache directory"
+          (let* ((tmp-dir (expand-file-name "ejn-test-cache" temporary-file-directory))
+                 (ipynb-path (expand-file-name "test.ipynb" tmp-dir))
+                 (cache-dir (expand-file-name ".ejn-cache/test" tmp-dir)))
+            (make-directory tmp-dir t)
+            (unwind-protect
+                (progn
+                  ;; Create a fake notebook file and cache directory with a marker file
+                  (with-temp-file ipynb-path
+                    (insert (json-encode
+                              '((cells . ())
+                                (metadata . ())
+                                (nbformat . 4)
+                                (nbformat_minor . 5)))))
+                  (make-directory cache-dir t)
+                  (with-temp-file (expand-file-name "marker.txt" cache-dir)
+                    (insert "persist"))
+                  ;; Verify cache exists before close
+                  (should (file-directory-p cache-dir))
+                  (should (file-exists-p (expand-file-name "marker.txt" cache-dir)))
+                  ;; Create a notebook object with the path, no cells, no buffers
+                  (let* ((notebook (make-instance 'ejn-notebook :path ipynb-path :cells nil))
+                         (master-buf (generate-new-buffer "*ejn-master:test*")))
+                    (oset notebook master-buffer master-buf)
+                    (with-temp-buffer
+                      (set (make-local-variable 'ejn--notebook) notebook)
+                      (cl-letf (((symbol-function 'ejn-kernel-interrupt) #'ignore)
+                                ((symbol-function 'ejn-kernel-stop) #'ignore))
+                        ;; This should NOT delete the cache directory
+                        (ejn:notebook-kill-kernel-then-close)))
+                    (kill-buffer master-buf)
+                    ;; Assert: cache directory and marker still exist
+                    (expect (file-directory-p cache-dir) :to-be-truthy)
+                    (expect (file-exists-p (expand-file-name "marker.txt" cache-dir))
+                            :to-be-truthy)))
+              ;; Cleanup temp directory
+              (when (file-directory-p tmp-dir)
+                (delete-directory tmp-dir 'recursive)))))
+
+      (it "ejn:notebook-close preserves .ejn-cache directory"
+          (let* ((tmp-dir (expand-file-name "ejn-test-cache2" temporary-file-directory))
+                 (ipynb-path (expand-file-name "test.ipynb" tmp-dir))
+                 (cache-dir (expand-file-name ".ejn-cache/test" tmp-dir)))
+            (make-directory tmp-dir t)
+            (unwind-protect
+                (progn
+                  ;; Create a fake notebook file and cache directory with a marker file
+                  (with-temp-file ipynb-path
+                    (insert (json-encode
+                              '((cells . ())
+                                (metadata . ())
+                                (nbformat . 4)
+                                (nbformat_minor . 5)))))
+                  (make-directory cache-dir t)
+                  (with-temp-file (expand-file-name "marker.txt" cache-dir)
+                    (insert "persist"))
+                  ;; Verify cache exists before close
+                  (should (file-directory-p cache-dir))
+                  ;; Create a notebook object with no cells
+                  (let* ((notebook (make-instance 'ejn-notebook :path ipynb-path :cells nil))
+                         (master-buf (generate-new-buffer "*ejn-master:test2*")))
+                    (oset notebook master-buffer master-buf)
+                    (with-temp-buffer
+                      (set (make-local-variable 'ejn--notebook) notebook)
+                      ;; This should NOT delete the cache directory
+                      (ejn:notebook-close))
+                    (kill-buffer master-buf)
+                    ;; Assert: cache directory and marker still exist
+                    (expect (file-directory-p cache-dir) :to-be-truthy)
+                    (expect (file-exists-p (expand-file-name "marker.txt" cache-dir))
+                            :to-be-truthy)))
+              ;; Cleanup temp directory
+              (when (file-directory-p tmp-dir)
+                (delete-directory tmp-dir 'recursive)))))
+)
+
 ;;; ejn-test.el ends here

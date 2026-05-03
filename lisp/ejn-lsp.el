@@ -377,9 +377,10 @@ Delegates to `xref-pop-marker-stack'."
   (xref-pop-marker-stack))
 
 (defun ejn-kernel-complete (callback)
-  "Stub for kernel-based completion. Reserved for Phase 4.
-CALLBACK is unused. Signals `user-error'."
-  (signal 'user-error '("Kernel completion requires Phase 4")))
+  "Stub for kernel-based completion. Reserved for future implementation.
+CALLBACK is unused. Displays a message and returns nil."
+  (message "Kernel completion not yet available")
+  nil)
 
 (provide 'ejn-lsp)
 
