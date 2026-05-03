@@ -85,10 +85,6 @@ No data model changes. All EIEIO classes (`ejn-notebook`, `ejn-cell`) remain unc
 
 ---
 
-## Current phase
-
-Phase 4 — UX Polish
-
 ## Task list
 
 ### Phase 1 — Critical Bugs
