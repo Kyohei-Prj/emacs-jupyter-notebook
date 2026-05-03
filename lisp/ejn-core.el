@@ -43,34 +43,34 @@
          :type (or string null)
          :documentation "Absolute path to the .ipynb file.")
    (metadata :initarg :metadata
-              :initform nil
-              :type (or list hash-table null)
-              :documentation "Parsed from .ipynb top-level metadata.")
+             :initform nil
+             :type (or list hash-table null)
+             :documentation "Parsed from .ipynb top-level metadata.")
    (cells :initarg :cells
           :initform nil
           :type list
           :documentation "Ordered list of ejn-cell objects.")
    (kernel-id :initarg :kernel-id
-               :initform nil
-               :type (or object null)
-               :documentation "Kernel identifier (jupyter-kernel-client instance).")
+              :initform nil
+              :type (or object null)
+              :documentation "Kernel identifier (jupyter-kernel-client instance).")
    (ejn-cell-kill-ring :initarg :ejn-cell-kill-ring
                        :initform nil
                        :type list
                        :documentation "Internal kill ring for cell copy/yank.")
    (master-buffer :initarg :master-buffer
+                  :initform nil
+                  :type (or buffer null)
+                  :documentation "Buffer-local back-pointer to the master view buffer.")
+   (undo-stack :initarg :undo-stack
+               :initform nil
+               :type list
+               :documentation "Stack of undo actions for the notebook.")
+   (last-traceback :initarg :last-traceback
                    :initform nil
-                   :type (or buffer null)
-                   :documentation "Buffer-local back-pointer to the master view buffer.")
-    (undo-stack :initarg :undo-stack
-                 :initform nil
-                 :type list
-                 :documentation "Stack of undo actions for the notebook.")
-     (last-traceback :initarg :last-traceback
-                     :initform nil
-                     :type (or string null)
-                     :documentation "Most recent kernel error traceback text."))
-    "Top-level object representing a Jupyter notebook.")
+                   :type (or string null)
+                   :documentation "Most recent kernel error traceback text."))
+  "Top-level object representing a Jupyter notebook.")
 
 ;;;###autoload
 (defclass ejn-cell ()
@@ -103,26 +103,26 @@
                :type (or integer null)
                :documentation "Execution count from .ipynb.")
    (dirty :initarg :dirty
-           :initform nil
-           :type boolean
-           :documentation "Set by after-change-functions when buffer diverges.")
-    (output-overlay :initarg :output-overlay
-                    :initform nil
-                    :type (or overlay null)
-                    :documentation "Overlay used to display cell output.")
+          :initform nil
+          :type boolean
+          :documentation "Set by after-change-functions when buffer diverges.")
+   (output-overlay :initarg :output-overlay
+                   :initform nil
+                   :type (or overlay null)
+                   :documentation "Overlay used to display cell output.")
    (output-visible-p :initarg :output-visible-p
-                       :initform t
-                       :type boolean
-                       :documentation "Whether the output overlay is visible.")
-    (initialized-p :initarg :initialized-p
-                    :initform nil
-                    :type boolean
-                    :documentation "Non-nil if the cell buffer/shadow/LSP have been initialized.")
-     (scratch-p :initarg :scratch-p
-               :initform nil
-               :type boolean
-               :documentation "Non-nil if this is a transient scratch cell (not persisted)."))
-   "Individual Jupyter notebook cell.")
+                     :initform t
+                     :type boolean
+                     :documentation "Whether the output overlay is visible.")
+   (initialized-p :initarg :initialized-p
+                  :initform nil
+                  :type boolean
+                  :documentation "Non-nil if the cell buffer/shadow/LSP have been initialized.")
+   (scratch-p :initarg :scratch-p
+              :initform nil
+              :type boolean
+              :documentation "Non-nil if this is a transient scratch cell (not persisted)."))
+  "Individual Jupyter notebook cell.")
 
 (defun ejn-cell--generate-id ()
   "Generate a unique cell ID via cl-gensym."
@@ -146,10 +146,10 @@ CELL-JSON is a hash table with keys:
 cell_type, source, outputs, execution_count.
 Returns a new ejn-cell instance."
   (let* ((cell-type (gethash "cell_type" cell-json))
-          (source (ejn--json-null-to-nil (gethash "source" cell-json)))
-          (outputs (gethash "outputs" cell-json))
-          (exec-count (ejn--json-null-to-nil
-                       (gethash "execution_count" cell-json))))
+         (source (ejn--json-null-to-nil (gethash "source" cell-json)))
+         (outputs (gethash "outputs" cell-json))
+         (exec-count (ejn--json-null-to-nil
+                      (gethash "execution_count" cell-json))))
     ;; JSON arrays parse as vectors; convert to list for EIEIO type constraint
     (when (vectorp outputs)
       (setq outputs (append outputs nil)))
@@ -178,8 +178,8 @@ Returns a list of ejn-cell objects."
 (defun ejn--parse-cells-nbformat3 (notebook-json)
   "Parse cells from a nbformat 3.x NOTEBOOK-JSON hash table.
 
-Reads cells from `notebook[\"worksheets\"][0][\"cells\"]` and maps each
-JSON cell to `ejn-cell` via `ejn--parse-cell-data`.
+Reads cells from `notebook[\"worksheets\"][0][\"cells\"]' and maps each
+JSON cell to `ejn-cell' via `ejn--parse-cell-data'.
 Returns a list of ejn-cell objects."
   (let* ((worksheets (gethash "worksheets" notebook-json))
          (worksheet (and (vectorp worksheets)
@@ -205,15 +205,15 @@ Signals `json-error' if the file is not valid JSON or not a recognized nbformat.
     (signal 'file-error (list "Cannot open load file" file-path)))
 
   (let* ((notebook-json
-         (with-temp-buffer
-           (insert-file-contents file-path)
-           (condition-case err
-               (json-parse-buffer :object-type 'hash-table)
-             (json-readtable-error
-              (signal 'json-error
-                      (list (format "Invalid JSON in %s" file-path)
-                            err))))))
-        (nbformat (gethash "nbformat" notebook-json)))
+          (with-temp-buffer
+            (insert-file-contents file-path)
+            (condition-case err
+                (json-parse-buffer :object-type 'hash-table)
+              (json-readtable-error
+               (signal 'json-error
+                       (list (format "Invalid JSON in %s" file-path)
+                             err))))))
+         (nbformat (gethash "nbformat" notebook-json)))
     ;; Validate nbformat
     (unless (member nbformat '(3 4))
       (signal 'json-error
@@ -226,26 +226,26 @@ Signals `json-error' if the file is not valid JSON or not a recognized nbformat.
            (nb (make-instance 'ejn-notebook
                               :path file-path
                               :metadata metadata))
-          (cells (cond
-                    ((= nbformat 4)
-                     (ejn--parse-cells-nbformat4 notebook-json))
-                    ((= nbformat 3)
-                     (ejn--parse-cells-nbformat3 notebook-json))
-                    (t
-                     (signal 'json-error
-                             (list (format "Unrecognized nbformat: %s in %s"
-                                           nbformat file-path)))))))
+           (cells (cond
+                   ((= nbformat 4)
+                    (ejn--parse-cells-nbformat4 notebook-json))
+                   ((= nbformat 3)
+                    (ejn--parse-cells-nbformat3 notebook-json))
+                   (t
+                    (signal 'json-error
+                            (list (format "Unrecognized nbformat: %s in %s"
+                                          nbformat file-path)))))))
       (oset nb cells cells)
       nb)))
 
 (defun ejn-shadow-write-cell (cell notebook)
   "Write CELL's :source to a shadow file within NOTEBOOK's cache directory.
 
-Creates `.ejn-cache/<notebook-stem>/` directory if needed.
+Creates `.ejn-cache/<notebook-stem>/' directory if needed.
 Generates a zero-padded filename based on CELL's index in NOTEBOOK's
-`:cells` list. Extension is determined by cell type:
+`:cells' list.  Extension is determined by cell type:
 code → .py, markdown → .md, raw → .raw.
-Updates CELL's `:shadow-file` slot.
+Updates CELL's `:shadow-file' slot.
 Returns the absolute path to the shadow file."
   (let* ((nb-path (slot-value notebook 'path))
          (nb-stem (file-name-sans-extension
@@ -274,7 +274,7 @@ Returns the absolute path to the shadow file."
 (defun ejn-shadow-sync-cell (cell)
   "Sync CELL's buffer content into its :source slot and shadow file.
 
-Reads the current content from CELL's :buffer. If it differs from
+Reads the current content from CELL's :buffer.  If it differs from
 the cell's :source slot, updates :source, writes the shadow file
 atomically (via .tmp + rename-file), and clears the :dirty flag.
 Returns t if changes were written, nil if no changes were needed
@@ -303,10 +303,9 @@ or if CELL has no buffer."
 (defun ejn--flush-all-dirty-cells (notebook)
   "Flush all dirty cells in NOTEBOOK to the EIEIO model.
 
-Iterates NOTEBOOK's `:cells` list. For each cell with `:dirty` set
-and a live `:buffer`, calls `ejn-shadow-sync-cell' to flush buffer
-content into the `:source` slot and shadow file, clearing the dirty
-flag.
+Iterates NOTEBOOK's `:cells' list.  For each cell with `:dirty' set
+and a live `:buffer', calls `ejn-shadow-sync-cell' to flush buffer
+content into the `:source' slot and shadow file, clearing the dirty flag.
 Returns nil."
   (dolist (cell (slot-value notebook 'cells))
     (when (and (slot-value cell 'dirty)
@@ -316,7 +315,7 @@ Returns nil."
 (defun ejn--reindex-shadow-files (notebook)
   "Reindex all shadow files in NOTEBOOK to match current cell order.
 
-Iterates NOTEBOOK's `:cells' list. For each cell at index N:
+Iterates NOTEBOOK's `:cells' list.  For each cell at index N:
 1. Computes the expected shadow file path for the cell's current position.
 2. Collects all expected paths, then deletes old shadow files that are NOT
    any cell's expected path (avoids deleting a file that another cell needs).
@@ -340,17 +339,16 @@ Returns nil."
                        (expected-filename (format "cell_%03d%s" idx ext))
                        (expected-path (expand-file-name
                                        expected-filename cache-dir)))
-                (push expected-path expected-paths)))
+                  (push expected-path expected-paths)))
     ;; Second pass: delete old shadow files not needed by any cell
     (cl-loop for cell in cells
              do (let ((old-shadow (slot-value cell 'shadow-file)))
-                (when (and old-shadow
-                           (not (member old-shadow expected-paths))
-                           (file-exists-p old-shadow))
-                  (delete-file old-shadow))))
+                  (when (and old-shadow
+                             (not (member old-shadow expected-paths))
+                             (file-exists-p old-shadow))
+                    (delete-file old-shadow))))
     ;; Third pass: write all shadow files at their correct indices
-    (cl-loop for idx from 0
-             for cell in cells
+    (cl-loop for cell in cells
              do (ejn-shadow-write-cell cell notebook))))
 
 (defvar ejn--notebook nil

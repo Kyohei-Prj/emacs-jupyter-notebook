@@ -25,7 +25,6 @@
 ;;
 ;; This file provides:
 ;;   - ejn-cell-open-buffer   : Create/return a cell editing buffer
-;;   - ejn--cell-after-change-hook : after-change-functions hook for dirty tracking
 ;;   - ejn--cell-kill-buffer-hook  : kill-buffer-hook for cleanup
 
 ;;; Code:
@@ -46,21 +45,15 @@
 (defvar ejn--cell nil
   "Buffer-local variable storing the `ejn-cell' object for this cell buffer.")
 
-(defun ejn--cell-after-change-hook (_start _end _pre-change-length)
-  "Mark the cell buffer's `ejn-cell' as dirty.
-Called by `after-change-functions' with arguments START, END,
-PRE-CHANGE-LENGTH (all unused here)."
-  (when (and (boundp 'ejn--cell) ejn--cell)
-    (oset ejn--cell dirty t)))
-
 (defun ejn--cell-kill-buffer-hook ()
   "Clean up when the cell buffer is killed.
-Remove `ejn--cell-after-change-hook' from `after-change-functions',
-and unregister the cell from LSP via `ejn-lsp-unregister-cell'."
+Unregister the cell from LSP via `ejn-lsp-unregister-cell'.
+Remove `ejn--undo-after-change' from `after-change-functions'."
   (when (and (boundp 'ejn--cell) ejn--cell)
     (when (fboundp 'ejn-lsp-unregister-cell)
       (ejn-lsp-unregister-cell ejn--cell)))
-  (remove-hook 'after-change-functions #'ejn--undo-after-change 'local))
+  (remove-hook 'after-change-functions #'ejn--undo-after-change 'local)
+  (remove-hook 'after-change-functions #'ejn-lsp--debounced-composite-regen 'local))
 
 (defun ejn-cell-refresh-buffer (cell)
   "Replace the cell buffer's contents with CELL's `:source'.
@@ -88,49 +81,50 @@ Returns nil."
 
 If CELL's `:buffer' slot is live, return it.
 Otherwise create a new buffer with `:source' content, set major-mode,
-attach `after-change-functions' hook for dirty tracking, set buffer-local
-`ejn--cell' and (when NOTEBOOK is given) `ejn--notebook', write shadow
-file via `ejn-shadow-write-cell' (when NOTEBOOK is given), update
-`:buffer' slot, and return the buffer."
+attach after-change hooks for dirty tracking and composite regeneration,
+set buffer-local `ejn--cell' and (when NOTEBOOK is given) `ejn--notebook',
+write shadow file via `ejn-shadow-write-cell' (when NOTEBOOK is given),
+update `:buffer' slot, and return the buffer."
   (let ((buf (slot-value cell 'buffer)))
     (if (buffer-live-p buf)
         (get-buffer buf)
       (let ((new-buf (generate-new-buffer
-                       (format "*ejn-cell:%s*" (slot-value cell 'id)))))
+                      (format "*ejn-cell:%s*" (slot-value cell 'id)))))
         (with-current-buffer new-buf
-           (insert (slot-value cell 'source))
-           (cl-case (slot-value cell 'type)
-             (code (python-mode))
-             (markdown
-              (condition-case nil
-                  (markdown-mode)
-                ((command-error void-function)
-                 (fundamental-mode))))
-             (raw (fundamental-mode)))
-           (ejn-mode 1)
-           (set (make-local-variable 'ejn--cell) cell)
-           (when notebook
-             (set (make-local-variable 'ejn--notebook) notebook))
-           (add-hook 'kill-buffer-hook
-                     #'ejn--cell-kill-buffer-hook 'append 'local))
-         (oset cell buffer new-buf)
-         (when (fboundp 'ejn--setup-cell-visuals)
-           (ejn--setup-cell-visuals cell))
-         (when notebook
-           (ejn-shadow-write-cell cell notebook))
-         (when (and notebook (fboundp 'ejn-lsp-setup-cell-buffer))
-           (ejn-lsp-setup-cell-buffer cell notebook))
-         ;; Register after-change hooks AFTER all setup functions
-         ;; to avoid triggering them during initial buffer population.
-         (with-current-buffer new-buf
-           (remove-hook 'after-change-functions #'ejn--cell-after-change-hook 'local)
-           (when (fboundp 'ejn--undo-after-change)
-             (add-hook 'after-change-functions
-                       #'ejn--undo-after-change 'append 'local))
-           (when (fboundp 'ejn-lsp--debounced-composite-regen)
-             (add-hook 'after-change-functions
-                       #'ejn-lsp--debounced-composite-regen 'append 'local)))
-         new-buf))))
+          (insert (slot-value cell 'source))
+          (cl-case (slot-value cell 'type)
+            (code (python-mode))
+            (markdown
+             (condition-case nil
+                 (markdown-mode)
+               ((command-error void-function)
+                (fundamental-mode))))
+            (raw (fundamental-mode)))
+          (ejn-mode 1)
+          (set (make-local-variable 'ejn--cell) cell)
+          (when notebook
+            (set (make-local-variable 'ejn--notebook) notebook))
+          (add-hook 'kill-buffer-hook
+                    #'ejn--cell-kill-buffer-hook 'append 'local))
+        (oset cell buffer new-buf)
+        (when (fboundp 'ejn--setup-cell-visuals)
+          (ejn--setup-cell-visuals cell))
+        (when notebook
+          (ejn-shadow-write-cell cell notebook))
+        (when (and notebook (fboundp 'ejn-lsp-setup-cell-buffer))
+          (ejn-lsp-setup-cell-buffer cell notebook))
+        ;; Register after-change hooks AFTER all setup functions
+        ;; to avoid triggering them during initial buffer population.
+        ;; Note: ejn--undo-after-change also sets :dirty t, so no separate
+        ;; dirty-tracking hook is needed.
+        (with-current-buffer new-buf
+          (when (fboundp 'ejn--undo-after-change)
+            (add-hook 'after-change-functions
+                      #'ejn--undo-after-change 'append 'local))
+          (when (fboundp 'ejn-lsp--debounced-composite-regen)
+            (add-hook 'after-change-functions
+                      #'ejn-lsp--debounced-composite-regen 'append 'local)))
+        new-buf))))
 
 (defun ejn-cell-initialize (cell notebook)
   "Initialize CELL for lazy loading within NOTEBOOK.
@@ -182,8 +176,8 @@ The master view is refreshed via `ejn--refresh-master-cells'.
 `ejn--record-structural-change' is called as a hook for future undo.
 Returns the new cell."
   (let* ((new-cell (make-instance 'ejn-cell
-                                   :type type
-                                   :source (or source "")))
+                                  :type type
+                                  :source (or source "")))
          (cells (slot-value notebook 'cells))
          (before (cl-subseq cells 0 index))
          (after (cl-subseq cells index)))
@@ -231,9 +225,12 @@ writes an empty shadow file, and opens the new cell's buffer."
   "Move the current cell up by one position in the notebook.
 
 Swaps the cell at point with its predecessor in the notebook's
-`:cells` list. Signals an error if the cell is already the first.
+`:cells' list.  Signals an error if the cell is already the first.
 Rewrites shadow files for the two affected cells and refreshes
-the master view."
+the master view.
+
+FIX #3: Explicitly stores the mutated list back via `oset' rather than
+relying on shared-list mutation side-effects."
   (interactive)
   (let* ((notebook (ejn-notebook-of-buffer))
          (current-cell ejn--cell)
@@ -245,12 +242,15 @@ the master view."
       ;; Swap in the cells list
       (setf (nth (1- current-index) cells) current-cell
             (nth current-index cells) predecessor)
+      ;; Explicitly persist the (mutated) list back into the slot so the
+      ;; change is visible even if the list header was copied elsewhere.
+      (oset notebook cells cells)
       ;; Delete old shadow files before writing new ones
       (dolist (cell (list current-cell predecessor))
         (let ((old-shadow (slot-value cell 'shadow-file)))
           (when (and old-shadow (file-exists-p old-shadow))
             (delete-file old-shadow))))
-      ;; Rewrite shadow files for both cells
+      ;; Rewrite shadow files for both cells at their new indices
       (ejn-shadow-write-cell current-cell notebook)
       (ejn-shadow-write-cell predecessor notebook)
       ;; Refresh master view
@@ -264,9 +264,12 @@ the master view."
   "Move the current cell down by one position in the notebook.
 
 Swaps the cell at point with its successor in the notebook's
-`:cells` list. Signals an error if the cell is already the last.
+`:cells' list.  Signals an error if the cell is already the last.
 Rewrites shadow files for the two affected cells and refreshes
-the master view."
+the master view.
+
+FIX #3: Explicitly stores the mutated list back via `oset' rather than
+relying on shared-list mutation side-effects."
   (interactive)
   (let* ((notebook (ejn-notebook-of-buffer))
          (current-cell ejn--cell)
@@ -279,12 +282,15 @@ the master view."
       ;; Swap in the cells list
       (setf (nth current-index cells) successor
             (nth (1+ current-index) cells) current-cell)
+      ;; Explicitly persist the (mutated) list back into the slot so the
+      ;; change is visible even if the list header was copied elsewhere.
+      (oset notebook cells cells)
       ;; Delete old shadow files before writing new ones
       (dolist (cell (list current-cell successor))
         (let ((old-shadow (slot-value cell 'shadow-file)))
           (when (and old-shadow (file-exists-p old-shadow))
             (delete-file old-shadow))))
-      ;; Rewrite shadow files for both cells
+      ;; Rewrite shadow files for both cells at their new indices
       (ejn-shadow-write-cell current-cell notebook)
       (ejn-shadow-write-cell successor notebook)
       ;; Refresh master view
@@ -368,12 +374,12 @@ Both cells share the original `:type'."
 (defun ejn:worksheet-merge-cell ()
   "Merge the current cell with the cell below it.
 
-Concatenates the current cell's `:source` with the cell below's
-`:source` using a blank line (\"\\n\\n\") as separator. Updates the
-current cell's `:source`, kills the lower cell's buffer if live,
+Concatenates the current cell's `:source' with the cell below's
+`:source' using a blank line (\"\\n\\n\") as separator.  Updates the
+current cell's `:source', kills the lower cell's buffer if live,
 removes the lower cell's shadow file, removes the lower cell from
-the notebook's `:cells` list, reindexes all shadow files via
-`ejn--reindex-shadow-files`, and refreshes the master view.
+the notebook's `:cells' list, reindexes all shadow files via
+`ejn--reindex-shadow-files', and refreshes the master view.
 Signals an error if the current cell is the last cell in the notebook."
   (interactive)
   (let* ((notebook (ejn-notebook-of-buffer))
@@ -411,11 +417,11 @@ Signals an error if the current cell is the last cell in the notebook."
 (defun ejn:worksheet-yank-cell ()
   "Yank a cell from the notebook's kill ring below the current cell.
 
-Pops the top entry from `ejn-notebook`'s `ejn-cell-kill-ring`, creates
-a new cell below the current cell with the copied `:source` and `:type`,
-writes its shadow file via `ejn-shadow-write-cell`, and refreshes the
-master view via `ejn--render-master-cells`.
-Signals a `user-error` if the kill ring is empty."
+Pops the top entry from `ejn-notebook''s `ejn-cell-kill-ring', creates
+a new cell below the current cell with the copied `:source' and `:type',
+writes its shadow file via `ejn-shadow-write-cell', and refreshes the
+master view via `ejn--render-master-cells'.
+Signals a `user-error' if the kill ring is empty."
   (interactive)
   (let* ((notebook (ejn-notebook-of-buffer))
          (kill-ring (slot-value notebook 'ejn-cell-kill-ring)))
@@ -436,7 +442,7 @@ Signals a `user-error` if the kill ring is empty."
   "Copy the current cell's source and type to the notebook's kill ring.
 
 Copies the cell at point's `:source' and `:type' onto
-`ejn-notebook's `ejn-cell-kill-ring' slot as an association list entry.
+`ejn-notebook''s `ejn-cell-kill-ring' slot as an association list entry.
 When KILL is non-nil, also kills the cell after copying.
 Interactively, KILL is the prefix argument."
   (interactive "P")
@@ -453,7 +459,7 @@ Interactively, KILL is the prefix argument."
   "Navigate to the next cell.
 
 If in the master view buffer, move point to the next cell button
-using `next-button'. If in a cell buffer, switch to the next
+using `next-button'.  If in a cell buffer, switch to the next
 cell's buffer via `ejn-cell-open-buffer'."
   (interactive)
   (if (bound-and-true-p ejn--cell)
@@ -476,7 +482,7 @@ cell's buffer via `ejn-cell-open-buffer'."
   "Navigate to the previous cell.
 
 If in the master view buffer, move point to the previous cell button
-using `previous-button'. If in a cell buffer, switch to the previous
+using `previous-button'.  If in a cell buffer, switch to the previous
 cell's buffer via `ejn-cell-open-buffer'."
   (interactive)
   (if (bound-and-true-p ejn--cell)
