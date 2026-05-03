@@ -85,10 +85,6 @@ No data model changes. All EIEIO classes (`ejn-notebook`, `ejn-cell`) remain unc
 
 ---
 
-## Current phase
-
-Phase 2 — Architectural Gaps
-
 ## Task list
 
 ### Phase 1 — Critical Bugs
