@@ -216,14 +216,19 @@ caused by trailing newlines in source), and lines beyond the last cell."
 Calls `lsp-virtual-buffer-register' with :real-buffer (CELL's buffer),
 :virtual-file (composite path via `ejn-lsp-composite-path'), and
 :offset-line (from `ejn-lsp-pos-to-composite' at buffer position 0,0).
+If `lsp-virtual-buffer-register' is void or signals an error, falls back
+to `ejn-lsp--register-fallback'.
 Sets buffer-local `ejn--cell-lsp-attached-p' to t.
 Returns nil."
-  (let* ((real-buffer (slot-value cell 'buffer))
-         (virtual-file (ejn-lsp-composite-path notebook))
-         (offset-line (ejn-lsp-pos-to-composite cell notebook 0 0)))
-    (lsp-virtual-buffer-register :real-buffer real-buffer
-                                 :virtual-file virtual-file
-                                 :offset-line offset-line)
+  (let ((real-buffer (slot-value cell 'buffer)))
+    (condition-case _err
+        (let* ((virtual-file (ejn-lsp-composite-path notebook))
+               (offset-line (ejn-lsp-pos-to-composite cell notebook 0 0)))
+          (lsp-virtual-buffer-register :real-buffer real-buffer
+                                       :virtual-file virtual-file
+                                       :offset-line offset-line))
+      ((void-function error)
+       (ignore-errors (ejn-lsp--register-fallback cell notebook))))
     (with-current-buffer real-buffer
       (set (make-local-variable 'ejn--cell-lsp-attached-p) t))))
 
@@ -330,6 +335,9 @@ Translates the current buffer position to a composite file position,
 calls `lsp-find-definition', translates the xref result back to a
 cell buffer via `ejn-lsp--translate-xref-to-cell', and switches to
 the target cell buffer at the resolved line.
+If `lsp-find-definition' rejects a position argument (wrong-number-of-args)
+or is not available (void-function), falls back to using
+`save-excursion' + `goto-char' on the composite file buffer.
 Signals `user-error' if no definition is found."
   (interactive)
   (let* ((cell ejn--cell)
@@ -338,8 +346,21 @@ Signals `user-error' if no definition is found."
          (buffer-col (- (point) (line-beginning-position)))
          (composite-pos (ejn-lsp-pos-to-composite
                          cell notebook buffer-line buffer-col))
-         (xrefs (lsp-find-definition composite-pos))
-         (xref (car xrefs)))
+         (composite-path (ejn-lsp-composite-path notebook))
+         xrefs xref)
+    (condition-case-unless-debug err
+        (setq xrefs (lsp-find-definition composite-pos))
+      ((wrong-number-of-args void-function)
+       (setq xrefs
+             (condition-case-unless-debug _err2
+                 (save-excursion
+                   (with-temp-buffer
+                     (insert-file-contents composite-path)
+                     (goto-char (1+ (car composite-pos)))
+                     (forward-line (- (cdr composite-pos) 0))
+                     (lsp-find-definition)))
+               (error nil)))))
+    (setq xref (car xrefs))
     (unless xref
       (user-error "No definition found"))
     (let ((result (ejn-lsp--translate-xref-to-cell xref notebook)))

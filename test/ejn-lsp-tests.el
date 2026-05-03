@@ -406,6 +406,169 @@ Used because the real function may not be available in the test environment."
         (kill-buffer (slot-value cell 'buffer)))
       (delete-directory tmp-dir 'recursive))))
 
+;;; Tests — P3-T3: pos→composite→pos round-trip
+
+(defun ejn-lsp-p3-t3--check-roundtrip (notebook)
+  "Verify pos→composite→pos returns original coords for all code cells."
+  (let* ((all-cells (slot-value notebook 'cells))
+         (code-cells (cl-loop for c in all-cells
+                              when (eq (slot-value c 'type) 'code)
+                              collect c)))
+    (dolist (cell code-cells)
+      (let* ((source (slot-value cell 'source))
+             (source-lines (ejn-lsp-cell-line-count source)))
+        (cl-loop for buf-line from 0 below source-lines do
+          (let* ((composite-pos (ejn-lsp-pos-to-composite cell notebook buf-line 0))
+                 (roundtrip (ejn-lsp-pos-from-composite notebook (car composite-pos))))
+            (unless (and roundtrip
+                         (eq (car roundtrip) cell)
+                         (equal (cdr roundtrip) buf-line))
+              (ert-fail (format "Round-trip failed: src=%S buf-line=%d composite=%S roundtrip=%S"
+                                source buf-line composite-pos roundtrip)))))))))
+
+(ert-deftest ejn-lsp-p3-t3--roundtrip-single-line-no-trailing-newline ()
+  "Round-trip: single-line source without trailing newline."
+  (let* ((tmp-dir (make-temp-file "ejn-test-" t))
+         (nb-path (expand-file-name "test.ipynb" tmp-dir))
+         (cell (make-instance 'ejn-cell
+                              :type 'code
+                              :source "x = 1"))
+         (notebook (make-instance 'ejn-notebook
+                                  :path nb-path
+                                  :cells (list cell))))
+    (unwind-protect
+        (ejn-lsp-p3-t3--check-roundtrip notebook)
+      (delete-directory tmp-dir 'recursive))))
+
+(ert-deftest ejn-lsp-p3-t3--roundtrip-single-line-with-trailing-newline ()
+  "Round-trip: single-line source with trailing newline."
+  (let* ((tmp-dir (make-temp-file "ejn-test-" t))
+         (nb-path (expand-file-name "test.ipynb" tmp-dir))
+         (cell (make-instance 'ejn-cell
+                              :type 'code
+                              :source "x = 1\n"))
+         (notebook (make-instance 'ejn-notebook
+                                  :path nb-path
+                                  :cells (list cell))))
+    (unwind-protect
+        (ejn-lsp-p3-t3--check-roundtrip notebook)
+      (delete-directory tmp-dir 'recursive))))
+
+(ert-deftest ejn-lsp-p3-t3--roundtrip-empty-source ()
+  "Empty source has no content lines to round-trip."
+  (let* ((tmp-dir (make-temp-file "ejn-test-" t))
+         (nb-path (expand-file-name "test.ipynb" tmp-dir))
+         (cell (make-instance 'ejn-cell
+                              :type 'code
+                              :source ""))
+         (notebook (make-instance 'ejn-notebook
+                                  :path nb-path
+                                  :cells (list cell))))
+    (unwind-protect
+        (progn
+          (let ((composite-pos (ejn-lsp-pos-to-composite cell notebook 0 0)))
+            (let ((roundtrip (ejn-lsp-pos-from-composite notebook (car composite-pos))))
+              (should-not roundtrip)))
+          (ejn-lsp-p3-t3--check-roundtrip notebook))
+      (delete-directory tmp-dir 'recursive))))
+
+(ert-deftest ejn-lsp-p3-t3--roundtrip-multi-line-no-trailing-newline ()
+  "Round-trip: multi-line source without trailing newline."
+  (let* ((tmp-dir (make-temp-file "ejn-test-" t))
+         (nb-path (expand-file-name "test.ipynb" tmp-dir))
+         (cell (make-instance 'ejn-cell
+                              :type 'code
+                              :source "a\nb\nc"))
+         (notebook (make-instance 'ejn-notebook
+                                  :path nb-path
+                                  :cells (list cell))))
+    (unwind-protect
+        (ejn-lsp-p3-t3--check-roundtrip notebook)
+      (delete-directory tmp-dir 'recursive))))
+
+(ert-deftest ejn-lsp-p3-t3--roundtrip-multi-line-with-trailing-newline ()
+  "Round-trip: multi-line source with trailing newline."
+  (let* ((tmp-dir (make-temp-file "ejn-test-" t))
+         (nb-path (expand-file-name "test.ipynb" tmp-dir))
+         (cell (make-instance 'ejn-cell
+                              :type 'code
+                              :source "a\nb\nc\n"))
+         (notebook (make-instance 'ejn-notebook
+                                  :path nb-path
+                                  :cells (list cell))))
+    (unwind-protect
+        (ejn-lsp-p3-t3--check-roundtrip notebook)
+      (delete-directory tmp-dir 'recursive))))
+
+(ert-deftest ejn-lsp-p3-t3--roundtrip-mixed-sources-multi-cell ()
+  "Round-trip: two cells with different source types."
+  (let* ((tmp-dir (make-temp-file "ejn-test-" t))
+         (nb-path (expand-file-name "test.ipynb" tmp-dir))
+         (cell0 (make-instance 'ejn-cell
+                               :type 'code
+                               :source "x = 1"))
+         (cell1 (make-instance 'ejn-cell
+                               :type 'code
+                               :source "a\nb\n"))
+         (notebook (make-instance 'ejn-notebook
+                                  :path nb-path
+                                  :cells (list cell0 cell1))))
+    (unwind-protect
+        (ejn-lsp-p3-t3--check-roundtrip notebook)
+      (delete-directory tmp-dir 'recursive))))
+
+(ert-deftest ejn-lsp-p3-t3--roundtrip-with-empty-cell-in-middle ()
+  "Round-trip: three cells where middle one is empty."
+  (let* ((tmp-dir (make-temp-file "ejn-test-" t))
+         (nb-path (expand-file-name "test.ipynb" tmp-dir))
+         (cell0 (make-instance 'ejn-cell
+                               :type 'code
+                               :source "x = 1"))
+         (cell1 (make-instance 'ejn-cell
+                               :type 'code
+                               :source ""))
+         (cell2 (make-instance 'ejn-cell
+                               :type 'code
+                               :source "z"))
+         (notebook (make-instance 'ejn-notebook
+                                  :path nb-path
+                                  :cells (list cell0 cell1 cell2))))
+    (unwind-protect
+        (ejn-lsp-p3-t3--check-roundtrip notebook)
+      (delete-directory tmp-dir 'recursive))))
+
+(ert-deftest ejn-lsp-p3-t3--roundtrip-beginning-middle-end-positions ()
+  "Round-trip: verify positions at beginning, middle, and end of cell."
+  (let* ((tmp-dir (make-temp-file "ejn-test-" t))
+         (nb-path (expand-file-name "test.ipynb" tmp-dir))
+         (cell (make-instance 'ejn-cell
+                              :type 'code
+                              :source "line0\nline1\nline2\nline3\nline4"))
+         (notebook (make-instance 'ejn-notebook
+                                  :path nb-path
+                                  :cells (list cell))))
+    (unwind-protect
+        (progn
+          (let ((comp (ejn-lsp-pos-to-composite cell notebook 0 3))
+                (rt (ejn-lsp-pos-from-composite
+                     notebook
+                     (car (ejn-lsp-pos-to-composite cell notebook 0 3)))))
+            (should (and rt (eq (car rt) cell) (equal (cdr rt) 0)))
+            (should (equal (cdr comp) 3)))
+          (let ((comp (ejn-lsp-pos-to-composite cell notebook 2 7))
+                (rt (ejn-lsp-pos-from-composite
+                     notebook
+                     (car (ejn-lsp-pos-to-composite cell notebook 2 7)))))
+            (should (and rt (eq (car rt) cell) (equal (cdr rt) 2)))
+            (should (equal (cdr comp) 7)))
+          (let ((comp (ejn-lsp-pos-to-composite cell notebook 4 2))
+                (rt (ejn-lsp-pos-from-composite
+                     notebook
+                     (car (ejn-lsp-pos-to-composite cell notebook 4 2)))))
+            (should (and rt (eq (car rt) cell) (equal (cdr rt) 4)))
+            (should (equal (cdr comp) 2))))
+      (delete-directory tmp-dir 'recursive))))
+
 ;;; Tests — P3-T08: ejn-lsp-pos-to-composite
 
 (ert-deftest ejn-lsp-p3-t08--non-code-cell-returns-nil ()

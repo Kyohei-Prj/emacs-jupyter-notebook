@@ -287,6 +287,73 @@ a cells array."
       (kill-buffer buf)
       (delete-directory tmpdir 'recursive))))
 
+;;; Tests — P3-T4: Outputs survive save/load round-trip
+
+(ert-deftest ejn-notebook-p3-t4--outputs-survive-save-load-roundtrip ()
+  "Verify non-empty cell outputs survive JSON serialization round-trip.
+
+Create a notebook with code cells that have outputs (hash-tables
+simulating real Jupyter output structures), save to .ipynb, reload
+via ejn-notebook-load, and assert that outputs match the originals."
+  (let* ((tmpdir (make-temp-file "ejn-test-outputs-" t))
+         (nbpath (expand-file-name "outputs-roundtrip.ipynb" tmpdir))
+         ;; Simulate a real Jupyter display_data output
+         (output-1
+          (let ((ht (make-hash-table :test 'equal)))
+            (puthash "output_type" "display_data" ht)
+            (puthash "text/plain" "array([1, 2, 3])" ht)
+            ht))
+         ;; Simulate a stream output
+         (output-2
+          (let ((ht (make-hash-table :test 'equal)))
+            (puthash "output_type" "stream" ht)
+            (puthash "name" "stdout" ht)
+            (puthash "text" "hello world\n" ht)
+            ht))
+         (cell-with-outputs
+          (make-instance 'ejn-cell
+                         :type 'code
+                         :source "print('hello')"
+                         :outputs (list output-1 output-2)))
+         (cell-no-outputs
+          (make-instance 'ejn-cell
+                         :type 'code
+                         :source "pass"
+                         :outputs nil))
+         (nb (make-instance 'ejn-notebook
+                            :path nbpath
+                            :cells (list cell-with-outputs cell-no-outputs)))
+         (buf (generate-new-buffer "*ejn-outputs-test*")))
+    (unwind-protect
+        (progn
+          ;; Arrange: associate notebook with buffer
+          (with-current-buffer buf
+            (set (make-local-variable 'ejn--notebook) nb))
+          ;; Act: save then reload
+          (with-current-buffer buf
+            (ejn:notebook-save-notebook-command))
+          (let* ((nb2 (ejn-notebook-load nbpath))
+                 (cells2 (slot-value nb2 'cells))
+                 (reloaded-cell (nth 0 cells2))
+                 (reloaded-outputs (slot-value reloaded-cell 'outputs))
+                 (empty-cell (nth 1 cells2)))
+            ;; Assert: outputs list is non-nil and has correct length
+            (should (listp reloaded-outputs))
+            (should (= (length reloaded-outputs) 2))
+            ;; Assert: first output preserves output_type
+            (let ((out-1 (nth 0 reloaded-outputs)))
+              (should (equal (gethash "output_type" out-1) "display_data"))
+              (should (equal (gethash "text/plain" out-1) "array([1, 2, 3])")))
+            ;; Assert: second output preserves stream fields
+            (let ((out-2 (nth 1 reloaded-outputs)))
+              (should (equal (gethash "output_type" out-2) "stream"))
+              (should (equal (gethash "name" out-2) "stdout"))
+              (should (equal (gethash "text" out-2) "hello world\n")))
+            ;; Assert: second cell has nil outputs
+            (should-not (slot-value empty-cell 'outputs))))
+      (kill-buffer buf)
+      (delete-directory tmpdir 'recursive))))
+
 (ert-deftest ejn-notebook-p2-t39--file-open-alias-is-fbound-and-equivalent-to-ejn-open-file ()
   "Smoke: verify ejn:file-open is fboundp and is an alias for ejn-open-file."
   (should (fboundp #'ejn:file-open))

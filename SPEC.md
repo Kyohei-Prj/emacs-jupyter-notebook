@@ -85,6 +85,10 @@ No data model changes. All EIEIO classes (`ejn-notebook`, `ejn-cell`) remain unc
 
 ---
 
+## Current phase
+
+Phase 3 — Verification
+
 ## Task list
 
 ### Phase 1 — Critical Bugs
@@ -110,10 +114,10 @@ Close five architectural gaps: global hook, fragile mutation, dead code, wrong d
 
 Verify LSP API correctness and add round-trip tests for position translation and JSON serialization.
 
-- [ ] P3-T1 Verify `lsp-virtual-buffer-register` API signature; wrap call in `condition-case` with fallback if signature mismatches [tdd] (error handling + conditional dispatch; acceptance: no void-function error)
-- [ ] P3-T2 Verify `lsp-find-definition` API signature; wrap call in `condition-case` with `(save-excursion (goto-char pos))` fallback if it rejects position arg [tdd] (error handling + conditional dispatch; acceptance: no void-function or wrong-number-of-args error)
-- [ ] P3-T3 Write ERT tests for `ejn-lsp-pos-to-composite` / `ejn-lsp-pos-from-composite` round-trip with sources having trailing newlines, no trailing newlines, empty sources, and multi-line sources [tdd] (test writing; acceptance: pos→composite→pos returns original coords)
-- [ ] P3-T4 Write ERT test that saves a notebook with non-empty `outputs` to temp `.ipynb`, reloads via `ejn-notebook-load`, and asserts outputs match [tdd] (test writing; acceptance: outputs survive json-encode/json-parse round-trip)
+- [x] P3-T1 Verify `lsp-virtual-buffer-register` API signature; wrap call in `condition-case` with fallback if signature mismatches [tdd] (error handling + conditional dispatch; acceptance: no void-function error)
+- [x] P3-T2 Verify `lsp-find-definition` API signature; wrap call in `condition-case` with `(save-excursion (goto-char pos))` fallback if it rejects position arg [tdd] (error handling + conditional dispatch; acceptance: no void-function or wrong-number-of-args error)
+- [x] P3-T3 Write ERT tests for `ejn-lsp-pos-to-composite` / `ejn-lsp-pos-from-composite` round-trip with sources having trailing newlines, no trailing newlines, empty sources, and multi-line sources [tdd] (test writing; acceptance: pos→composite→pos returns original coords)
+- [x] P3-T4 Write ERT test that saves a notebook with non-empty `outputs` to temp `.ipynb`, reloads via `ejn-notebook-load`, and asserts outputs match [tdd] (test writing; acceptance: outputs survive json-encode/json-parse round-trip)
 
 ### Phase 4 — UX Polish
 
