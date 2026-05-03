@@ -25,7 +25,6 @@
 ;;
 ;; This file provides:
 ;;   - ejn-cell-open-buffer   : Create/return a cell editing buffer
-;;   - ejn--cell-after-change-hook : after-change-functions hook for dirty tracking
 ;;   - ejn--cell-kill-buffer-hook  : kill-buffer-hook for cleanup
 
 ;;; Code:
@@ -46,17 +45,9 @@
 (defvar ejn--cell nil
   "Buffer-local variable storing the `ejn-cell' object for this cell buffer.")
 
-(defun ejn--cell-after-change-hook (_start _end _pre-change-length)
-  "Mark the cell buffer's `ejn-cell' as dirty.
-Called by `after-change-functions' with arguments START, END,
-PRE-CHANGE-LENGTH (all unused here)."
-  (when (and (boundp 'ejn--cell) ejn--cell)
-    (oset ejn--cell dirty t)))
-
 (defun ejn--cell-kill-buffer-hook ()
   "Clean up when the cell buffer is killed.
-Remove `ejn--cell-after-change-hook' from `after-change-functions',
-and unregister the cell from LSP via `ejn-lsp-unregister-cell'."
+Unregister the cell from LSP via `ejn-lsp-unregister-cell'."
   (when (and (boundp 'ejn--cell) ejn--cell)
     (when (fboundp 'ejn-lsp-unregister-cell)
       (ejn-lsp-unregister-cell ejn--cell)))
@@ -121,10 +112,9 @@ file via `ejn-shadow-write-cell' (when NOTEBOOK is given), update
          (when (and notebook (fboundp 'ejn-lsp-setup-cell-buffer))
            (ejn-lsp-setup-cell-buffer cell notebook))
          ;; Register after-change hooks AFTER all setup functions
-         ;; to avoid triggering them during initial buffer population.
-         (with-current-buffer new-buf
-           (remove-hook 'after-change-functions #'ejn--cell-after-change-hook 'local)
-           (when (fboundp 'ejn--undo-after-change)
+          ;; to avoid triggering them during initial buffer population.
+          (with-current-buffer new-buf
+            (when (fboundp 'ejn--undo-after-change)
              (add-hook 'after-change-functions
                        #'ejn--undo-after-change 'append 'local))
            (when (fboundp 'ejn-lsp--debounced-composite-regen)
@@ -245,6 +235,8 @@ the master view."
       ;; Swap in the cells list
       (setf (nth (1- current-index) cells) current-cell
             (nth current-index cells) predecessor)
+      ;; Ensure the notebook's :cells slot sees the mutation
+      (oset notebook cells cells)
       ;; Delete old shadow files before writing new ones
       (dolist (cell (list current-cell predecessor))
         (let ((old-shadow (slot-value cell 'shadow-file)))
@@ -279,6 +271,8 @@ the master view."
       ;; Swap in the cells list
       (setf (nth current-index cells) successor
             (nth (1+ current-index) cells) current-cell)
+      ;; Ensure the notebook's :cells slot sees the mutation
+      (oset notebook cells cells)
       ;; Delete old shadow files before writing new ones
       (dolist (cell (list current-cell successor))
         (let ((old-shadow (slot-value cell 'shadow-file)))

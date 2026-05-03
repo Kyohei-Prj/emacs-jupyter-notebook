@@ -87,7 +87,7 @@ No data model changes. All EIEIO classes (`ejn-notebook`, `ejn-cell`) remain unc
 
 ## Current phase
 
-Phase 1 — Critical Bugs
+Phase 2 — Architectural Gaps
 
 ## Task list
 
@@ -104,11 +104,11 @@ Fix four runtime bugs that corrupt cell buffers, leak overlays, or violate Emacs
 
 Close five architectural gaps: global hook, fragile mutation, dead code, wrong dependency, cosmetic formatting.
 
-- [ ] P2-T1 Add `'local` flag to `add-hook` for `window-scroll-functions` in `ejn--create-master-view` [smoke] (structural fix — hook registration scope)
-- [ ] P2-T2 Add `(oset notebook cells cells)` after `setf` in both `move-cell-up` and `move-cell-down` [smoke] (defensive coding — no behavioral change, verifies list identity)
-- [ ] P2-T3 Remove `ejn--cell-after-change-hook` function and its `remove-hook` call in `ejn--cell-kill-buffer-hook` [smoke] (dead code removal — verify no other callers via grep)
-- [ ] P2-T4 Remove `(depends-on "undercover")` from `Eask`; keep `(development "undercover")` [scaffold] (config change only — no code)
-- [ ] P2-T5 Move `(let` / `(when-let*` to next line after closing docstring `"` in `ejn-kernel-stop`, `ejn--cell-notebook`, `ejn--iopub-handler` [smoke] (cosmetic formatting — no behavioral change)
+- [x] P2-T1 Add `'local` flag to `add-hook` for `window-scroll-functions` in `ejn--create-master-view` [smoke] (structural fix — hook registration scope)
+- [x] P2-T2 Add `(oset notebook cells cells)` after `setf` in both `move-cell-up` and `move-cell-down` [smoke] (defensive coding — no behavioral change, verifies list identity)
+- [x] P2-T3 Remove `ejn--cell-after-change-hook` function and its `remove-hook` call in `ejn--cell-kill-buffer-hook` [smoke] (dead code removal — verify no other callers via grep)
+- [x] P2-T4 Remove `(depends-on "undercover")` from `Eask`; keep `(development "undercover")` [scaffold] (config change only — no code)
+- [x] P2-T5 Move `(let` / `(when-let*` to next line after closing docstring `"` in `ejn-kernel-stop`, `ejn--cell-notebook`, `ejn--iopub-handler` [smoke] (cosmetic formatting — no behavioral change)
 
 ### Phase 3 — Verification
 

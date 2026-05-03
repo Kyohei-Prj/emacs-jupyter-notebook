@@ -69,30 +69,6 @@
       ;; markdown-mode may not be available; accept fundamental-mode as fallback
       (should (memq major-mode '(markdown-mode fundamental-mode))))))
 
-;;; Tests — P2-T8: ejn-cell-open-buffer registers after-change-functions hook
-
-(ert-deftest ejn-cell-p2-t8--open-buffer-registers-after-change-hook ()
-  "Verify `ejn-cell-open-buffer' registers `ejn--cell-after-change-hook' on `after-change-functions'."
-  (let* ((cell (make-instance 'ejn-cell
-                              :type 'code
-                              :source "x = 1"))
-         (buf (ejn-cell-open-buffer cell)))
-    (with-current-buffer buf
-      (should (memq #'ejn--cell-after-change-hook after-change-functions)))))
-
-;;; Tests — P2-T8: after-change hook sets dirty flag on the cell
-
-(ert-deftest ejn-cell-p2-t8--after-change-hook-sets-dirty-flag ()
-  "Verify editing the buffer via the after-change hook sets the cell's `:dirty' slot."
-  (let* ((cell (make-instance 'ejn-cell
-                              :type 'code
-                              :source "x = 1"))
-         (buf (ejn-cell-open-buffer cell)))
-    (should-not (ejn-cell-dirty-p cell))
-    (with-current-buffer buf
-      (insert " # comment"))
-    (should (ejn-cell-dirty-p cell))))
-
 ;;; Tests — P2-T8: buffer-local ejn--cell is set
 
 (ert-deftest ejn-cell-p2-t8--open-buffer-sets-buffer-local-ejn-cell ()
@@ -126,23 +102,6 @@
          (buf (ejn-cell-open-buffer cell)))
     (with-current-buffer buf
       (should (memq #'ejn--cell-kill-buffer-hook kill-buffer-hook)))))
-
-;;; Tests — P2-T8: kill-buffer-hook removes after-change-functions registration
-
-(ert-deftest ejn-cell-p2-t8--kill-buffer-hook-cleans-up-after-change ()
-  "Verify killing the buffer removes `ejn--cell-after-change-hook' from `after-change-functions'."
-  (let* ((cell (make-instance 'ejn-cell
-                              :type 'code
-                              :source "pass"))
-         (buf (ejn-cell-open-buffer cell)))
-    ;; Hook is registered initially
-    (with-current-buffer buf
-      (should (memq #'ejn--cell-after-change-hook after-change-functions)))
-    ;; Kill the buffer
-    (kill-buffer buf)
-    ;; Buffer is dead, so we can't check its hook list directly,
-    ;; but the kill-buffer-hook should have run without error
-    (should-not (buffer-live-p buf))))
 
 ;;; Tests — P2-T8: ejn-cell-open-buffer returns existing live buffer
 
@@ -705,6 +664,40 @@
   "Verify both move commands are defined and interactive."
   (should (commandp 'ejn:worksheet-move-cell-up))
   (should (commandp 'ejn:worksheet-move-cell-down)))
+
+;;; Tests — P2-T2: move operations preserve :cells list identity via oset
+
+(ert-deftest ejn-cell-p2-t2--move-operations-preserve-cells-list-identity ()
+  "Verify move-up and move-down preserve :cells slot identity after swap."
+  (let* ((nb (make-instance 'ejn-notebook
+                             :path "/tmp/test-cells-identity.ipynb"
+                             :cells nil))
+         (cell-a (make-instance 'ejn-cell :type 'code :source "A"))
+         (cell-b (make-instance 'ejn-cell :type 'code :source "B"))
+         (cell-c (make-instance 'ejn-cell :type 'code :source "C"))
+         (master-buf nil)
+         (buf-b nil)
+         (original-cells nil))
+    (oset nb cells (list cell-a cell-b cell-c))
+    (setq master-buf (ejn--create-master-view nb))
+    (unwind-protect
+        (progn
+          ;; Test move-up preserves list identity
+          (setq buf-b (ejn-cell-open-buffer cell-b nb))
+          (setq original-cells (slot-value nb 'cells))
+          (with-current-buffer buf-b
+            (ejn:worksheet-move-cell-up))
+          (should (eq original-cells (slot-value nb 'cells)))
+          (kill-buffer buf-b)
+          ;; Test move-down preserves list identity
+          (setq buf-b (ejn-cell-open-buffer cell-b nb))
+          (setq original-cells (slot-value nb 'cells))
+          (with-current-buffer buf-b
+            (ejn:worksheet-move-cell-down))
+          (should (eq original-cells (slot-value nb 'cells))))
+      (when (buffer-live-p buf-b)
+        (kill-buffer buf-b))
+      (kill-buffer master-buf))))
 
 ;;; Tests — P2-T19: ejn:worksheet-kill-cell signals error if no cell at point
 

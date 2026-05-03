@@ -693,6 +693,29 @@ poly-ejn-mode uses special-mode as host, so major-mode reflects special-mode."
       (delete-file nbpath)
       (delete-directory tmpdir 'recursive))))
 
+;;; Tests — P2-T1: window-scroll-functions hook is buffer-local
+
+(ert-deftest ejn-master-p2-t1--scroll-hook-is-buffer-local ()
+  "Smoke: `ejn--master-scroll-hook' is registered on the master buffer's local
+`window-scroll-functions' only, not on the global value."
+  (let* ((tmpdir (make-temp-file "ejn-test-p2t1-" t))
+         (nbpath (expand-file-name "test.ipynb" tmpdir))
+         (nb (make-instance 'ejn-notebook :path nbpath))
+         (global-before window-scroll-functions)
+         (buf nil))
+    (unwind-protect
+        (progn
+          (setq buf (ejn--create-master-view nb))
+          ;; 1) Hook appears in the master buffer's local window-scroll-functions
+          (with-current-buffer buf
+            (should (memq #'ejn--master-scroll-hook window-scroll-functions)))
+          ;; 2) Global window-scroll-functions is unchanged
+          (should (equal window-scroll-functions global-before)))
+      (when (and buf (buffer-live-p buf))
+        (kill-buffer buf))
+      (delete-file nbpath)
+      (delete-directory tmpdir 'recursive))))
+
 (provide 'ejn-master-tests)
 
 ;;; ejn-master-tests.el ends here

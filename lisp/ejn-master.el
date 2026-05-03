@@ -156,7 +156,7 @@ Returns the buffer."
       (set (make-local-variable 'ejn--notebook) notebook)
      (add-hook 'kill-buffer-hook #'ejn--cleanup-master-view 'append 'local)
        (unless (memq #'ejn--master-scroll-hook window-scroll-functions)
-        (add-hook 'window-scroll-functions #'ejn--master-scroll-hook 'append))
+         (add-hook 'window-scroll-functions #'ejn--master-scroll-hook 'append 'local))
        (oset notebook master-buffer buf)
       (ejn--poly-render-cells notebook)
       (ejn-mode 1))

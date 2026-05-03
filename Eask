@@ -16,7 +16,6 @@
 (depends-on "ert-runner")
 (development "buttercup")
 (development "undercover")
-(depends-on "undercover")
 
 (source "melpa")
 (source "gnu")

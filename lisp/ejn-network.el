@@ -103,7 +103,8 @@ Returns the `jupyter-kernel-client' instance."
   "Stop the Jupyter kernel for NOTEBOOK and return nil.
 
 Calls `jupyter-shutdown-kernel' on the client stored in the notebook's
-`:kernel-id' slot, then clears that slot."  (let ((client (slot-value notebook 'kernel-id)))
+   `:kernel-id' slot, then clears that slot."
+  (let ((client (slot-value notebook 'kernel-id)))
 					      (when client
 						(jupyter-shutdown-kernel client))
 					      (oset notebook kernel-id nil)
@@ -188,7 +189,8 @@ no kernel is started for NOTEBOOK."
 (defun ejn--cell-notebook (cell)
   "Return the notebook object for CELL.
 
-Reads the buffer-local `ejn--notebook' variable from the cell's buffer."  (let ((buf (slot-value cell 'buffer)))
+Reads the buffer-local `ejn--notebook' variable from the   cell's buffer."
+  (let ((buf (slot-value cell 'buffer)))
 									    (when (buffer-live-p buf)
 									      (buffer-local-value 'ejn--notebook buf))))
 
@@ -199,7 +201,8 @@ Updates the mode-line on status messages.  Calls `ejn-cell-refresh-header'
 on status:idle messages to update the cell header.  Calls `ejn--render-output'
 for stream, execute_result, display_data, and error messages.
 NOTEBOOK is the notebook containing CELL (used for mode-line update).
-If NOTEBOOK is nil, it is looked up from the cell's buffer."  (when-let* ((msg-type (plist-get msg 'msg_type))
+If NOTEBOOK is nil, it is looked up from the cell's buffer."
+  (when-let* ((msg-type (plist-get msg 'msg_type))
 									  (nb (or notebook
 										  (ejn--cell-notebook cell))))
 								(pcase msg-type
