@@ -717,78 +717,99 @@ produces the expected format when a notebook with a kernel is set up."
 ;;; Tests — P4-T10: ejn--iopub-handler dispatch
 
 (ert-deftest ejn-network-p4-t10--dispatches-stream-to-render-output ()
-  "Verify `ejn--iopub-handler' calls `ejn--render-output' on stream messages, which calls `jupyter-insert'."
+  "Verify `ejn--iopub-handler' calls `ejn--render-output' on stream messages,
+   which sets the overlay's after-string with the rendered content."
   (let ((notebook (make-instance 'ejn-notebook :path "/tmp/test.ipynb"))
         (cell (make-instance 'ejn-cell :source "x=1" :type 'code
                              :buffer (generate-new-buffer "*ejn-test-cell*")))
         (msg '(msg_type "stream"
 			content (data (:text/plain "hello")))))
-    (setq ejn-network--test-jupyter-insert-captured-args nil)
     ;; Act
     (ejn--iopub-handler cell msg notebook)
-    ;; Assert: jupyter-insert was called (via ejn--render-output)
-    (should ejn-network--test-jupyter-insert-captured-args)))
+    ;; Assert: overlay after-string contains the rendered output
+    (let ((overlay (slot-value cell 'output-overlay)))
+      (should (overlayp overlay))
+      (should (string-match "hello"
+                            (overlay-get overlay 'after-string))))
+    (kill-buffer (slot-value cell 'buffer))))
 
 (ert-deftest ejn-network-p4-t10--dispatches-execute-result-to-render-output ()
-  "Verify `ejn--iopub-handler' calls `ejn--render-output' on execute_result messages, which calls `jupyter-insert'."
+  "Verify `ejn--iopub-handler' calls `ejn--render-output' on execute_result messages,
+   which sets the overlay's after-string with the rendered content."
   (let ((notebook (make-instance 'ejn-notebook :path "/tmp/test.ipynb"))
         (cell (make-instance 'ejn-cell :source "x=1" :type 'code
                              :buffer (generate-new-buffer "*ejn-test-cell*")))
         (msg '(msg_type "execute_result"
 			content (data (:text/plain "1")))))
-    (setq ejn-network--test-jupyter-insert-captured-args nil)
     ;; Act
     (ejn--iopub-handler cell msg notebook)
-    ;; Assert: jupyter-insert was called (via ejn--render-output)
-    (should ejn-network--test-jupyter-insert-captured-args)))
+    ;; Assert: overlay after-string contains the rendered output
+    (let ((overlay (slot-value cell 'output-overlay)))
+      (should (overlayp overlay))
+      (should (string-match "1"
+                            (overlay-get overlay 'after-string))))
+    (kill-buffer (slot-value cell 'buffer))))
 
 (ert-deftest ejn-network-p4-t10--dispatches-display-data-to-render-output ()
-  "Verify `ejn--iopub-handler' calls `ejn--render-output' on display_data messages, which calls `jupyter-insert'."
+  "Verify `ejn--iopub-handler' calls `ejn--render-output' on display_data messages,
+   which sets the overlay's after-string with the rendered content."
   (let ((notebook (make-instance 'ejn-notebook :path "/tmp/test.ipynb"))
         (cell (make-instance 'ejn-cell :source "x=1" :type 'code
                              :buffer (generate-new-buffer "*ejn-test-cell*")))
         (msg '(msg_type "display_data"
 			content (data (:text/plain "1")))))
-    (setq ejn-network--test-jupyter-insert-captured-args nil)
     ;; Act
     (ejn--iopub-handler cell msg notebook)
-    ;; Assert: jupyter-insert was called (via ejn--render-output)
-    (should ejn-network--test-jupyter-insert-captured-args)))
+    ;; Assert: overlay after-string contains the rendered output
+    (let ((overlay (slot-value cell 'output-overlay)))
+      (should (overlayp overlay))
+      (should (string-match "1"
+                            (overlay-get overlay 'after-string))))
+    (kill-buffer (slot-value cell 'buffer))))
 
 (ert-deftest ejn-network-p4-t10--dispatches-error-to-render-output ()
-  "Verify `ejn--iopub-handler' calls `ejn--render-output' on error messages, which calls `jupyter-insert'."
+  "Verify `ejn--iopub-handler' calls `ejn--render-output' on error messages,
+   which sets the overlay's after-string with the rendered error content."
   (let ((notebook (make-instance 'ejn-notebook :path "/tmp/test.ipynb"))
         (cell (make-instance 'ejn-cell :source "x=1" :type 'code
                              :buffer (generate-new-buffer "*ejn-test-cell*")))
         (msg '(msg_type "error"
-			content (data (:text/plain "Error")))))
-    (setq ejn-network--test-jupyter-insert-captured-args nil)
+			content
+			(ename "ValueError"
+			       evalue "x must be positive"))))
     ;; Act
     (ejn--iopub-handler cell msg notebook)
-    ;; Assert: jupyter-insert was called (via ejn--render-output)
-    (should ejn-network--test-jupyter-insert-captured-args)))
+    ;; Assert: overlay after-string contains the rendered error
+    (let ((overlay (slot-value cell 'output-overlay)))
+      (should (overlayp overlay))
+      (should (string-match "ValueError"
+                            (overlay-get overlay 'after-string))))
+    (kill-buffer (slot-value cell 'buffer))))
 
 (ert-deftest ejn-network-p4-t10--ignores-unknown-message-types ()
   "Verify `ejn--iopub-handler' does nothing (no error) on unknown message types."
   (let ((notebook (make-instance 'ejn-notebook :path "/tmp/test.ipynb"))
-        (cell (make-instance 'ejn-cell :source "x=1" :type 'code))
+        (cell (make-instance 'ejn-cell :source "x=1" :type 'code
+                             :buffer (generate-new-buffer "*ejn-test-cell*")))
         (msg '(msg_type "unknown_type")))
-    (setq ejn-network--test-jupyter-insert-captured-args nil)
     ;; Act
     (ejn--iopub-handler cell msg notebook)
-    ;; Assert: no error, and jupyter-insert was NOT called
-    (should-not ejn-network--test-jupyter-insert-captured-args)))
+    ;; Assert: no error, and no output overlay was created
+    (should-not (slot-value cell 'output-overlay))
+    (kill-buffer (slot-value cell 'buffer))))
 
 (ert-deftest ejn-network-p4-t10--still-dispatches-status-to-update-mode-line ()
-  "Verify `ejn--iopub-handler' still calls `ejn--update-mode-line' on status messages."
+  "Verify `ejn--iopub-handler' still calls `ejn--update-mode-line' on status messages
+   and does NOT create an output overlay."
   (let ((notebook (make-instance 'ejn-notebook :path "/tmp/test.ipynb"))
-        (cell (make-instance 'ejn-cell :source "x=1" :type 'code))
+        (cell (make-instance 'ejn-cell :source "x=1" :type 'code
+                             :buffer (generate-new-buffer "*ejn-test-cell*")))
         (msg '(msg_type "status")))
-    (setq ejn-network--test-jupyter-insert-captured-args nil)
     ;; Act
     (ejn--iopub-handler cell msg notebook)
-    ;; Assert: no error occurs, and jupyter-insert was NOT called (status goes to update-mode-line)
-    (should-not ejn-network--test-jupyter-insert-captured-args)))
+    ;; Assert: no error occurs, and no output overlay was created
+    (should-not (slot-value cell 'output-overlay))
+    (kill-buffer (slot-value cell 'buffer))))
 
 ;;; Tests — P4-T09: ejn--wait-idle
 
@@ -810,11 +831,11 @@ produces the expected format when a notebook with a kernel is set up."
       ;; Assert
       (should-not result))))
 
-;;; Tests — P4-T13: ejn--render-output
+;;; Tests — P4-T13: ejn--render-output (overlay after-string)
 
-(ert-deftest ejn-network-p4-t13--renders-text-plain-output-via-jupyter-insert ()
-  "Verify `ejn--render-output' calls `jupyter-insert' with data and metadata
-   from the message, within the cell's buffer."
+(ert-deftest ejn-network-p4-t13--renders-text-plain-output-to-overlay ()
+  "Verify `ejn--render-output' sets text/plain output in the overlay's after-string
+   and does not modify buffer text."
   ;; Arrange
   (let ((cell (make-instance 'ejn-cell
                              :source "print('hello')"
@@ -824,18 +845,24 @@ produces the expected format when a notebook with a kernel is set up."
 			content
 			(data (:text/plain "'hello'")
 			      metadata (:text/plain nil)))))
-    (setq ejn-network--test-jupyter-insert-captured-args nil)
+    ;; Create initial buffer content
+    (with-current-buffer (slot-value cell 'buffer)
+      (insert "print('hello')"))
     ;; Act
     (ejn--render-output cell msg)
-    ;; Assert: jupyter-insert was called with the data plist and metadata
-    (should ejn-network--test-jupyter-insert-captured-args)
-    (should (equal (car ejn-network--test-jupyter-insert-captured-args)
-                   '(:text/plain "'hello'")))
-    (should (equal (cadr ejn-network--test-jupyter-insert-captured-args)
-                   '(:text/plain nil)))))
+    ;; Assert: buffer text is unchanged
+    (with-current-buffer (slot-value cell 'buffer)
+      (should (string= (buffer-string) "print('hello')")))
+    ;; Assert: overlay after-string contains the rendered output
+    (let ((overlay (slot-value cell 'output-overlay)))
+      (should (overlayp overlay))
+      (should (string-match "'hello'"
+                            (overlay-get overlay 'after-string))))
+    (kill-buffer (slot-value cell 'buffer))))
 
-(ert-deftest ejn-network-p4-t13--renders-html-output-via-jupyter-insert ()
-  "Verify `ejn--render-output' passes HTML data to `jupyter-insert'."
+(ert-deftest ejn-network-p4-t13--renders-html-output-to-overlay ()
+  "Verify `ejn--render-output' sets HTML output in the overlay's after-string
+   (preferring text/html over text/plain per MIME priority)."
   ;; Arrange
   (let ((cell (make-instance 'ejn-cell
                              :source "display('test')"
@@ -845,15 +872,16 @@ produces the expected format when a notebook with a kernel is set up."
 			content
 			(data (:text/html "<p>test</p>" :text/plain "test")
 			      metadata (:text/html nil :text/plain nil)))))
-    (setq ejn-network--test-jupyter-insert-captured-args nil)
     ;; Act
     (ejn--render-output cell msg)
-    ;; Assert: jupyter-insert was called with the data and metadata plists
-    (should ejn-network--test-jupyter-insert-captured-args)
-    (should (equal (car ejn-network--test-jupyter-insert-captured-args)
-                   '(:text/html "<p>test</p>" :text/plain "test")))
-    (should (equal (cadr ejn-network--test-jupyter-insert-captured-args)
-                   '(:text/html nil :text/plain nil)))))
+    ;; Assert: overlay after-string is non-empty (HTML rendered or placeholder)
+    (let ((overlay (slot-value cell 'output-overlay)))
+      (should (overlayp overlay))
+      (let ((after-str (overlay-get overlay 'after-string)))
+        (should (or (string-match "HTML output" after-str)
+                    (string-match "test" after-str)
+                    (> (length after-str) 0)))))
+    (kill-buffer (slot-value cell 'buffer))))
 
 ;;; Tests — P4-T15: ejn--clear-output
 
@@ -2112,7 +2140,7 @@ the header refresh on the cell buffer, observable as an updated before-string."
     (oset cell exec-count 2)
     ;; Status:idle message
     (let ((msg '(msg_type "status"
-                         content (execution_state "idle"))))
+                          content (execution_state "idle"))))
       ;; Act
       (ejn--iopub-handler cell msg notebook)
       ;; Assert: before-string was refreshed to reflect exec-count 2
@@ -2122,5 +2150,178 @@ the header refresh on the cell buffer, observable as an updated before-string."
           (should (stringp before))
           (should (string-match-p "In \\[2\\]:" before)))))
     (kill-buffer buf)))
+
+;;; Tests — P1-T1: ejn--output-overlay returns cached overlay
+
+(ert-deftest ejn-network-p1-t1--returns-same-overlay-on-repeated-calls ()
+  "Verify two calls to `ejn--output-overlay' on the same cell return the same overlay."
+  ;; Arrange: cell with a live buffer
+  (let ((cell (make-instance 'ejn-cell
+                             :source "print('hello')"
+                             :type 'code
+                             :buffer (generate-new-buffer "*ejn-test-p1-t1*"))))
+    (unwind-protect
+        (progn
+          ;; Act: call ejn--output-overlay twice
+          (let ((overlay1 (ejn--output-overlay cell))
+                (overlay2 (ejn--output-overlay cell)))
+            ;; Assert: both calls return the same overlay object
+            (should (eql overlay1 overlay2))))
+      (kill-buffer (slot-value cell 'buffer)))))
+
+(ert-deftest ejn-network-p1-t1--no-orphan-overlays-accumulate ()
+  "Verify repeated calls to `ejn--output-overlay' do not accumulate orphan overlays in the buffer."
+  ;; Arrange: cell with a live buffer
+  (let ((cell (make-instance 'ejn-cell
+                             :source "print('hello')"
+                             :type 'code
+                             :buffer (generate-new-buffer "*ejn-test-p1-t1-orphan*"))))
+    (unwind-protect
+        (progn
+          ;; Act: call ejn--output-overlay three times
+          (ejn--output-overlay cell)
+          (ejn--output-overlay cell)
+          (ejn--output-overlay cell)
+          ;; Assert: exactly one overlay in the buffer
+          (with-current-buffer (slot-value cell 'buffer)
+            (should (= (length (overlays-in (point-min) (point-max))) 1))))
+      (kill-buffer (slot-value cell 'buffer)))))
+
+;;; Tests — P1-T2: ejn--render-output uses overlay after-string, not buffer text
+
+(ert-deftest ejn-network-p1-t2--output-in-overlay-after-string-not-buffer-text ()
+  "Verify `ejn--render-output' sets output in the overlay's `after-string'
+   and does NOT modify the cell buffer's text."
+  ;; Arrange: cell with a live buffer containing known source
+  (let ((cell (make-instance 'ejn-cell
+                             :source "print('hello')"
+                             :type 'code
+                             :buffer (generate-new-buffer "*ejn-test-p1-t2*")))
+        (msg '(msg_type "execute_result"
+			content
+			(data (:text/plain "'hello'")
+			      metadata (:text/plain nil)))))
+    (unwind-protect
+        (progn
+          ;; Create initial buffer content
+          (with-current-buffer (slot-value cell 'buffer)
+            (insert "print('hello')"))
+          ;; Act
+          (ejn--render-output cell msg)
+          ;; Assert: buffer text is unchanged
+          (with-current-buffer (slot-value cell 'buffer)
+            (should (string= (buffer-string) "print('hello')")))
+          ;; Assert: overlay after-string contains the rendered output
+          (let ((overlay (slot-value cell 'output-overlay)))
+            (should (overlayp overlay))
+            (let ((after-string (overlay-get overlay 'after-string)))
+              (should (stringp after-string))
+              (should (string-match "'hello'" after-string)))))
+      (kill-buffer (slot-value cell 'buffer)))))
+
+(ert-deftest ejn-network-p1-t2--mime-data-text-plain-returns-content ()
+  "Verify `ejn--render-mime-data' returns plain text content for `text/plain'."
+  ;; Arrange
+  (let ((data '(:text/plain "hello world"))
+        (metadata '(:text/plain nil))
+        (msg-type "execute_result"))
+    ;; Act
+    (let ((result (ejn--render-mime-data data metadata msg-type)))
+      ;; Assert
+      (should (stringp result))
+      (should (string-match "hello world" result)))))
+
+(ert-deftest ejn-network-p1-t2--mime-data-error-returns-red-text ()
+  "Verify `ejn--render-mime-data' returns red-propertized text for error messages."
+  ;; Arrange: error message with ename, evalue, and traceback
+  (let ((data nil)
+        (metadata nil)
+        (msg-type "error")
+        (msg '(msg_type "error"
+			content
+			(ename "ValueError"
+			       evalue "x must be positive"
+			       traceback ["Traceback (most recent call last)"
+					  "  File \"test.py\", line 1, in <module>"
+					  "ValueError: x must be positive"]))))
+    ;; Act
+    (let ((result (ejn--render-mime-data
+                   (plist-get msg 'content)
+                   (plist-get msg 'metadata)
+                   msg-type)))
+      ;; Assert: result is a string
+      (should (stringp result))
+      ;; Assert: contains ename and evalue
+      (should (string-match "ValueError" result))
+      (should (string-match "x must be positive" result))
+      ;; Assert: text has red face
+      (should (get-text-property 0 'face result))
+      (let ((face (get-text-property 0 'face result)))
+        (should (or (equal face 'error)
+                    (equal face '(:foreground "red"))
+                    (and (listp face)
+                         (member 'error face))
+                    (and (listp face)
+                         (member :foreground face))))))))
+
+(ert-deftest ejn-network-p1-t2--mime-data-text-html-returns-placeholder-or-rendered ()
+  "Verify `ejn--render-mime-data' handles `text/html' — returns rendered HTML in
+   graphical Emacs or a placeholder in terminal."
+  ;; Arrange
+  (let ((data '(:text/html "<p>Hello</p>" :text/plain "fallback"))
+        (metadata '(:text/html nil :text/plain nil))
+        (msg-type "display_data"))
+    ;; Act
+    (let ((result (ejn--render-mime-data data metadata msg-type)))
+      ;; Assert: result is a string (either rendered or placeholder)
+      (should (stringp result))
+      ;; In terminal Emacs, it should be a placeholder; in graphical, it should
+      ;; contain rendered content. Either way, it should not be nil.
+      (should (or (string-match "HTML output" result)
+                  (string-match "Hello" result)
+                  (> (length result) 0))))))
+
+(ert-deftest ejn-network-p1-t2--mime-data-image-png-returns-placeholder-or-image ()
+  "Verify `ejn--render-mime-data' handles `image/png' — returns a placeholder string
+   in terminal Emacs or an image object in graphical Emacs."
+  ;; Arrange: minimal valid PNG data (1x1 transparent pixel, base64-encoded)
+  (let ((data '(:image/png "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+                :text/plain "<png image>"))
+        (metadata '(:image/png nil :text/plain nil))
+        (msg-type "display_data"))
+    ;; Act
+    (let ((result (ejn--render-mime-data data metadata msg-type)))
+      ;; Assert: result is non-nil (string placeholder or image object)
+      (should result)
+      ;; In terminal, it's a string placeholder; in graphical, it may contain an image
+      (should (or (stringp result)
+                  (image-p result)
+                  (and (stringp result)
+                       (> (length result) 0)))))))
+
+(ert-deftest ejn-network-p1-t2--mime-data-text-latex-returns-as-text ()
+  "Verify `ejn--render-mime-data' returns LaTeX content as plain text."
+  ;; Arrange
+  (let ((data '(:text/latex "$\\alpha + \\beta$" :text/plain "alpha + beta"))
+        (metadata '(:text/latex nil :text/plain nil))
+        (msg-type "display_data"))
+    ;; Act
+    (let ((result (ejn--render-mime-data data metadata msg-type)))
+      ;; Assert
+      (should (stringp result))
+      ;; Should contain the LaTeX content or the fallback plain text
+      (should (string-match "alpha" result)))))
+
+(ert-deftest ejn-network-p1-t2--mime-data-stream-output ()
+  "Verify `ejn--render-mime-data' handles stream messages correctly."
+  ;; Arrange: stream message with text/plain data
+  (let ((data '(:text/plain "stream output text"))
+        (metadata nil)
+        (msg-type "stream"))
+    ;; Act
+    (let ((result (ejn--render-mime-data data metadata msg-type)))
+      ;; Assert
+      (should (stringp result))
+      (should (string-match "stream output text" result)))))
 
 ;;; ejn-network-tests.el ends here

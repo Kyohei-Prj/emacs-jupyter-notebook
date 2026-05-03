@@ -380,20 +380,19 @@ otherwise.
 
 Returns nil if CELL is not a markdown cell, has no source, or
 has no live buffer."
-  (unless (eq (slot-value cell 'type) 'markdown)
-    nil)
-  (let* ((source (slot-value cell 'source))
-         (buf (and source (slot-value cell 'buffer))))
-    (if (not (and source (> (length source) 0) buf (buffer-live-p buf)))
-        nil
-      ;; If markdown-mode is available, run font-lock first for base rendering
-      (when (fboundp 'markdown-mode)
-        (with-current-buffer buf
-          (font-lock-fontify-buffer)))
-      ;; Apply our regex-based text property rendering AFTER font-lock
-      ;; so our faces override font-lock's where applicable
-      (ejn--markdown-apply-text-properties buf)
-      nil)))
+  (when (eq (slot-value cell 'type) 'markdown)
+    (let* ((source (slot-value cell 'source))
+           (buf (and source (slot-value cell 'buffer))))
+      (if (not (and source (> (length source) 0) buf (buffer-live-p buf)))
+          nil
+        ;; If markdown-mode is available, run font-lock first for base rendering
+        (when (fboundp 'markdown-mode)
+          (with-current-buffer buf
+            (font-lock-fontify-buffer)))
+        ;; Apply our regex-based text property rendering AFTER font-lock
+        ;; so our faces override font-lock's where applicable
+        (ejn--markdown-apply-text-properties buf)
+        nil))))
 
 (provide 'ejn-ui)
 ;;; ejn-ui.el ends here

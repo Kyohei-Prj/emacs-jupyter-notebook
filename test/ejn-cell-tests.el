@@ -1546,8 +1546,12 @@
             (should (string= (slot-value (nth 1 cells) 'source)
                              "YANKED SOURCE"))
             (should (eq (slot-value (nth 1 cells) 'type) 'markdown)))
-          ;; Kill ring entry was popped
-          (should-not (slot-value nb 'ejn-cell-kill-ring)))
+          ;; Kill ring entry was NOT consumed (P1-T4 fix)
+          (let ((kill-ring (slot-value nb 'ejn-cell-kill-ring)))
+            (should (= (length kill-ring) 1))
+            (let ((entry (car kill-ring)))
+              (should (string= (cdr (assq 'source entry)) "YANKED SOURCE"))
+              (should (eq (cdr (assq 'type entry)) 'markdown)))))
       (when (buffer-live-p buf-a) (kill-buffer buf-a))
       ;; Kill new cell's buffer if open
       (let ((new-cell (nth 1 (slot-value nb 'cells))))
@@ -1556,16 +1560,18 @@
             (when (buffer-live-p new-buf) (kill-buffer new-buf)))))
       (kill-buffer master-buf))))
 
-;;; Tests — P2-T23: Pops from kill ring (entry removed after yank)
+;;; Tests — P2-T23: Does NOT pop from kill ring (non-consuming yank, P1-T4)
 
-(ert-deftest ejn-cell-p2-t23--pops-entry-from-kill-ring ()
-  "Verify `ejn:worksheet-yank-cell' removes the top entry from the kill ring, leaving older entries intact."
+(ert-deftest ejn-cell-p2-t23--does-not-pop-entry-from-kill-ring ()
+  "Verify `ejn:worksheet-yank-cell' does NOT remove the top entry from the kill ring.
+
+Yank is non-consuming: both entries remain intact after yank."
   (let* ((nb (make-instance 'ejn-notebook
-                             :path "/tmp/test-yank-pop.ipynb"
-                             :cells nil))
-         (cell (make-instance 'ejn-cell :type 'code :source "X"))
-         (master-buf nil)
-         (buf nil))
+                              :path "/tmp/test-yank-no-pop.ipynb"
+                              :cells nil))
+          (cell (make-instance 'ejn-cell :type 'code :source "X"))
+          (master-buf nil)
+          (buf nil))
     (oset nb cells (list cell))
     (setq master-buf (ejn--create-master-view nb))
     (unwind-protect
@@ -1577,18 +1583,21 @@
                       '((source . "BOTTOM") (type . markdown))))
           (with-current-buffer buf
             (ejn:worksheet-yank-cell))
-          ;; Kill ring should have one entry remaining (the bottom one)
+          ;; Kill ring should still have both entries (NOT popped)
           (let ((kill-ring (slot-value nb 'ejn-cell-kill-ring)))
-            (should (= (length kill-ring) 1))
-            (let ((entry (car kill-ring)))
-              (should (string= (cdr (assq 'source entry)) "BOTTOM"))
-              (should (eq (cdr (assq 'type entry)) 'markdown)))))
-      (when (buffer-live-p buf) (kill-buffer buf))
-      (let ((new-cell (nth 1 (slot-value nb 'cells))))
-        (when new-cell
-          (let ((new-buf (slot-value new-cell 'buffer)))
-            (when (buffer-live-p new-buf) (kill-buffer new-buf)))))
-      (kill-buffer master-buf))))
+            (should (= (length kill-ring) 2))
+            (let ((entry-top (car kill-ring))
+                  (entry-bot (cadr kill-ring)))
+              (should (string= (cdr (assq 'source entry-top)) "TOP"))
+              (should (eq (cdr (assq 'type entry-top)) 'code))
+              (should (string= (cdr (assq 'source entry-bot)) "BOTTOM"))
+              (should (eq (cdr (assq 'type entry-bot)) 'markdown)))))
+       (when (buffer-live-p buf) (kill-buffer buf))
+       (let ((new-cell (nth 1 (slot-value nb 'cells))))
+         (when new-cell
+           (let ((new-buf (slot-value new-cell 'buffer)))
+             (when (buffer-live-p new-buf) (kill-buffer new-buf)))))
+       (kill-buffer master-buf))))
 
 ;;; Tests — P2-T23: Signals error when kill ring is empty
 
@@ -2009,5 +2018,96 @@ reindexed from cell_003.py to cell_002.py."
        (when (buffer-live-p (slot-value cell-d 'buffer))
          (kill-buffer (slot-value cell-d 'buffer)))
        (kill-buffer master-buf))))
+
+;;; Tests — P1-T4: Yank does NOT consume kill ring (non-consuming yank)
+
+(ert-deftest ejn-cell-p1-t4--yank-twice-produces-identical-cells ()
+  "Verify two successive yanks produce cells with identical source and type.
+
+Yank must NOT pop the kill-ring entry, so the second yank produces the
+same cell content as the first."
+  (let* ((nb (make-instance 'ejn-notebook
+                             :path "/tmp/test-yank-twice.ipynb"
+                             :cells nil))
+         (cell-a (make-instance 'ejn-cell :type 'code :source "A"))
+         (master-buf nil)
+         (buf-a nil))
+    (oset nb cells (list cell-a))
+    (setq master-buf (ejn--create-master-view nb))
+    (unwind-protect
+        (progn
+          (setq buf-a (ejn-cell-open-buffer cell-a nb))
+          ;; Pre-populate kill ring with one entry
+          (oset nb ejn-cell-kill-ring
+                (list '((source . "YANKED_SOURCE")
+                        (type . markdown))))
+          ;; First yank
+          (with-current-buffer buf-a
+            (ejn:worksheet-yank-cell))
+          ;; Second yank (should NOT error — kill ring still has entry)
+          (let ((cells-after-first (slot-value nb 'cells)))
+            (let ((yanked-cell-1 (nth 1 cells-after-first)))
+              (setq buf-a (ejn-cell-open-buffer yanked-cell-1 nb))
+              (with-current-buffer buf-a
+                (ejn:worksheet-yank-cell))))
+          ;; Both yanked cells have identical source and type
+          (let ((cells (slot-value nb 'cells)))
+            (should (= (length cells) 3))
+            (should (string= (slot-value (nth 1 cells) 'source)
+                             "YANKED_SOURCE"))
+            (should (eq (slot-value (nth 1 cells) 'type) 'markdown))
+            (should (string= (slot-value (nth 2 cells) 'source)
+                             "YANKED_SOURCE"))
+            (should (eq (slot-value (nth 2 cells) 'type) 'markdown)))
+          ;; Kill ring still has the original entry (not consumed)
+          (let ((kill-ring (slot-value nb 'ejn-cell-kill-ring)))
+            (should (= (length kill-ring) 1))
+            (let ((entry (car kill-ring)))
+              (should (string= (cdr (assq 'source entry)) "YANKED_SOURCE"))
+              (should (eq (cdr (assq 'type entry)) 'markdown)))))
+      ;; Cleanup all cell buffers
+      (dolist (cell (slot-value nb 'cells))
+        (when (buffer-live-p (slot-value cell 'buffer))
+          (kill-buffer (slot-value cell 'buffer))))
+      (kill-buffer master-buf))))
+
+(ert-deftest ejn-cell-p1-t4--yank-does-not-mutate-kill-ring ()
+  "Verify the kill-ring slot is NOT mutated after yanking.
+
+The kill ring must remain unchanged in both length and content
+following a yank operation."
+  (let* ((nb (make-instance 'ejn-notebook
+                             :path "/tmp/test-yank-no-mutate.ipynb"
+                             :cells nil))
+         (cell-a (make-instance 'ejn-cell :type 'code :source "A"))
+         (cell-b (make-instance 'ejn-cell :type 'code :source "B"))
+         (master-buf nil)
+         (buf-a nil)
+         (original-kill-ring
+          (list '((source . "ENTRY_ONE") (type . code))
+                '((source . "ENTRY_TWO") (type . markdown)))))
+    (oset nb cells (list cell-a cell-b))
+    (oset nb ejn-cell-kill-ring original-kill-ring)
+    (setq master-buf (ejn--create-master-view nb))
+    (unwind-protect
+        (progn
+          (setq buf-a (ejn-cell-open-buffer cell-a nb))
+          ;; Yank
+          (with-current-buffer buf-a
+            (ejn:worksheet-yank-cell))
+          ;; Kill ring must be identical to before
+          (let ((kill-ring (slot-value nb 'ejn-cell-kill-ring)))
+            (should (= (length kill-ring) 2))
+            (let ((entry-top (car kill-ring))
+                  (entry-bot (cadr kill-ring)))
+              (should (string= (cdr (assq 'source entry-top)) "ENTRY_ONE"))
+              (should (eq (cdr (assq 'type entry-top)) 'code))
+              (should (string= (cdr (assq 'source entry-bot)) "ENTRY_TWO"))
+              (should (eq (cdr (assq 'type entry-bot)) 'markdown)))))
+      ;; Cleanup
+      (dolist (cell (slot-value nb 'cells))
+        (when (buffer-live-p (slot-value cell 'buffer))
+          (kill-buffer (slot-value cell 'buffer))))
+      (kill-buffer master-buf))))
 
 ;;; ejn-cell-tests.el ends here

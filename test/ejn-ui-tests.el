@@ -572,5 +572,101 @@
       (when (buffer-live-p buf) (kill-buffer buf))
       (kill-buffer master-buf))))
 
+;;; Tests — P1-T3: Guard ejn-markdown-render-cell body with when (eq type 'markdown)
+
+(ert-deftest ejn-ui-p1-t3--no-text-properties-on-code-cell-buffer ()
+  "Calling `ejn-markdown-render-cell' on a code cell with markdown-like syntax
+must NOT apply any face text properties to the buffer content."
+  (let* ((nb (make-instance 'ejn-notebook
+                             :path "/tmp/test-p1-t3-props.ipynb"
+                             :cells nil
+                             :undo-stack nil))
+         (cell (make-instance 'ejn-cell
+                              :type 'code
+                              :source "**not bold** *not italic* `not code`"))
+         (master-buf nil)
+         (buf nil))
+    (oset nb cells (list cell))
+    (setq master-buf (ejn--create-master-view nb))
+    (unwind-protect
+        (progn
+          (setq buf (ejn-cell-open-buffer cell nb))
+          ;; Act: render on a code cell — should do nothing
+          (ejn-markdown-render-cell cell)
+          ;; Assert: no face properties should be applied at all
+          (with-current-buffer buf
+            (let ((face-at-3 (get-text-property 3 'face)))
+              ;; Position 3 is 'n' in "not bold" — would get 'bold' face if bug present
+              (should-not face-at-3))
+            (let ((face-at-15 (get-text-property 15 'face)))
+              ;; Position 15 is 'n' in "not italic" — would get 'italic' if bug present
+              (should-not face-at-15))
+            (let ((help-at-6 (get-text-property 6 'help-echo)))
+              ;; No help-echo should be set on code cell buffers
+              (should-not help-at-6))))
+      (when (buffer-live-p buf) (kill-buffer buf))
+      (kill-buffer master-buf))))
+
+(ert-deftest ejn-ui-p1-t3--font-lock-not-called-for-code-cells ()
+  "Calling `ejn-markdown-render-cell' on a code cell must NOT call
+`font-lock-fontify-buffer' on the cell's buffer."
+  (let* ((nb (make-instance 'ejn-notebook
+                             :path "/tmp/test-p1-t3-fontlock.ipynb"
+                             :cells nil
+                             :undo-stack nil))
+         (cell (make-instance 'ejn-cell
+                              :type 'code
+                              :source "def foo():"))
+         (master-buf nil)
+         (buf nil)
+         (font-lock-called nil))
+    (oset nb cells (list cell))
+    (setq master-buf (ejn--create-master-view nb))
+    (unwind-protect
+        (progn
+          (setq buf (ejn-cell-open-buffer cell nb))
+          ;; Arrange: advise font-lock-fontify-buffer to track calls
+          (advice-add 'font-lock-fontify-buffer :around
+                      (lambda (_fn &rest _args)
+                        (setq font-lock-called t)))
+          (unwind-protect
+              (progn
+                ;; Act: render on a code cell
+                (ejn-markdown-render-cell cell)
+                ;; Assert: font-lock-fontify-buffer should NOT have been called
+                (should-not font-lock-called))
+            (advice-remove 'font-lock-fontify-buffer
+                           #'(lambda (_fn &rest _args) nil))))
+      (when (buffer-live-p buf) (kill-buffer buf))
+      (kill-buffer master-buf))))
+
+(ert-deftest ejn-ui-p1-t3--markdown-cell-still-renders-correctly ()
+  "Calling `ejn-markdown-render-cell' on a markdown cell must still
+apply face text properties correctly."
+  (let* ((nb (make-instance 'ejn-notebook
+                             :path "/tmp/test-p1-t3-md-still-works.ipynb"
+                             :cells nil
+                             :undo-stack nil))
+         (cell (make-instance 'ejn-cell
+                              :type 'markdown
+                              :source "**bold text** here"))
+         (master-buf nil)
+         (buf nil))
+    (oset nb cells (list cell))
+    (setq master-buf (ejn--create-master-view nb))
+    (unwind-protect
+        (progn
+          (setq buf (ejn-cell-open-buffer cell nb))
+          ;; Act: render on a markdown cell
+          (ejn-markdown-render-cell cell)
+          ;; Assert: bold face should be applied
+          (with-current-buffer buf
+            (let ((face-at-3 (get-text-property 3 'face)))
+              ;; Position 3 is 'b' in "bold text"
+              (should (or (eq face-at-3 'bold)
+                          (and (listp face-at-3) (memq 'bold face-at-3)))))))
+      (when (buffer-live-p buf) (kill-buffer buf))
+      (kill-buffer master-buf))))
+
 (provide 'ejn-ui-tests)
 ;;; ejn-ui-tests.el ends here

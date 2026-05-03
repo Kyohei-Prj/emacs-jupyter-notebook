@@ -411,10 +411,11 @@ Signals an error if the current cell is the last cell in the notebook."
 (defun ejn:worksheet-yank-cell ()
   "Yank a cell from the notebook's kill ring below the current cell.
 
-Pops the top entry from `ejn-notebook`'s `ejn-cell-kill-ring`, creates
+Reads the top entry from `ejn-notebook`'s `ejn-cell-kill-ring`, creates
 a new cell below the current cell with the copied `:source` and `:type`,
 writes its shadow file via `ejn-shadow-write-cell`, and refreshes the
 master view via `ejn--render-master-cells`.
+The kill ring is NOT consumed (Emacs convention: yank does not pop).
 Signals a `user-error` if the kill ring is empty."
   (interactive)
   (let* ((notebook (ejn-notebook-of-buffer))
@@ -427,9 +428,7 @@ Signals a `user-error` if the kill ring is empty."
            (current-cell ejn--cell)
            (cells (slot-value notebook 'cells))
            (current-index (cl-position current-cell cells)))
-      ;; Pop the entry from the kill ring
-      (oset notebook ejn-cell-kill-ring (cdr kill-ring))
-      ;; Create new cell below current cell
+      ;; Create new cell below current cell (kill ring is NOT consumed)
       (ejn--make-cell notebook (1+ current-index) type source))))
 
 (defun ejn:worksheet-copy-cell (&optional kill)

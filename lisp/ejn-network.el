@@ -30,6 +30,8 @@
 
 (require 'cl-lib)
 (require 'eieio)
+(require 'base64)
+(require 'ansi-color)
 
 ;; jupyter dependency declaration
 ;; autoload avoids cl-check-type expansion errors in Emacs 30
@@ -102,10 +104,10 @@ Returns the `jupyter-kernel-client' instance."
 
 Calls `jupyter-shutdown-kernel' on the client stored in the notebook's
 `:kernel-id' slot, then clears that slot."  (let ((client (slot-value notebook 'kernel-id)))
-    (when client
-      (jupyter-shutdown-kernel client))
-    (oset notebook kernel-id nil)
-    nil))
+					      (when client
+						(jupyter-shutdown-kernel client))
+					      (oset notebook kernel-id nil)
+					      nil))
 
 (defun ejn-kernel-client (notebook)
   "Return the `jupyter-kernel-client' stored in NOTEBOOK's `:kernel-id' slot.
@@ -187,8 +189,8 @@ no kernel is started for NOTEBOOK."
   "Return the notebook object for CELL.
 
 Reads the buffer-local `ejn--notebook' variable from the cell's buffer."  (let ((buf (slot-value cell 'buffer)))
-    (when (buffer-live-p buf)
-      (buffer-local-value 'ejn--notebook buf))))
+									    (when (buffer-live-p buf)
+									      (buffer-local-value 'ejn--notebook buf))))
 
 (defun ejn--iopub-handler (cell msg &optional notebook)
   "Dispatch IOPUB message MSG for CELL by message type.
@@ -198,27 +200,27 @@ on status:idle messages to update the cell header.  Calls `ejn--render-output'
 for stream, execute_result, display_data, and error messages.
 NOTEBOOK is the notebook containing CELL (used for mode-line update).
 If NOTEBOOK is nil, it is looked up from the cell's buffer."  (when-let* ((msg-type (plist-get msg 'msg_type))
-              (nb (or notebook
-                     (ejn--cell-notebook cell))))
-    (pcase msg-type
-      ("status"
-       (ejn--update-mode-line nb)
-       (when-let* ((content (plist-get msg 'content))
-                   (exec-state (plist-get content 'execution_state)))
-         (when (equal exec-state "idle")
-           (ejn-cell-refresh-header cell))))
-      ((or "stream" "execute_result" "display_data" "error")
-       (ejn--render-output cell msg)))))
+									  (nb (or notebook
+										  (ejn--cell-notebook cell))))
+								(pcase msg-type
+								  ("status"
+								   (ejn--update-mode-line nb)
+								   (when-let* ((content (plist-get msg 'content))
+									       (exec-state (plist-get content 'execution_state)))
+								     (when (equal exec-state "idle")
+								       (ejn-cell-refresh-header cell))))
+								  ((or "stream" "execute_result" "display_data" "error")
+								   (ejn--render-output cell msg)))))
 
 (defun ejn--wait-idle (req &optional timeout)
   "Wait for REQ to become idle, returning REQ or nil on timeout.
 
 TIMEOUT is the number of seconds to wait.  Returns REQ if the kernel
 becomes idle within the timeout, nil if the timeout elapses."  (condition-case err
-      (jupyter-idle req timeout)
-    (jupyter-timeout-before-idle
-     (message "Kernel did not become idle within %d seconds" timeout)
-     nil)))
+								   (jupyter-idle req timeout)
+								 (jupyter-timeout-before-idle
+								  (message "Kernel did not become idle within %d seconds" timeout)
+								  nil)))
 
 (defun ejn--execute-cell (cell)
   "Send the source of CELL to the kernel for execution.
@@ -228,15 +230,15 @@ through the kernel client, and registers the iopub callback
 `ejn--iopub-handler' to process kernel output messages.
 
 Returns the `jupyter-request' object."  (let* ((code (slot-value cell 'source))
-         (dreq (jupyter-execute-request :code code))
-         (req (jupyter-sent dreq))
-         (notebook (ejn--cell-notebook cell)))
-    (jupyter-message-subscribed
-     req
-     (list (cons "iopub"
-                 (lambda (msg)
-                   (ejn--iopub-handler cell msg notebook)))))
-    req))
+					       (dreq (jupyter-execute-request :code code))
+					       (req (jupyter-sent dreq))
+					       (notebook (ejn--cell-notebook cell)))
+					  (jupyter-message-subscribed
+					   req
+					   (list (cons "iopub"
+						       (lambda (msg)
+							 (ejn--iopub-handler cell msg notebook)))))
+					  req))
 
 (defun ejn--output-overlay (cell)
   "Return (or create) the output overlay for CELL.
@@ -247,33 +249,127 @@ cell's buffer with an empty `:after-string', store it in the cell's
 `:output-overlay' slot, and return it."
   (let* ((buf (slot-value cell 'buffer))
          (overlay (slot-value cell 'output-overlay)))
-    (when (and overlay (overlayp overlay))
-      overlay)
-    (with-current-buffer buf
-      (goto-char (point-max))
-      (let ((new-overlay (make-overlay (point) (point))))
-        (overlay-put new-overlay 'after-string "")
-        (oset cell output-overlay new-overlay)
-        new-overlay))))
+    (if (and overlay (overlayp overlay))
+        overlay
+      (with-current-buffer buf
+        (goto-char (point-max))
+        (let ((new-overlay (make-overlay (point) (point))))
+          (overlay-put new-overlay 'after-string "")
+          (oset cell output-overlay new-overlay)
+          new-overlay)))))
+
+(defun ejn--render-mime-data (data metadata msg-type)
+  "Render MIME DATA into a styled string for overlay after-string.
+
+DATA is a plist of MIME type -> content pairs.
+METADATA is a plist of per-MIME metadata.
+MSG-TYPE is the message type symbol (e.g. stream, display_data, error, execute_result).
+
+Returns a string suitable for overlay after-string display."
+  (if (equal msg-type "error")
+      ;; Error messages: render ename + evalue + traceback in red
+      (let* ((content (or data '()))
+             (ename (plist-get content 'ename))
+             (evalue (plist-get content 'evalue))
+             (traceback (plist-get content 'traceback)))
+        (propertize
+         (concat
+          (if ename (format "%s: " ename) "")
+          (if evalue evalue "")
+          (when (and traceback (not (string= (mapconcat #'identity (vconcat traceback) "\n") "")))
+            (concat "\n" (mapconcat #'identity (vconcat traceback) "\n"))))
+         'face 'error))
+    ;; Non-error messages: dispatch by MIME type priority
+    (when data
+      (let ((preferenced-types '("text/html" "image/png" "image/jpeg"
+                                 "image/svg+xml" "text/latex" "text/plain"))
+            (rendered nil))
+        (catch 'found
+          (dolist (mime-type preferenced-types)
+            (let ((content (plist-get data (intern (concat ":" mime-type)))))
+              (when content
+                (setq rendered (ejn--render-mime-type mime-type content metadata))
+                (throw 'found rendered)))))
+        ;; Fallback: use first available data
+        (when (and (null rendered) (consp data))
+          (let ((first-mime (car data))
+                (first-content (cadr data)))
+            (when (symbolp first-mime)
+              (let ((mime-str (symbol-name first-mime)))
+                (setq rendered (ejn--render-mime-type mime-str first-content metadata))))))
+        (or rendered "")))))
+
+(defun ejn--render-mime-type (mime-type content metadata)
+  "Render a single MIME type CONTENT string.
+
+MIME-TYPE is a string like \"text/plain\".
+METADATA is the per-MIME metadata plist (unused for now).
+Returns a styled string for display."
+  (declare (indent 1))
+  (let ((image-types '(("image/png" . png)
+                        ("image/jpeg" . jpeg)
+                        ("image/svg+xml" . svg))))
+    (cond
+     ;; Image types: handled first via explicit list check
+     ((cl-assoc mime-type image-types)
+      (let ((img-type (cdr (cl-assoc mime-type image-types))))
+        (if (display-graphic-p)
+            (condition-case nil
+                (create-image (base64-decode-string content) img-type t)
+              (error (format "[%s]" mime-type)))
+          (format "[%s]" mime-type))))
+     ;; Non-image MIME types via pcase
+     (t
+      (pcase mime-type
+        ("text/plain"
+         (ansi-color-apply content))
+        ("text/html"
+         (if (display-graphic-p)
+             (let ((buf (generate-new-buffer " *ejn-shr-temp*")))
+               (unwind-protect
+                   (with-current-buffer buf
+                     (insert content)
+                     (require 'shr nil t)
+                     (if (fboundp 'shr-render-region)
+                         (progn
+                           (shr-render-region (point-min) (point-max))
+                           (buffer-string))
+                       (buffer-substring-no-properties
+                        (point-min) (point-max))))
+                 (kill-buffer buf)))
+           "[HTML output]"))
+        ("text/latex"
+         content)
+        (_
+         ;; Unknown MIME type: render as plain text
+         content))))))
 
 (defun ejn--render-output (cell msg)
   "Render output from MSG into CELL's output overlay.
 
 Extracts the `:data' and `:metadata' from MSG's content plist and passes
-them to `jupyter-insert' for MIME dispatch.  Operates within the cell's
-buffer at the output overlay position.  If the message has no data or
+them to `ejn--render-mime-data' for MIME dispatch.  The rendered result
+is set on the output overlay's `after-string' property, leaving the
+cell buffer's text unchanged.  If the message has no data or
 the cell has no live buffer, does nothing.
 
-Returns nil."  (let* ((content (plist-get msg 'content))
-          (data (plist-get content 'data))
-          (metadata (plist-get content 'metadata)))
-    (when (and data
-               (slot-value cell 'buffer)
-               (buffer-live-p (slot-value cell 'buffer)))
-      (with-current-buffer (slot-value cell 'buffer)
-        (let ((overlay (ejn--output-overlay cell)))
-          (goto-char (overlay-start overlay))
-          (jupyter-insert data metadata))))
+Returns nil."
+  (let* ((content (plist-get msg 'content))
+         (data (plist-get content 'data))
+         (metadata (plist-get content 'metadata))
+         (msg-type (plist-get msg 'msg_type)))
+    (if (and data (slot-value cell 'buffer)
+             (buffer-live-p (slot-value cell 'buffer)))
+        (let ((overlay (ejn--output-overlay cell))
+              (rendered (ejn--render-mime-data data metadata msg-type)))
+          (overlay-put overlay 'after-string rendered))
+      ;; Handle error messages which may not have :data but have content
+      (when (and (equal msg-type "error")
+                 (slot-value cell 'buffer)
+                 (buffer-live-p (slot-value cell 'buffer)))
+        (let ((overlay (ejn--output-overlay cell))
+              (rendered (ejn--render-mime-data content metadata msg-type)))
+          (overlay-put overlay 'after-string rendered))))
     nil))
 
 (defun ejn--clear-output (cell)
@@ -304,7 +400,7 @@ and the slot is set to t."
           ;; Hide: set invisible property, update slot to nil
           (progn
             (overlay-put overlay 'after-string
-                        (propertize after-string 'invisible 'ejn-output))
+                         (propertize after-string 'invisible 'ejn-output))
             (oset cell output-visible-p nil))
         ;; Show: remove invisible property, update slot to t
         (let ((clean-string (copy-sequence after-string)))
