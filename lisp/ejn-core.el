@@ -156,8 +156,8 @@ Returns a new ejn-cell instance."
     ;; Normalize :null to nil for outputs
     (setq outputs (ejn--json-null-to-nil outputs))
     ;; Handle source which may be a list of strings (nbformat 4) or a plain string
-    (when (listp source)
-      (setq source (string-join source "")))
+    (when (and (sequencep source) (not (stringp source)))
+      (setq source (string-join (if (vectorp source) (append source nil) source) "")))
     (make-instance 'ejn-cell
                    :type (intern cell-type)
                    :source source

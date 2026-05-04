@@ -10,6 +10,7 @@
 (depends-on "f")
 (depends-on "jupyter")
 (depends-on "polymode")
+(depends-on "markdown-mode")
 (depends-on "lsp-mode")
 
 ;; Development dependencies (not distributed to users)

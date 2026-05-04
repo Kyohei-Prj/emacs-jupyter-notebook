@@ -17,15 +17,15 @@
 ;; Inner mode: python-mode for code cells
 ;; Delimiters: # %%<ejn-cell:N:code> ... # %%<ejn-cell:N:end>
 (define-innermode poly-ejn-code-innermode
-  :head-matcher "# %%<ejn-cell:[0-9]+:code>"
-  :tail-matcher "# %%<ejn-cell:[0-9]+:end>"
+  :head-matcher "^# %%<ejn-cell:[0-9]+:code>"
+  :tail-matcher "^# %%<ejn-cell:[0-9]+:end>"
   :mode 'python-mode)
 
 ;; Inner mode: markdown-mode for markdown cells
 ;; Delimiters: # %%<ejn-cell:N:markdown> ... # %%<ejn-cell:N:end>
 (define-innermode poly-ejn-markdown-innermode
-  :head-matcher "# %%<ejn-cell:[0-9]+:markdown>"
-  :tail-matcher "# %%<ejn-cell:[0-9]+:end>"
+  :head-matcher "^# %%<ejn-cell:[0-9]+:markdown>"
+  :tail-matcher "^# %%<ejn-cell:[0-9]+:end>"
   :mode 'markdown-mode)
 
 ;; Polymode: combines host + inner modes
@@ -150,14 +150,18 @@ Returns the buffer."
                 (progn
                   (when existing (kill-buffer existing))
                   (generate-new-buffer buf-name)))))
-    (with-current-buffer buf
-      (poly-ejn-mode)
+   (with-current-buffer buf
+      (condition-case err
+          (poly-ejn-mode)
+        (error
+         (message "ejn: poly-ejn-mode failed: %s" (error-message-string err))
+         (special-mode)))
       (setq buffer-read-only nil)
       (set (make-local-variable 'ejn--notebook) notebook)
-     (add-hook 'kill-buffer-hook #'ejn--cleanup-master-view 'append 'local)
-       (unless (memq #'ejn--master-scroll-hook window-scroll-functions)
-         (add-hook 'window-scroll-functions #'ejn--master-scroll-hook 'append 'local))
-       (oset notebook master-buffer buf)
+      (add-hook 'kill-buffer-hook #'ejn--cleanup-master-view 'append 'local)
+      (unless (memq #'ejn--master-scroll-hook window-scroll-functions)
+        (add-hook 'window-scroll-functions #'ejn--master-scroll-hook 'append 'local))
+      (oset notebook master-buffer buf)
       (ejn--poly-render-cells notebook)
       (ejn-mode 1))
     buf))
