@@ -4,7 +4,7 @@ install:
 	eask install-deps
 
 test:
-	eask test ert
+	eask test ert ./test/*.el
 
 lint:
 	eask lint package
