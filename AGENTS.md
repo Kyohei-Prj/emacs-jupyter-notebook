@@ -6,11 +6,22 @@ Create the canonical directory layout for an Eask-based Emacs package:
 ejn/
 │── ejn.el
 ├── lisp/
+│   ├── ejn-cell.el
 │   ├── ejn-core.el
+│   ├── ejn-lsp.el
+│   ├── ejn-master.el
 │   ├── ejn-network.el
-│   └── ejn-lsp.el
+│   ├── ejn-notebook.el
+│   └── ejn-ui.el
 ├── test/
-│   └── ejn-test.el
+│   ├── ejn-test.el
+│   ├── ejn-cell-test.el
+│   ├── ejn-core-test.el
+│   ├── ejn-lsp-test.el
+│   ├── ejn-master-test.el
+│   ├── ejn-network-test.el
+│   ├── ejn-notebook-test.el
+│   └── ejn-ui-test.el
 ├── .ejn-cache/          ← gitignored; holds shadow files at runtime
 ├── Eask
 ├── Makefile
