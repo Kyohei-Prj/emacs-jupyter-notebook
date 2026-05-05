@@ -546,18 +546,20 @@ is copied to the notebook's kill ring and then removed."
   "Open a Jupyter Notebook .ipynb file.
 
 Prompts for a file path, loads the notebook via `ejn-notebook-load',
-creates a master view buffer via `ejn--create-master-view'.
+creates and displays a master view buffer via `ejn--create-master-view'.
 Cells are parsed into EIEIO objects but buffers, shadow files, and
-LSP connections are created lazily.  The first cell is initialized
+LSP connections are created lazily. The first cell is initialized
 immediately for usability via `ejn-cell-initialize'.
 Returns nil."
   (interactive)
-  (let* ((file-path (read-file-name "Open notebook: " nil nil t))
-         (notebook (ejn-notebook-load file-path))
-         (cells (slot-value notebook 'cells)))
-    (ejn--create-master-view notebook)
+  (let* ((file-path   (read-file-name "Open notebook: " nil nil t))
+         (notebook    (ejn-notebook-load file-path))
+         (cells       (slot-value notebook 'cells))
+         (master-buf  (ejn--create-master-view notebook)))
+    (switch-to-buffer master-buf)
     (when cells
-      (ejn-cell-initialize (car cells) notebook))))
+      (ejn-cell-initialize (car cells) notebook))
+    nil))
 
 (defvar ejn-mode-map
   (let ((map (make-sparse-keymap)))

@@ -353,7 +353,7 @@ Returns nil."
              for cell in cells
              do (ejn-shadow-write-cell cell notebook))))
 
-(defvar ejn--notebook nil
+(defvar-local ejn--notebook nil
   "Buffer-local variable storing the ejn-notebook for the current view.")
 
 (defun ejn-notebook-of-buffer (&optional buffer)

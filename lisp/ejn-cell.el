@@ -43,7 +43,7 @@
 (declare-function make-ejn-undo-record 'ejn-ui (&rest args))
 
 ;; Buffer-local variable holding the ejn-cell for the current cell buffer
-(defvar ejn--cell nil
+(defvar-local ejn--cell nil
   "Buffer-local variable storing the `ejn-cell' object for this cell buffer.")
 
 (defun ejn--cell-after-change-hook (_start _end _pre-change-length)

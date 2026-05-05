@@ -38,10 +38,6 @@ Chunk delimiters use sentinel comment format:
   :hostmode 'poly-ejn-hostmode
   :innermodes '(poly-ejn-code-innermode poly-ejn-markdown-innermode))
 
-(defvar ejn--notebook nil
-  "Buffer-local variable storing the ejn-notebook for the master view.")
-(make-variable-buffer-local 'ejn--notebook)
-
 (defun ejn--cleanup-master-view ()
   "Cleanup function called when the master view buffer is killed."
   nil)
@@ -154,15 +150,16 @@ Returns the buffer."
       (poly-ejn-mode)
       (setq buffer-read-only nil)
       (set (make-local-variable 'ejn--notebook) notebook)
-     (add-hook 'kill-buffer-hook #'ejn--cleanup-master-view 'append 'local)
-       (unless (memq #'ejn--master-scroll-hook window-scroll-functions)
+      (add-hook 'kill-buffer-hook #'ejn--cleanup-master-view 'append 'local)
+      (unless (memq #'ejn--master-scroll-hook
+                    (buffer-local-value 'window-scroll-functions (current-buffer)))
         (add-hook 'window-scroll-functions #'ejn--master-scroll-hook 'append))
-       (oset notebook master-buffer buf)
+      (oset notebook master-buffer buf)
       (ejn--poly-render-cells notebook)
       (ejn-mode 1))
     buf))
 
-(defun ejn--master-scroll-hook (window)
+(defun ejn--master-scroll-hook (window _start)
   "Window scroll hook for lazy cell initialization.
 
 Called by `window-scroll-functions' when the master view scrolls.

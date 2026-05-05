@@ -92,14 +92,18 @@ No changes to the EIEIO classes (`ejn-notebook`, `ejn-cell`) or the `ejn-undo-re
 - No changes to the LSP composite file generation (`ejn-lsp-generate-composite`).
 - No changes to `ejn:notebook-open` or `ejn-kernel-complete`.
 
+## Current phase
+
+Phase 1 — Foundation (variables + open)
+
 ## Task list
 
 ### Phase 1 — Foundation (variables + open)
 
 Tasks that must load correctly before any other fix is testable.
 
-- [ ] P1-T1 Convert `ejn--notebook` and `ejn--cell` to `defvar-local`; remove redundant `make-variable-buffer-local` in `ejn-master.el` (B02, B03) [smoke] (no logic — declaration-only change)
-- [ ] P1-T2 Fix `ejn-open-file`: capture `ejn--create-master-view` return, call `switch-to-buffer` (B01) [smoke] (structural — adds one buffer switch)
+- [x] P1-T1 Convert `ejn--notebook` and `ejn--cell` to `defvar-local`; remove redundant `make-variable-buffer-local` in `ejn-master.el` (B02, B03) [smoke] (no logic — declaration-only change)
+- [x] P1-T2 Fix `ejn-open-file`: capture `ejn--create-master-view` return, call `switch-to-buffer` (B01) [smoke] (structural — adds one buffer switch)
 
 ### Phase 2 — Structural cell commands + polymode unification
 
@@ -147,7 +151,7 @@ Uses correct `jupyter.el` API: `jupyter-add-hook` for iopub subscription (not `j
 
 | Bug | Task | Status |
 |-----|------|--------|
-| B01 | P1-T2 | pending |
+| B01 | P1-T2 | done |
 | B02 | P1-T1 | pending |
 | B03 | P1-T1 | pending |
 | B04 | P2-T1 | pending |

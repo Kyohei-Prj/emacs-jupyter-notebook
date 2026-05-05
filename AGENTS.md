@@ -3,7 +3,7 @@
 Create the canonical directory layout for an Eask-based Emacs package:
 
 ```
-ejn/
+emacs-jupyter-notebook/
 │── ejn.el
 ├── lisp/
 │   ├── ejn-cell.el
