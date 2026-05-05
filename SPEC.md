@@ -92,10 +92,6 @@ No changes to the EIEIO classes (`ejn-notebook`, `ejn-cell`) or the `ejn-undo-re
 - No changes to the LSP composite file generation (`ejn-lsp-generate-composite`).
 - No changes to `ejn:notebook-open` or `ejn-kernel-complete`.
 
-## Current phase
-
-Phase 1 — Foundation (variables + open)
-
 ## Task list
 
 ### Phase 1 — Foundation (variables + open)
@@ -152,8 +148,8 @@ Uses correct `jupyter.el` API: `jupyter-add-hook` for iopub subscription (not `j
 | Bug | Task | Status |
 |-----|------|--------|
 | B01 | P1-T2 | done |
-| B02 | P1-T1 | pending |
-| B03 | P1-T1 | pending |
+| B02 | P1-T1 | done |
+| B03 | P1-T1 | done |
 | B04 | P2-T1 | pending |
 | B05 | P2-T1 | pending |
 | B06 | P2-T1 | pending |
