@@ -217,4 +217,52 @@ reindex deletes the orphan file."
               (ignore-errors (delete-file f)))
             (delete-directory cache-dir)))))))
 
+
+;;; ===== P5-T1 B24: Vector source handling in ejn--parse-cell-data =====
+
+(ert-deftest ejn-core-test-p5-t1--parse-cell-data-vector-source ()
+  "B24: `ejn--parse-cell-data' handles vector `source' via mapconcat.
+
+When JSON parsing produces `source' as a vector of strings (common in
+nbformat 4), the cell's :source slot must be a string formed by
+joining the vector elements."
+  (let* ((cell-json (make-hash-table :test 'equal))
+         (_ (puthash "cell_type" "code" cell-json))
+         (source-vec (vector "print(" "\n" "    42" "\n" "x)"))
+         (_ (puthash "source" source-vec cell-json))
+         (_ (puthash "outputs" nil cell-json))
+         (_ (puthash "execution_count" :null cell-json))
+         (cell (ejn--parse-cell-data cell-json)))
+    (should (stringp (slot-value cell 'source)))
+    (should (string= (slot-value cell 'source)
+                     "print(\n    42\nx)"))))
+
+(ert-deftest ejn-core-test-p5-t1--parse-cell-data-list-source ()
+  "B24: `ejn--parse-cell-data' handles list `source' via string-join.
+
+When `source' is a list of strings (existing nbformat 4 behavior),
+the cell's :source slot must be a joined string. Regression test."
+  (let* ((cell-json (make-hash-table :test 'equal))
+         (_ (puthash "cell_type" "code" cell-json))
+         (_ (puthash "source" '("x = " "1" "+1") cell-json))
+         (_ (puthash "outputs" nil cell-json))
+         (_ (puthash "execution_count" :null cell-json))
+         (cell (ejn--parse-cell-data cell-json)))
+    (should (stringp (slot-value cell 'source)))
+    (should (string= (slot-value cell 'source) "x = 1+1"))))
+
+(ert-deftest ejn-core-test-p5-t1--parse-cell-data-string-source ()
+  "B24: `ejn--parse-cell-data' passes string `source' through unchanged.
+
+When `source' is already a plain string, it should be stored as-is
+without modification."
+  (let* ((cell-json (make-hash-table :test 'equal))
+         (_ (puthash "cell_type" "markdown" cell-json))
+         (_ (puthash "source" "# Hello World" cell-json))
+         (_ (puthash "outputs" nil cell-json))
+         (_ (puthash "execution_count" :null cell-json))
+         (cell (ejn--parse-cell-data cell-json)))
+    (should (stringp (slot-value cell 'source)))
+    (should (string= (slot-value cell 'source) "# Hello World"))))
+
 ;;; ejn-core-test.el ends here

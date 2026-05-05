@@ -31,14 +31,15 @@
 (declare-function ejn-open-file "ejn" ())
 
 (defun ejn--cell-to-json (cell)
-  "Convert CELL (an ejn-cell) to a nbformat 4.x cell hash-table.
-
-Returns a hash-table suitable for json-encode."
-  (let ((cell-json (make-hash-table :test 'equal)))
-    (puthash "cell_type" (symbol-name (slot-value cell 'type)) cell-json)
-    (puthash "source" (slot-value cell 'source) cell-json)
-    (puthash "execution_count" (slot-value cell 'exec-count) cell-json)
-    (puthash "outputs" (slot-value cell 'outputs) cell-json)
+  "Convert CELL to a valid nbformat 4.5 cell hash-table."
+  (let ((cell-json (make-hash-table :test 'equal))
+        (outputs   (slot-value cell 'outputs)))
+    (puthash "id"              (slot-value cell 'id)                       cell-json)
+    (puthash "cell_type"       (symbol-name (slot-value cell 'type))       cell-json)
+    (puthash "source"          (or (slot-value cell 'source) "")           cell-json)
+    (puthash "execution_count" (slot-value cell 'exec-count)               cell-json)
+    (puthash "outputs"         (or outputs (vector))                       cell-json)
+    (puthash "metadata"        (make-hash-table :test 'equal)              cell-json)
     cell-json))
 
 (defun ejn--notebook-to-json (notebook)
@@ -48,7 +49,9 @@ Returns a hash-table representing the complete notebook."
   (let ((nb-json (make-hash-table :test 'equal)))
     (puthash "nbformat" 4 nb-json)
     (puthash "nbformat_minor" 5 nb-json)
-    (puthash "metadata" (slot-value notebook 'metadata) nb-json)
+    (puthash "metadata" (or (slot-value notebook 'metadata)
+                            (make-hash-table :test 'equal))
+     nb-json)
     (let* ((cells (slot-value notebook 'cells))
            (cells-json (make-vector (length cells) nil)))
       (cl-loop for cell in cells

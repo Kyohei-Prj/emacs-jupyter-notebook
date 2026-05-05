@@ -92,6 +92,10 @@ No changes to the EIEIO classes (`ejn-notebook`, `ejn-cell`) or the `ejn-undo-re
 - No changes to the LSP composite file generation (`ejn-lsp-generate-composite`).
 - No changes to `ejn:notebook-open` or `ejn-kernel-complete`.
 
+## Current phase
+
+Phase 5 — JSON serialization (save/load)
+
 ## Task list
 
 ### Phase 1 — Foundation (variables + open)
@@ -118,8 +122,8 @@ Merges plan Tasks 3 and 4: all structural commands get guards, `switch-to-buffer
 
 ### Phase 5 — JSON serialization (save/load)
 
-- [ ] P5-T1 Handle vector `source` in `ejn--parse-cell-data`: `(vectorp source)` → `mapconcat` (B24) [tdd] (data transformation, type check)
-- [ ] P5-T2 Fix `ejn--cell-to-json`: always emit `"id"`, `"metadata"` (`{}`), `"outputs"` (`[]`); fix `ejn--notebook-to-json`: nil-guard `metadata` (B25–B28) [tdd] (data transformation, validation against nbformat spec)
+- [x] P5-T1 Handle vector `source` in `ejn--parse-cell-data`: `(vectorp source)` → `mapconcat` (B24) [tdd] (data transformation, type check)
+- [x] P5-T2 Fix `ejn--cell-to-json`: always emit `"id"`, `"metadata"` (`{}`), `"outputs"` (`[]`); fix `ejn--notebook-to-json`: nil-guard `metadata` (B25–B28) [tdd] (data transformation, validation against nbformat spec)
 
 ### Phase 6 — Kernel execution + iopub messaging
 
