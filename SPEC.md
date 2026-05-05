@@ -92,10 +92,6 @@ No changes to the EIEIO classes (`ejn-notebook`, `ejn-cell`) or the `ejn-undo-re
 - No changes to the LSP composite file generation (`ejn-lsp-generate-composite`).
 - No changes to `ejn:notebook-open` or `ejn-kernel-complete`.
 
-## Current phase
-
-Phase 4 — Shadow file integrity
-
 ## Task list
 
 ### Phase 1 — Foundation (variables + open)
