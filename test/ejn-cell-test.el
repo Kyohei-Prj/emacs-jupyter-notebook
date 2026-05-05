@@ -521,4 +521,45 @@
      (ejn:worksheet-goto-prev-input)
      :type 'user-error)))
 
+
+;;; ===== P4-T1 B21: Flush dirty content on buffer kill =====
+
+(ert-deftest ejn-cell-test-p4-t1--kill-buffer-hook-flushes-dirty ()
+  "B21: `ejn--cell-kill-buffer-hook' flushes dirty content before LSP unregister.
+
+When a cell is dirty, the hook calls `ejn-shadow-sync-cell' to flush
+buffer content to the shadow file before calling `ejn-lsp-unregister-cell'.
+This ensures no unsaved edits are lost when the buffer is killed."
+  (let* ((result (ejn-cell-test--make-notebook 1))
+         (tmp-path (car result))
+         (notebook (cadr result))
+         (cells (slot-value notebook 'cells))
+         (cell (nth 0 cells))
+         (buf (ejn-cell-open-buffer cell notebook))
+         (shadow-path (slot-value cell 'shadow-file)))
+    (unwind-protect
+        (progn
+          ;; Modify buffer content to create dirty state
+          (with-current-buffer buf
+            (erase-buffer)
+            (insert "modified content"))
+          ;; Mark cell as dirty
+          (oset cell dirty t)
+          (should (slot-value cell 'dirty))
+          ;; Verify shadow file still has old content
+          (should (string= "cell0"
+                           (with-temp-buffer
+                             (insert-file-contents shadow-path)
+                             (buffer-string))))
+          ;; Kill buffer — this triggers the hook
+          (kill-buffer buf)
+          ;; Shadow file should now contain the modified content
+          (should (string= "modified content"
+                           (with-temp-buffer
+                             (insert-file-contents shadow-path)
+                             (buffer-string))))
+          ;; Dirty flag should be cleared
+          (should-not (slot-value cell 'dirty)))
+      (ejn-cell-test--cleanup tmp-path))))
+
 ;;; ejn-cell-test.el ends here

@@ -55,9 +55,10 @@ PRE-CHANGE-LENGTH (all unused here)."
 
 (defun ejn--cell-kill-buffer-hook ()
   "Clean up when the cell buffer is killed.
-Remove `ejn--cell-after-change-hook' from `after-change-functions',
-and unregister the cell from LSP via `ejn-lsp-unregister-cell'."
+Flushes any dirty content to the shadow file before unregistering LSP."
   (when (and (boundp 'ejn--cell) ejn--cell)
+    (when (slot-value ejn--cell 'dirty)
+      (ejn-shadow-sync-cell ejn--cell))
     (when (fboundp 'ejn-lsp-unregister-cell)
       (ejn-lsp-unregister-cell ejn--cell)))
   (remove-hook 'after-change-functions #'ejn--undo-after-change 'local))

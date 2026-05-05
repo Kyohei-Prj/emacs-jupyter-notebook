@@ -77,4 +77,144 @@ The structural fix (B01) ensures the return value of
         (when (string-prefix-p "*ejn-master:" (buffer-name buf))
           (kill-buffer buf))))))
 
+
+;;; ===== P4-T1 B22: Atomic shadow write =====
+
+(ert-deftest ejn-core-test-p4-t1--shadow-write-cell-atomic ()
+  "B22: `ejn-shadow-write-cell' writes atomically via .tmp + rename-file.
+
+After the call, the shadow file exists at the target path. No .tmp
+file remains. The content written equals the cell source."
+  (let* ((ipynb-str
+          "{\"nbformat\":4,\"nbformat_minor\":5,\"metadata\":{},\"cells\":[{\"cell_type\":\"code\",\"source\":\"hello\",\"outputs\":[],\"execution_count\":null}]}")
+         (tmp-ipynb (make-temp-file "ejn-p4t1-" nil ".ipynb" ipynb-str))
+         (tmp-dir (file-name-directory tmp-ipynb)))
+    (unwind-protect
+        (let* ((notebook (ejn-notebook-load tmp-ipynb))
+               (cell (nth 0 (slot-value notebook 'cells)))
+               (shadow-path (ejn-shadow-write-cell cell notebook))
+               (tmp-path (concat shadow-path ".tmp")))
+          ;; Shadow file exists at target path
+          (should (file-exists-p shadow-path))
+          ;; No leftover .tmp file
+          (should-not (file-exists-p tmp-path))
+          ;; Content matches cell source
+          (should (string= (slot-value cell 'source)
+                           (with-temp-buffer
+                             (insert-file-contents shadow-path)
+                             (buffer-string))))
+          ;; shadow-file slot is set
+          (should (string= shadow-path (slot-value cell 'shadow-file))))
+      ;; Cleanup
+      (ignore-errors (delete-file tmp-ipynb))
+      (ignore-errors
+        (let ((cache-dir (expand-file-name ".ejn-cache" tmp-dir)))
+          (when (file-directory-p cache-dir)
+            (dolist (f (directory-files cache-dir t "cell_"))
+              (ignore-errors (delete-file f)))
+            (delete-directory cache-dir)))))))
+
+(ert-deftest ejn-core-test-p4-t1--shadow-write-cell-uses-rename-file ()
+  "B22: `ejn-shadow-write-cell' uses rename-file for atomicity.
+
+Verify that `rename-file' is invoked during the write, confirming
+the .tmp + rename-file atomic pattern rather than direct write."
+  (let* ((ipynb-str
+          "{\"nbformat\":4,\"nbformat_minor\":5,\"metadata\":{},\"cells\":[{\"cell_type\":\"code\",\"source\":\"hello\",\"outputs\":[],\"execution_count\":null}]}")
+         (tmp-ipynb (make-temp-file "ejn-p4t1-" nil ".ipynb" ipynb-str))
+         (tmp-dir (file-name-directory tmp-ipynb)))
+    (unwind-protect
+        (let* ((notebook (ejn-notebook-load tmp-ipynb))
+               (cell (nth 0 (slot-value notebook 'cells)))
+               (rename-file-args nil))
+          (cl-letf (((symbol-function 'rename-file)
+                     (lambda (from to &optional _)
+                       (setq rename-file-args (list from to))
+                       (let ((content (with-temp-buffer
+                                        (insert-file-contents from)
+                                        (buffer-string))))
+                         (with-temp-file to (insert content))
+                         (delete-file from)))))
+            (ejn-shadow-write-cell cell notebook)
+            ;; rename-file must have been called
+            (should rename-file-args)
+            ;; First arg should be the .tmp path
+            (should (string-suffix-p ".tmp" (car rename-file-args)))))
+      ;; Cleanup
+      (ignore-errors (delete-file tmp-ipynb))
+      (ignore-errors
+        (let ((cache-dir (expand-file-name ".ejn-cache" tmp-dir)))
+          (when (file-directory-p cache-dir)
+            (dolist (f (directory-files cache-dir t "cell_"))
+              (ignore-errors (delete-file f)))
+            (delete-directory cache-dir)))))))
+
+(ert-deftest ejn-core-test-p4-t1--shadow-write-cell-atomic-nil-source ()
+  "B22: `ejn-shadow-write-cell' handles nil source gracefully.
+
+When cell source is nil, the shadow file is written as an empty
+string rather than causing an error."
+  (let* ((ipynb-str
+          "{\"nbformat\":4,\"nbformat_minor\":5,\"metadata\":{},\"cells\":[{\"cell_type\":\"code\",\"source\":null,\"outputs\":[],\"execution_count\":null}]}")
+         (tmp-ipynb (make-temp-file "ejn-p4t1-" nil ".ipynb" ipynb-str))
+         (tmp-dir (file-name-directory tmp-ipynb)))
+    (unwind-protect
+        (let* ((notebook (ejn-notebook-load tmp-ipynb))
+               (cell (nth 0 (slot-value notebook 'cells)))
+               (shadow-path (ejn-shadow-write-cell cell notebook)))
+          (should (file-exists-p shadow-path))
+          ;; Nil source should produce empty file content
+          (should (string= ""
+                           (with-temp-buffer
+                             (insert-file-contents shadow-path)
+                             (buffer-string)))))
+      ;; Cleanup
+      (ignore-errors (delete-file tmp-ipynb))
+      (ignore-errors
+        (let ((cache-dir (expand-file-name ".ejn-cache" tmp-dir)))
+          (when (file-directory-p cache-dir)
+            (dolist (f (directory-files cache-dir t "cell_"))
+              (ignore-errors (delete-file f)))
+            (delete-directory cache-dir)))))))
+
+
+;;; ===== P4-T1 B23: Orphan deletion via directory glob =====
+
+(ert-deftest ejn-core-test-p4-t1--reindex-deletes-orphan-shadow-files ()
+  "B23: `ejn--reindex-shadow-files' deletes orphan shadow files via glob.
+
+Given a notebook whose cache dir contains a file that does not
+correspond to any cell in the notebook's :cells list, calling
+reindex deletes the orphan file."
+  (let* ((ipynb-str
+          "{\"nbformat\":4,\"nbformat_minor\":5,\"metadata\":{},\"cells\":[{\"cell_type\":\"code\",\"source\":\"only cell\",\"outputs\":[],\"execution_count\":null}]}")
+         (tmp-ipynb (make-temp-file "ejn-p4t1-" nil ".ipynb" ipynb-str))
+         (tmp-dir (file-name-directory tmp-ipynb)))
+    (unwind-protect
+        (let* ((nb-path tmp-ipynb)
+               (nb-stem (file-name-sans-extension
+                         (file-name-nondirectory nb-path)))
+               (cache-dir (expand-file-name
+                           (concat ".ejn-cache/" nb-stem)
+                           tmp-dir))
+               (orphan-path (expand-file-name "cell_099.py" cache-dir)))
+          (make-directory cache-dir t)
+          ;; Create an orphan file that no cell owns
+          (with-temp-file orphan-path
+            (insert "orphan content"))
+          (should (file-exists-p orphan-path))
+          ;; Load notebook and reindex
+          (let ((notebook (ejn-notebook-load tmp-ipynb)))
+            (ejn--reindex-shadow-files notebook))
+          ;; Orphan should be gone
+          (should-not (file-exists-p orphan-path)))
+      ;; Cleanup
+      (ignore-errors (delete-file tmp-ipynb))
+      (ignore-errors
+        (let ((cache-dir (expand-file-name ".ejn-cache" tmp-dir)))
+          (when (file-directory-p cache-dir)
+            (dolist (f (directory-files cache-dir t "cell_"))
+              (ignore-errors (delete-file f)))
+            (delete-directory cache-dir)))))))
+
 ;;; ejn-core-test.el ends here

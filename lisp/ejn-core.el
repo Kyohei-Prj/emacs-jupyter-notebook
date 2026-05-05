@@ -262,8 +262,10 @@ Returns the absolute path to the shadow file."
          (shadow-filename (format "cell_%03d%s" cell-index ext))
          (shadow-path (expand-file-name shadow-filename cache-dir)))
     (make-directory cache-dir t)
-    (with-temp-file shadow-path
-      (insert (slot-value cell 'source)))
+    (let ((tmp-path (concat shadow-path ".tmp")))
+      (with-temp-file tmp-path
+        (insert (or (slot-value cell 'source) "")))
+      (rename-file tmp-path shadow-path 'replace))
     (oset cell shadow-file shadow-path)
     shadow-path))
 
@@ -341,13 +343,12 @@ Returns nil."
                        (expected-path (expand-file-name
                                        expected-filename cache-dir)))
                 (push expected-path expected-paths)))
-    ;; Second pass: delete old shadow files not needed by any cell
-    (cl-loop for cell in cells
-             do (let ((old-shadow (slot-value cell 'shadow-file)))
-                (when (and old-shadow
-                           (not (member old-shadow expected-paths))
-                           (file-exists-p old-shadow))
-                  (delete-file old-shadow))))
+    ;; Second pass: delete orphan shadow files via directory glob
+    (when (file-directory-p cache-dir)
+      (dolist (existing-file
+               (directory-files cache-dir t "\\`cell_[0-9]\\{3\\}\\."))
+        (unless (member existing-file expected-paths)
+          (delete-file existing-file))))
     ;; Third pass: write all shadow files at their correct indices
     (cl-loop for idx from 0
              for cell in cells

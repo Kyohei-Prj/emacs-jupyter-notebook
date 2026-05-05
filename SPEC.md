@@ -92,6 +92,10 @@ No changes to the EIEIO classes (`ejn-notebook`, `ejn-cell`) or the `ejn-undo-re
 - No changes to the LSP composite file generation (`ejn-lsp-generate-composite`).
 - No changes to `ejn:notebook-open` or `ejn-kernel-complete`.
 
+## Current phase
+
+Phase 4 — Shadow file integrity
+
 ## Task list
 
 ### Phase 1 — Foundation (variables + open)
@@ -114,7 +118,7 @@ Merges plan Tasks 3 and 4: all structural commands get guards, `switch-to-buffer
 
 ### Phase 4 — Shadow file integrity
 
-- [ ] P4-T1 Make `ejn-shadow-write-cell` atomic (`.tmp` + `rename-file`); fix `ejn--reindex-shadow-files` to glob cache directory and delete orphans; flush dirty content in `ejn--cell-kill-buffer-hook` (B21–B23) [tdd] (I/O, error handling, state mutation)
+- [x] P4-T1 Make `ejn-shadow-write-cell` atomic (`.tmp` + `rename-file`); fix `ejn--reindex-shadow-files` to glob cache directory and delete orphans; flush dirty content in `ejn--cell-kill-buffer-hook` (B21–B23) [tdd] (I/O, error handling, state mutation)
 
 ### Phase 5 — JSON serialization (save/load)
 
@@ -167,9 +171,9 @@ Uses correct `jupyter.el` API: `jupyter-add-hook` for iopub subscription (not `j
 | B18 | P2-T1 | done |
 | B19 | P2-T1 | done |
 | B20 | P2-T1 | done |
-| B21 | P4-T1 | pending |
-| B22 | P4-T1 | pending |
-| B23 | P4-T1 | pending |
+| B21 | P4-T1 | done |
+| B22 | P4-T1 | done |
+| B23 | P4-T1 | done |
 | B24 | P5-T1 | pending |
 | B25 | P5-T2 | pending |
 | B26 | P5-T2 | pending |
