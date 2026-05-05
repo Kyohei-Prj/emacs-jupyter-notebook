@@ -92,6 +92,10 @@ No changes to the EIEIO classes (`ejn-notebook`, `ejn-cell`) or the `ejn-undo-re
 - No changes to the LSP composite file generation (`ejn-lsp-generate-composite`).
 - No changes to `ejn:notebook-open` or `ejn-kernel-complete`.
 
+## Current phase
+
+Phase 3 — Navigation from master view
+
 ## Task list
 
 ### Phase 1 — Foundation (variables + open)
@@ -110,7 +114,7 @@ Merges plan Tasks 3 and 4: all structural commands get guards, `switch-to-buffer
 
 ### Phase 3 — Navigation from master view
 
-- [ ] P3-T1 Rewrite `ejn:worksheet-goto-next-input` and `ejn:worksheet-goto-prev-input` master-view branches: `re-search-forward/backward` for `^# %%<ejn-cell:[0-9]+:` instead of `next-button/previous-button` (B14, B15) [tdd] (conditional dispatch: cell buffer vs master view path)
+- [x] P3-T1 Rewrite `ejn:worksheet-goto-next-input` and `ejn:worksheet-goto-prev-input` master-view branches: `re-search-forward/backward` for `^# %%<ejn-cell:[0-9]+:` instead of `next-button/previous-button` (B14, B15) [tdd] (conditional dispatch: cell buffer vs master view path)
 
 ### Phase 4 — Shadow file integrity
 

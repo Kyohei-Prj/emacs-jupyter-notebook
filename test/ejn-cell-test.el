@@ -450,4 +450,75 @@
             (kill-buffer master-buf)
             (ejn-cell-test--cleanup tmp-path))))))
 
+
+;;; ===== ejn:worksheet-goto-next-input (master-view) =====
+
+(ert-deftest ejn-cell-test-p3-t1--goto-next-master-uses-re-search-forward ()
+  "goto-next in master-view uses re-search-forward for chunk header regex."
+  (with-temp-buffer
+    (insert "# %%<ejn-cell:0:>\ncell 0\n\n# %%<ejn-cell:1:>\ncell 1\n\n# %%<ejn-cell:2:>\ncell 2\n")
+    (goto-char (point-min))
+    (kill-local-variable 'ejn--cell)
+    ;; Save original functions, then wrap to track calls
+    (let ((re-search-forward-called nil)
+          (next-button-called nil)
+          (orig-re-search-forward (symbol-function 're-search-forward)))
+      (cl-letf (((symbol-function 're-search-forward)
+                 (lambda (regexp &optional limit repeat)
+                   (setq re-search-forward-called t)
+                   (funcall orig-re-search-forward regexp limit repeat)))
+                ((symbol-function 'next-button)
+                 (lambda (&optional _)
+                   (setq next-button-called t)
+                   (error "next-button should not be called"))))
+        (ejn:worksheet-goto-next-input)
+        (should re-search-forward-called)
+        (should-not next-button-called)
+        (should (looking-at "^# %%<ejn-cell:1:"))))))
+
+(ert-deftest ejn-cell-test-p3-t1--goto-next-master-error-no-more-cells ()
+  "goto-next in master-view signals user-error when no more cells below."
+  (with-temp-buffer
+    (insert "# %%<ejn-cell:0:>\ncell 0\n")
+    (goto-char (point-max))
+    (kill-local-variable 'ejn--cell)
+    (should-error
+     (ejn:worksheet-goto-next-input)
+     :type 'user-error)))
+
+
+;;; ===== ejn:worksheet-goto-prev-input (master-view) =====
+
+(ert-deftest ejn-cell-test-p3-t1--goto-prev-master-uses-re-search-backward ()
+  "goto-prev in master-view uses re-search-backward for chunk header regex."
+  (with-temp-buffer
+    (insert "# %%<ejn-cell:0:>\ncell 0\n\n# %%<ejn-cell:1:>\ncell 1\n\n# %%<ejn-cell:2:>\ncell 2\n")
+    (goto-char (point-max))
+    (kill-local-variable 'ejn--cell)
+    (let ((re-search-backward-called nil)
+          (previous-button-called nil)
+          (orig-re-search-backward (symbol-function 're-search-backward)))
+      (cl-letf (((symbol-function 're-search-backward)
+                 (lambda (regexp &optional limit repeat)
+                   (setq re-search-backward-called t)
+                   (funcall orig-re-search-backward regexp limit repeat)))
+                ((symbol-function 'previous-button)
+                 (lambda (&optional _)
+                   (setq previous-button-called t)
+                   (error "previous-button should not be called"))))
+        (ejn:worksheet-goto-prev-input)
+        (should re-search-backward-called)
+        (should-not previous-button-called)
+        (should (looking-at "^# %%<ejn-cell:2:"))))))
+
+(ert-deftest ejn-cell-test-p3-t1--goto-prev-master-error-no-more-cells ()
+  "goto-prev in master-view signals user-error when no more cells above."
+  (with-temp-buffer
+    (insert "# %%<ejn-cell:0:>\ncell 0\n")
+    (goto-char (point-min))
+    (kill-local-variable 'ejn--cell)
+    (should-error
+     (ejn:worksheet-goto-prev-input)
+     :type 'user-error)))
+
 ;;; ejn-cell-test.el ends here

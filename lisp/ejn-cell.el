@@ -410,46 +410,53 @@ With KILL non-nil, also remove the cell."
 (defun ejn:worksheet-goto-next-input ()
   "Navigate to the next cell.
 
-If in the master view buffer, move point to the next cell button
-using `next-button'. If in a cell buffer, switch to the next
-cell's buffer via `ejn-cell-open-buffer'."
+If in a cell buffer, switch to the next cell's buffer.
+If in the master view buffer, search forward for the next cell
+chunk header and move point there."
   (interactive)
   (if (bound-and-true-p ejn--cell)
-      ;; Cell buffer: switch to next cell's buffer
-      (let* ((notebook (ejn-notebook-of-buffer))
-             (cells (slot-value notebook 'cells))
-             (current-cell ejn--cell)
+      ;; Cell buffer path (unchanged)
+      (let* ((notebook      (ejn-notebook-of-buffer))
+             (cells         (slot-value notebook 'cells))
+             (current-cell  ejn--cell)
              (current-index (cl-position current-cell cells))
-             (next-index (1+ current-index)))
+             (next-index    (1+ current-index)))
         (if (< next-index (length cells))
             (let ((next-cell (nth next-index cells)))
               (switch-to-buffer (ejn-cell-open-buffer next-cell notebook)))
           (user-error "No more cells below")))
-    ;; Master view: move to next button
+    ;; Master view path: search for next chunk header
     (condition-case nil
-        (next-button (current-buffer))
+        (progn
+          (forward-char 1)
+          (if (re-search-forward "^# %%<ejn-cell:[0-9]+:" nil t)
+              (beginning-of-line)
+            (user-error "No more cells below")))
       (error (user-error "No more cells below")))))
 
 (defun ejn:worksheet-goto-prev-input ()
   "Navigate to the previous cell.
 
-If in the master view buffer, move point to the previous cell button
-using `previous-button'. If in a cell buffer, switch to the previous
-cell's buffer via `ejn-cell-open-buffer'."
+If in a cell buffer, switch to the previous cell's buffer.
+If in the master view buffer, search backward for the previous cell
+chunk header and move point there."
   (interactive)
   (if (bound-and-true-p ejn--cell)
-      ;; Cell buffer: switch to previous cell's buffer
-      (let* ((notebook (ejn-notebook-of-buffer))
-             (cells (slot-value notebook 'cells))
-             (current-cell ejn--cell)
+      ;; Cell buffer path (unchanged)
+      (let* ((notebook      (ejn-notebook-of-buffer))
+             (cells         (slot-value notebook 'cells))
+             (current-cell  ejn--cell)
              (current-index (cl-position current-cell cells)))
         (if (> current-index 0)
             (let ((prev-cell (nth (1- current-index) cells)))
               (switch-to-buffer (ejn-cell-open-buffer prev-cell notebook)))
           (user-error "No more cells above")))
-    ;; Master view: move to previous button
+    ;; Master view path: search for previous chunk header
     (condition-case nil
-        (previous-button (current-buffer))
+        (progn
+          (if (re-search-backward "^# %%<ejn-cell:[0-9]+:" nil t)
+              (beginning-of-line)
+            (user-error "No more cells above")))
       (error (user-error "No more cells above")))))
 
 (provide 'ejn-cell)
