@@ -92,10 +92,6 @@ No changes to the EIEIO classes (`ejn-notebook`, `ejn-cell`) or the `ejn-undo-re
 - No changes to the LSP composite file generation (`ejn-lsp-generate-composite`).
 - No changes to `ejn:notebook-open` or `ejn-kernel-complete`.
 
-## Current phase
-
-Phase 2 — Structural cell commands + polymode unification
-
 ## Task list
 
 ### Phase 1 — Foundation (variables + open)
@@ -154,23 +150,23 @@ Uses correct `jupyter.el` API: `jupyter-add-hook` for iopub subscription (not `j
 | B01 | P1-T2 | done |
 | B02 | P1-T1 | done |
 | B03 | P1-T1 | done |
-| B04 | P2-T1 | pending |
-| B05 | P2-T1 | pending |
-| B06 | P2-T1 | pending |
-| B07 | P2-T1 | pending |
-| B08 | P2-T1 | pending |
-| B09 | P2-T1 | pending |
-| B10 | P2-T1 | pending |
-| B11 | P2-T1 | pending |
-| B12 | P2-T1 | pending |
-| B13 | P2-T1 | pending |
+| B04 | P2-T1 | done |
+| B05 | P2-T1 | done |
+| B06 | P2-T1 | done |
+| B07 | P2-T1 | done |
+| B08 | P2-T1 | done |
+| B09 | P2-T1 | done |
+| B10 | P2-T1 | done |
+| B11 | P2-T1 | done |
+| B12 | P2-T1 | done |
+| B13 | P2-T1 | done |
 | B14 | P3-T1 | pending |
 | B15 | P3-T1 | pending |
-| B16 | P2-T1 | pending |
-| B17 | P2-T1 | pending |
-| B18 | P2-T1 | pending |
-| B19 | P2-T1 | pending |
-| B20 | P2-T1 | pending |
+| B16 | P2-T1 | done |
+| B17 | P2-T1 | done |
+| B18 | P2-T1 | done |
+| B19 | P2-T1 | done |
+| B20 | P2-T1 | done |
 | B21 | P4-T1 | pending |
 | B22 | P4-T1 | pending |
 | B23 | P4-T1 | pending |
