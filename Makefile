@@ -4,7 +4,7 @@ install:
 	eask install-deps
 
 test:
-	eask test buttercup
+	eask test ert
 
 lint:
 	eask lint package
