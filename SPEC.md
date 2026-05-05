@@ -92,6 +92,10 @@ No changes to the EIEIO classes (`ejn-notebook`, `ejn-cell`) or the `ejn-undo-re
 - No changes to the LSP composite file generation (`ejn-lsp-generate-composite`).
 - No changes to `ejn:notebook-open` or `ejn-kernel-complete`.
 
+## Current phase
+
+Phase 2 — Structural cell commands + polymode unification
+
 ## Task list
 
 ### Phase 1 — Foundation (variables + open)
@@ -105,8 +109,8 @@ Tasks that must load correctly before any other fix is testable.
 
 Merges plan Tasks 3 and 4: all structural commands get guards, `switch-to-buffer`, and polymode refresh in a single pass over `ejn-cell.el`. Dead button renderer removed from `ejn-master.el`.
 
-- [ ] P2-T1 Add nil guards + `switch-to-buffer` + polymode refresh to all 8 structural commands in `ejn-cell.el` (`insert-above`, `insert-below`, `move-up`, `move-down`, `kill`, `split`, `merge`, `yank`, `copy`); sync dirty buffers in `copy` and `merge` before reading `:source`; replace all `ejn--refresh-master-cells` calls with `ejn--poly-refresh-cells` (B04–B20) [tdd] (conditional guards, data sync, state mutation)
-- [ ] P2-T2 Delete dead button-renderer functions from `ejn-master.el`: `ejn--truncate-source`, `ejn--make-cell-button`, `ejn--render-master-cells`, `ejn--refresh-master-cells`; remove `(require 'button)` (B16–B20 cleanup) [scaffold] (dead code removal only)
+- [x] P2-T1 Add nil guards + `switch-to-buffer` + polymode refresh to all 8 structural commands in `ejn-cell.el` (`insert-above`, `insert-below`, `move-up`, `move-down`, `kill`, `split`, `merge`, `yank`, `copy`); sync dirty buffers in `copy` and `merge` before reading `:source`; replace all `ejn--refresh-master-cells` calls with `ejn--poly-refresh-cells` (B04–B20) [tdd] (conditional guards, data sync, state mutation)
+- [x] P2-T2 Delete dead button-renderer functions from `ejn-master.el`: `ejn--truncate-source`, `ejn--make-cell-button`, `ejn--render-master-cells`, `ejn--refresh-master-cells`; remove `(require 'button)` (B16–B20 cleanup) [scaffold] (dead code removal only)
 
 ### Phase 3 — Navigation from master view
 

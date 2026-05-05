@@ -178,121 +178,105 @@ TYPE is the cell type symbol (code, markdown, or raw).
 SOURCE is optional and defaults to an empty string.
 The new cell is inserted at INDEX in the notebook's :cells list.
 A shadow file is written via `ejn-shadow-write-cell'.
-The master view is refreshed via `ejn--refresh-master-cells'.
+The master view is refreshed via `ejn--poly-refresh-cells'.
 `ejn--record-structural-change' is called as a hook for future undo.
 Returns the new cell."
   (let* ((new-cell (make-instance 'ejn-cell
-                                   :type type
-                                   :source (or source "")))
+                                    :type type
+                                    :source (or source "")))
          (cells (slot-value notebook 'cells))
          (before (cl-subseq cells 0 index))
          (after (cl-subseq cells index)))
     (oset notebook cells (append before (list new-cell) after))
     (ejn-shadow-write-cell new-cell notebook)
     (ejn--reindex-shadow-files notebook)
-    (when (and (fboundp 'ejn--refresh-master-cells)
+    (when (and (fboundp 'ejn--poly-refresh-cells)
                (buffer-live-p (slot-value notebook 'master-buffer)))
       (with-current-buffer (slot-value notebook 'master-buffer)
-        (ejn--refresh-master-cells)))
+        (ejn--poly-refresh-cells)))
     (ejn--record-structural-change notebook 'insert (list new-cell index))
     new-cell))
 
 (defun ejn:worksheet-insert-cell-above ()
-  "Insert a new cell above the current cell.
-
-Creates a new cell inheriting the type of the cell at point,
-inserts it before the current cell in the notebook's cell list,
-writes an empty shadow file, and opens the new cell's buffer."
+  "Insert a new code cell above the current cell and switch to it."
   (interactive)
-  (let* ((notebook (ejn-notebook-of-buffer))
-         (current-cell ejn--cell)
-         (cells (slot-value notebook 'cells))
-         (current-index (cl-position current-cell cells))
-         (cell-type (slot-value current-cell 'type))
-         (new-cell (ejn--make-cell notebook current-index cell-type)))
-    (ejn-cell-open-buffer new-cell notebook)))
+  (let* ((notebook     (ejn-notebook-of-buffer))
+         (current-cell ejn--cell))
+    (unless notebook     (user-error "No notebook associated with this buffer"))
+    (unless current-cell (user-error "No cell at point"))
+    (let* ((cells         (slot-value notebook 'cells))
+           (current-index (cl-position current-cell cells))
+           (cell-type     (slot-value current-cell 'type))
+           (new-cell      (ejn--make-cell notebook current-index cell-type)))
+      (switch-to-buffer (ejn-cell-open-buffer new-cell notebook)))))
 
 (defun ejn:worksheet-insert-cell-below ()
-  "Insert a new cell below the current cell.
-
-Creates a new cell inheriting the type of the cell at point,
-inserts it after the current cell in the notebook's cell list,
-writes an empty shadow file, and opens the new cell's buffer."
+  "Insert a new code cell below the current cell and switch to it."
   (interactive)
-  (let* ((notebook (ejn-notebook-of-buffer))
-         (current-cell ejn--cell)
-         (cells (slot-value notebook 'cells))
-         (current-index (cl-position current-cell cells))
-         (cell-type (slot-value current-cell 'type))
-         (new-cell (ejn--make-cell notebook (1+ current-index) cell-type)))
-    (ejn-cell-open-buffer new-cell notebook)))
+  (let* ((notebook     (ejn-notebook-of-buffer))
+         (current-cell ejn--cell))
+    (unless notebook     (user-error "No notebook associated with this buffer"))
+    (unless current-cell (user-error "No cell at point"))
+    (let* ((cells         (slot-value notebook 'cells))
+           (current-index (cl-position current-cell cells))
+           (cell-type     (slot-value current-cell 'type))
+           (new-cell      (ejn--make-cell notebook (1+ current-index) cell-type)))
+      (switch-to-buffer (ejn-cell-open-buffer new-cell notebook)))))
 
 (defun ejn:worksheet-move-cell-up ()
-  "Move the current cell up by one position in the notebook.
-
-Swaps the cell at point with its predecessor in the notebook's
-`:cells` list. Signals an error if the cell is already the first.
-Rewrites shadow files for the two affected cells and refreshes
-the master view."
+  "Move the current cell up by one position in the notebook."
   (interactive)
-  (let* ((notebook (ejn-notebook-of-buffer))
-         (current-cell ejn--cell)
-         (cells (slot-value notebook 'cells))
-         (current-index (cl-position current-cell cells)))
-    (when (= current-index 0)
-      (user-error "Cannot move first cell up"))
-    (let ((predecessor (nth (1- current-index) cells)))
-      ;; Swap in the cells list
-      (setf (nth (1- current-index) cells) current-cell
-            (nth current-index cells) predecessor)
-      ;; Delete old shadow files before writing new ones
-      (dolist (cell (list current-cell predecessor))
-        (let ((old-shadow (slot-value cell 'shadow-file)))
-          (when (and old-shadow (file-exists-p old-shadow))
-            (delete-file old-shadow))))
-      ;; Rewrite shadow files for both cells
-      (ejn-shadow-write-cell current-cell notebook)
-      (ejn-shadow-write-cell predecessor notebook)
-      ;; Refresh master view
-      (when (fboundp 'ejn--refresh-master-cells)
-        (with-current-buffer (slot-value notebook 'master-buffer)
-          (ejn--refresh-master-cells)))
-      (ejn--record-structural-change notebook 'move-up
-                                     (list current-cell current-index)))))
+  (let* ((notebook     (ejn-notebook-of-buffer))
+         (current-cell ejn--cell))
+    (unless notebook     (user-error "No notebook associated with this buffer"))
+    (unless current-cell (user-error "No cell at point"))
+    (let* ((cells         (slot-value notebook 'cells))
+           (current-index (cl-position current-cell cells)))
+      (when (= current-index 0)
+        (user-error "Cannot move first cell up"))
+      (let ((predecessor (nth (1- current-index) cells)))
+        (setf (nth (1- current-index) cells) current-cell
+              (nth current-index cells)       predecessor)
+        (oset notebook cells cells)
+        (dolist (cell (list current-cell predecessor))
+          (let ((old-shadow (slot-value cell 'shadow-file)))
+            (when (and old-shadow (file-exists-p old-shadow))
+              (delete-file old-shadow))))
+        (ejn-shadow-write-cell current-cell notebook)
+        (ejn-shadow-write-cell predecessor notebook)
+        (when (fboundp 'ejn--poly-refresh-cells)
+          (with-current-buffer (slot-value notebook 'master-buffer)
+            (ejn--poly-refresh-cells)))
+        (ejn--record-structural-change notebook 'move-up
+                                       (list current-cell current-index))))))
 
 (defun ejn:worksheet-move-cell-down ()
-  "Move the current cell down by one position in the notebook.
-
-Swaps the cell at point with its successor in the notebook's
-`:cells` list. Signals an error if the cell is already the last.
-Rewrites shadow files for the two affected cells and refreshes
-the master view."
+  "Move the current cell down by one position in the notebook."
   (interactive)
-  (let* ((notebook (ejn-notebook-of-buffer))
-         (current-cell ejn--cell)
-         (cells (slot-value notebook 'cells))
-         (current-index (cl-position current-cell cells))
-         (num-cells (length cells)))
-    (when (>= current-index (1- num-cells))
-      (user-error "Cannot move last cell down"))
-    (let ((successor (nth (1+ current-index) cells)))
-      ;; Swap in the cells list
-      (setf (nth current-index cells) successor
-            (nth (1+ current-index) cells) current-cell)
-      ;; Delete old shadow files before writing new ones
-      (dolist (cell (list current-cell successor))
-        (let ((old-shadow (slot-value cell 'shadow-file)))
-          (when (and old-shadow (file-exists-p old-shadow))
-            (delete-file old-shadow))))
-      ;; Rewrite shadow files for both cells
-      (ejn-shadow-write-cell current-cell notebook)
-      (ejn-shadow-write-cell successor notebook)
-      ;; Refresh master view
-      (when (fboundp 'ejn--refresh-master-cells)
-        (with-current-buffer (slot-value notebook 'master-buffer)
-          (ejn--refresh-master-cells)))
-      (ejn--record-structural-change notebook 'move-down
-                                     (list current-cell current-index)))))
+  (let* ((notebook     (ejn-notebook-of-buffer))
+         (current-cell ejn--cell))
+    (unless notebook     (user-error "No notebook associated with this buffer"))
+    (unless current-cell (user-error "No cell at point"))
+    (let* ((cells         (slot-value notebook 'cells))
+           (num-cells     (length cells))
+           (current-index (cl-position current-cell cells)))
+      (when (>= current-index (1- num-cells))
+        (user-error "Cannot move last cell down"))
+      (let ((successor (nth (1+ current-index) cells)))
+        (setf (nth current-index cells)       successor
+              (nth (1+ current-index) cells)  current-cell)
+        (oset notebook cells cells)
+        (dolist (cell (list current-cell successor))
+          (let ((old-shadow (slot-value cell 'shadow-file)))
+            (when (and old-shadow (file-exists-p old-shadow))
+              (delete-file old-shadow))))
+        (ejn-shadow-write-cell current-cell notebook)
+        (ejn-shadow-write-cell successor notebook)
+        (when (fboundp 'ejn--poly-refresh-cells)
+          (with-current-buffer (slot-value notebook 'master-buffer)
+            (ejn--poly-refresh-cells)))
+        (ejn--record-structural-change notebook 'move-down
+                                       (list current-cell current-index))))))
 
 (defun ejn:worksheet-kill-cell ()
   "Kill the current cell.
@@ -301,14 +285,13 @@ Removes the cell at point from the notebook's `:cells' list.
 If the cell is `:dirty', prompts for confirmation via `y-or-n-p'.
 Kills the cell's buffer if live, removes its shadow file from disk,
 reindexes shadow files for remaining cells via `ejn--reindex-shadow-files',
-and refreshes the master view.
-Signals an error if there is no cell at point."
+and refreshes the master view."
   (interactive)
   (cl-block nil
     (let* ((notebook (ejn-notebook-of-buffer))
            (current-cell ejn--cell))
-      (unless current-cell
-        (user-error "No cell at point"))
+      (unless notebook     (user-error "No notebook associated with this buffer"))
+      (unless current-cell (user-error "No cell at point"))
       ;; If dirty, prompt for confirmation; abort silently on decline
       (when (ejn-cell-dirty-p current-cell)
         (unless (y-or-n-p "Cell has unsaved changes. Kill anyway? ")
@@ -328,126 +311,101 @@ Signals an error if there is no cell at point."
       ;; Reindex shadow files so remaining cells get correct paths
       (ejn--reindex-shadow-files notebook)
       ;; Refresh master view
-      (when (fboundp 'ejn--refresh-master-cells)
+      (when (fboundp 'ejn--poly-refresh-cells)
         (with-current-buffer (slot-value notebook 'master-buffer)
-          (ejn--refresh-master-cells)))
+          (ejn--poly-refresh-cells)))
       (ejn--record-structural-change notebook 'kill (list current-cell)))))
 
 (defun ejn:worksheet-split-cell-at-point ()
-  "Split the current cell at point into two cells.
-
-Splits the cell's `:source' at the line where point is located.
-The part before point's line goes to the current cell; the part
-from point's line onward goes to a new cell inserted below.
-Both cells share the original `:type'."
+  "Split the current cell at point into two cells."
   (interactive)
-  (let* ((notebook (ejn-notebook-of-buffer))
-         (current-cell ejn--cell)
-         (cell-type (slot-value current-cell 'type))
-         (split-point (line-beginning-position))
-         (before (buffer-substring-no-properties (point-min) split-point))
-         (after (buffer-substring-no-properties split-point (point-max)))
-         (current-index (cl-position current-cell
-                                     (slot-value notebook 'cells))))
-    ;; Update current cell's source and shadow file
-    (oset current-cell source before)
-    (ejn-shadow-write-cell current-cell notebook)
-    ;; Create new cell below current cell
-    (let ((new-cell (ejn--make-cell notebook
-                                    (1+ current-index)
-                                    cell-type
-                                    after)))
-      ;; Reindex all shadow files — split inserts a new cell and shifts
-      ;; all subsequent cells, so every shadow file path must be updated
-      (ejn--reindex-shadow-files notebook)
-      ;; Refresh current cell buffer to reflect before part
-      (ejn-cell-refresh-buffer current-cell)
-      ;; Open new cell's buffer
-      (ejn-cell-open-buffer new-cell notebook))))
+  (let* ((notebook     (ejn-notebook-of-buffer))
+         (current-cell ejn--cell))
+    (unless notebook     (user-error "No notebook associated with this buffer"))
+    (unless current-cell (user-error "No cell at point"))
+    (let* ((cell-type    (slot-value current-cell 'type))
+           (split-point  (line-beginning-position))
+           (before       (buffer-substring-no-properties (point-min) split-point))
+           (after        (buffer-substring-no-properties split-point (point-max)))
+           (current-index (cl-position current-cell (slot-value notebook 'cells))))
+      (oset current-cell source before)
+      (ejn-shadow-write-cell current-cell notebook)
+      (let ((new-cell (ejn--make-cell notebook (1+ current-index) cell-type after)))
+        (ejn--reindex-shadow-files notebook)
+        (ejn-cell-refresh-buffer current-cell)
+        (switch-to-buffer (ejn-cell-open-buffer new-cell notebook))))))
 
 (defun ejn:worksheet-merge-cell ()
-  "Merge the current cell with the cell below it.
-
-Concatenates the current cell's `:source` with the cell below's
-`:source` using a blank line (\"\\n\\n\") as separator. Updates the
-current cell's `:source`, kills the lower cell's buffer if live,
-removes the lower cell's shadow file, removes the lower cell from
-the notebook's `:cells` list, reindexes all shadow files via
-`ejn--reindex-shadow-files`, and refreshes the master view.
-Signals an error if the current cell is the last cell in the notebook."
+  "Merge the current cell with the cell below it."
   (interactive)
-  (let* ((notebook (ejn-notebook-of-buffer))
-         (current-cell ejn--cell)
-         (cells (slot-value notebook 'cells))
-         (current-index (cl-position current-cell cells))
-         (num-cells (length cells)))
-    (when (>= current-index (1- num-cells))
-      (user-error "Cannot merge: current cell is the last cell"))
-    (let* ((lower-cell (nth (1+ current-index) cells))
-           (lower-shadow (slot-value lower-cell 'shadow-file))
-           (lower-buf (slot-value lower-cell 'buffer)))
-      ;; Concatenate sources with blank line separator
-      (oset current-cell source
-            (concat (slot-value current-cell 'source)
-                    "\n\n"
-                    (slot-value lower-cell 'source)))
-      ;; Kill lower cell's buffer if live
-      (when (buffer-live-p lower-buf)
-        (kill-buffer lower-buf))
-      ;; Remove lower cell's shadow file
-      (when (and lower-shadow (file-exists-p lower-shadow))
-        (delete-file lower-shadow))
-      ;; Remove lower cell from :cells list
-      (oset notebook cells (delq lower-cell cells))
-      ;; Reindex all shadow files so remaining cells get correct paths
-      (ejn--reindex-shadow-files notebook)
-      ;; Refresh master view
-      (when (fboundp 'ejn--refresh-master-cells)
-        (with-current-buffer (slot-value notebook 'master-buffer)
-          (ejn--refresh-master-cells)))
-      (ejn--record-structural-change notebook 'merge
-                                     (list current-cell lower-cell)))))
+  (let* ((notebook     (ejn-notebook-of-buffer))
+         (current-cell ejn--cell))
+    (unless notebook     (user-error "No notebook associated with this buffer"))
+    (unless current-cell (user-error "No cell at point"))
+    ;; Sync current cell's buffer to :source before merging
+    (ejn-shadow-sync-cell current-cell)
+    (let* ((cells         (slot-value notebook 'cells))
+           (current-index (cl-position current-cell cells))
+           (num-cells     (length cells)))
+      (when (>= current-index (1- num-cells))
+        (user-error "Cannot merge: current cell is the last cell"))
+      (let* ((lower-cell   (nth (1+ current-index) cells))
+             (lower-shadow (slot-value lower-cell 'shadow-file))
+             (lower-buf    (slot-value lower-cell 'buffer)))
+        (when (buffer-live-p lower-buf)
+          (ejn-shadow-sync-cell lower-cell))
+        (oset current-cell source
+              (concat (slot-value current-cell 'source)
+                      "\n\n"
+                      (slot-value lower-cell 'source)))
+        (when (buffer-live-p lower-buf)
+          (kill-buffer lower-buf))
+        (when (and lower-shadow (file-exists-p lower-shadow))
+          (delete-file lower-shadow))
+        (oset notebook cells (delq lower-cell cells))
+        (ejn--reindex-shadow-files notebook)
+        (when (fboundp 'ejn--poly-refresh-cells)
+          (with-current-buffer (slot-value notebook 'master-buffer)
+            (ejn--poly-refresh-cells)))
+        (ejn--record-structural-change notebook 'merge
+                                       (list current-cell lower-cell))))))
 
 (defun ejn:worksheet-yank-cell ()
-  "Yank a cell from the notebook's kill ring below the current cell.
-
-Pops the top entry from `ejn-notebook`'s `ejn-cell-kill-ring`, creates
-a new cell below the current cell with the copied `:source` and `:type`,
-writes its shadow file via `ejn-shadow-write-cell`, and refreshes the
-master view via `ejn--render-master-cells`.
-Signals a `user-error` if the kill ring is empty."
+  "Yank a cell from the notebook's kill ring below the current cell."
   (interactive)
-  (let* ((notebook (ejn-notebook-of-buffer))
-         (kill-ring (slot-value notebook 'ejn-cell-kill-ring)))
-    (unless kill-ring
-      (user-error "Kill ring is empty"))
-    (let* ((entry (car kill-ring))
-           (source (cdr (assq 'source entry)))
-           (type (cdr (assq 'type entry)))
-           (current-cell ejn--cell)
-           (cells (slot-value notebook 'cells))
-           (current-index (cl-position current-cell cells)))
-      ;; Pop the entry from the kill ring
-      (oset notebook ejn-cell-kill-ring (cdr kill-ring))
-      ;; Create new cell below current cell
-      (ejn--make-cell notebook (1+ current-index) type source))))
+  (let* ((notebook     (ejn-notebook-of-buffer))
+         (current-cell ejn--cell))
+    (unless notebook     (user-error "No notebook associated with this buffer"))
+    (unless current-cell (user-error "No cell at point"))
+    (let ((kill-ring (slot-value notebook 'ejn-cell-kill-ring)))
+      (unless kill-ring (user-error "Kill ring is empty"))
+      (let* ((entry         (car kill-ring))
+             (source        (cdr (assq 'source entry)))
+             (type          (cdr (assq 'type entry)))
+             (cells         (slot-value notebook 'cells))
+             (current-index (cl-position current-cell cells)))
+        ;; Do NOT pop the kill ring — Emacs convention: yank does not consume
+        (switch-to-buffer
+         (ejn-cell-open-buffer
+          (ejn--make-cell notebook (1+ current-index) type source)
+          notebook))))))
 
 (defun ejn:worksheet-copy-cell (&optional kill)
   "Copy the current cell's source and type to the notebook's kill ring.
-
-Copies the cell at point's `:source' and `:type' onto
-`ejn-notebook's `ejn-cell-kill-ring' slot as an association list entry.
-When KILL is non-nil, also kills the cell after copying.
-Interactively, KILL is the prefix argument."
+With KILL non-nil, also remove the cell."
   (interactive "P")
   (let* ((notebook (ejn-notebook-of-buffer))
-         (cell ejn--cell)
-         (entry `((source . ,(slot-value cell 'source))
-                  (type . ,(slot-value cell 'type)))))
-    (oset notebook ejn-cell-kill-ring
-          (cons entry (slot-value notebook 'ejn-cell-kill-ring)))
-    (when kill
-      (ejn:worksheet-kill-cell))))
+         (cell     ejn--cell))
+    (unless notebook (user-error "No notebook associated with this buffer"))
+    (unless cell     (user-error "No cell at point"))
+    ;; Sync buffer -> :source before copying, so copy reflects current edits
+    (ejn-shadow-sync-cell cell)
+    (let ((entry `((source . ,(slot-value cell 'source))
+                   (type   . ,(slot-value cell 'type)))))
+      (oset notebook ejn-cell-kill-ring
+            (cons entry (slot-value notebook 'ejn-cell-kill-ring)))
+      (when kill
+        (ejn:worksheet-kill-cell)))))
 
 (defun ejn:worksheet-goto-next-input ()
   "Navigate to the next cell.
