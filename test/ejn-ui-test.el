@@ -10,7 +10,7 @@
 (require 'ejn-cell)
 (require 'ejn-ui)
 
-
+
 ;; ===== P8-T1: ejn--undo-before-change snapshot capture =====
 
 (ert-deftest ejn-ui-test-p8-t1--before-change-captures-full-buffer ()
@@ -66,7 +66,7 @@ before-text in the undo record, and clears the snapshot afterward."
       (let ((record (car (slot-value notebook 'undo-stack))))
         (should (string= "" (ejn-undo-record-before record)))))))
 
-
+
 ;; ===== P8-T1: Hook registration in ejn-cell-open-buffer =====
 
 (ert-deftest ejn-cell-test-p8-t1--open-buffer-registers-before-change-hook ()
@@ -127,7 +127,7 @@ without erase-buffer."
       (when (buffer-live-p buf)
         (kill-buffer buf)))))
 
-
+
 ;; ===== P8-T2: ejn-global-undo structural dispatch =====
 
 (ert-deftest ejn-ui-test-p8-t2--undo-dispatches-structural-insert ()
@@ -163,7 +163,7 @@ ejn--undo-structural-change, reversing the cell insertion."
       (when (buffer-live-p buf)
         (kill-buffer buf)))))
 
-
+
 ;; ===== P8-T2: Content undo must not use erase-buffer (B41) =====
 
 (ert-deftest ejn-ui-test-p8-t2--undo-content-preserves-markers ()
@@ -213,7 +213,7 @@ replace-buffer-contents from a temp buffer preserves them."
       (when (buffer-live-p buf)
         (kill-buffer buf)))))
 
-
+
 ;; ===== P8-T2: Structural undo dispatches polymode refresh (B42) =====
 
 (ert-deftest ejn-ui-test-p8-t2--undo-structural-refreshes-polymode ()
@@ -347,3 +347,72 @@ markdown render and header refresh, so the caller's buffer is preserved (B44)."
           (fmakunbound 'completing-read))))))
 
 ;;; ejn-ui-test.el ends here
+
+
+;; ===== P9-T1: Save failure handling on close (B29) =====
+
+(ert-deftest ejn-ui-test-p9-t1--close-aborts-on-save-failure-decline ()
+  "ejn:notebook-close aborts with user-error when save fails and user declines (B29)."
+  (let* ((notebook (make-instance 'ejn-notebook :path "/tmp/test.ipynb"))
+         (cell (make-instance 'ejn-cell :type 'code :source "test" :dirty t))
+         (cell-buf (generate-new-buffer "*ejn-test-cell-p9*"))
+         (caller-buf (generate-new-buffer "*ejn-test-caller-p9*"))
+         (master-buf (generate-new-buffer "*ejn-master-test-p9*")))
+    (unwind-protect
+        (progn
+          (oset notebook cells (list cell))
+          (oset notebook master-buffer master-buf)
+          (oset cell buffer cell-buf)
+          ;; Stub ejn-notebook-save to return nil (simulate failure)
+          (fset 'ejn-notebook-save (lambda (_) nil))
+          ;; Mock y-or-n-p: first returns t (save please), second returns nil (don't close)
+          (let ((prompt-count 0))
+            (fset 'y-or-n-p
+                  (lambda (prompt)
+                    (cl-incf prompt-count)
+                    (if (= prompt-count 1) t nil))))
+          (with-current-buffer caller-buf
+            (set (make-local-variable 'ejn--notebook) notebook)
+            ;; Should signal user-error on decline
+            (should-error (ejn:notebook-close) :type 'user-error))
+          (fmakunbound 'y-or-n-p))
+      (when (buffer-live-p cell-buf)
+        (kill-buffer cell-buf))
+      (when (buffer-live-p caller-buf)
+        (kill-buffer caller-buf))
+      (when (buffer-live-p master-buf)
+        (kill-buffer master-buf))
+      (when (fboundp 'ejn-notebook-save)
+        (fmakunbound 'ejn-notebook-save)))))
+
+(ert-deftest ejn-ui-test-p9-t1--close-proceeds-on-save-success ()
+  "ejn:notebook-close proceeds normally when save succeeds (B29)."
+  (let* ((notebook (make-instance 'ejn-notebook :path "/tmp/test2.ipynb"))
+         (cell (make-instance 'ejn-cell :type 'code :source "test" :dirty t))
+         (cell-buf (generate-new-buffer "*ejn-test-cell-p9b*"))
+         (caller-buf (generate-new-buffer "*ejn-test-caller-p9b*"))
+         (master-buf (generate-new-buffer "*ejn-master-test-p9b*")))
+    (unwind-protect
+        (progn
+          (oset notebook cells (list cell))
+          (oset notebook master-buffer master-buf)
+          (oset cell buffer cell-buf)
+          ;; Stub ejn-notebook-save to return t (success)
+          (fset 'ejn-notebook-save (lambda (_) t))
+          (fset 'y-or-n-p (lambda (_) t))
+          (with-current-buffer caller-buf
+            (set (make-local-variable 'ejn--notebook) notebook)
+            ;; Should return without signaling
+            (ejn:notebook-close))
+          ;; Buffers should be killed
+          (should-not (buffer-live-p cell-buf))
+          (should-not (buffer-live-p master-buf))
+          (fmakunbound 'y-or-n-p))
+      (when (buffer-live-p cell-buf)
+        (kill-buffer cell-buf))
+      (when (buffer-live-p caller-buf)
+        (kill-buffer caller-buf))
+      (when (buffer-live-p master-buf)
+        (kill-buffer master-buf))
+      (when (fboundp 'ejn-notebook-save)
+        (fmakunbound 'ejn-notebook-save)))))

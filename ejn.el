@@ -392,9 +392,12 @@ The kernel process is NOT stopped."
     (let ((any-dirty-p (cl-some (lambda (cell)
                                   (slot-value cell 'dirty))
                                 (slot-value notebook 'cells))))
-      (when (and any-dirty-p
-                 (y-or-n-p "Save dirty cells before closing? "))
-        (ejn:notebook-save-notebook-command)))
+      (when any-dirty-p
+        (when (y-or-n-p "Save dirty cells before closing? ")
+          (let ((saved (ejn-notebook-save notebook)))
+            (unless saved
+              (unless (y-or-n-p "Save failed. Close anyway and lose changes? ")
+                (user-error "Close cancelled")))))))
     ;; Kill all cell buffers
     (dolist (cell (slot-value notebook 'cells))
       (let ((buf (slot-value cell 'buffer)))

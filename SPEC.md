@@ -141,7 +141,7 @@ Uses correct `jupyter.el` API: `jupyter-add-hook` for iopub subscription (not `j
 
 ### Phase 9 — Save failure handling on close
 
-- [ ] P9-T1 Fix `ejn:notebook-close`: call `ejn-notebook-save` directly (not command wrapper); on `nil` return, prompt "Save failed. Close anyway and lose changes?"; `user-error` on decline; proceed with buffer kills on confirmation or success (B29) [smoke] (adds one conditional prompt — structural guard)
+- [x] P9-T1 Fix `ejn:notebook-close`: call `ejn-notebook-save` directly (not command wrapper); on `nil` return, prompt "Save failed. Close anyway and lose changes?"; `user-error` on decline; proceed with buffer kills on confirmation or success (B29) [smoke] (adds one conditional prompt — structural guard)
 
 ## Bug → Task mapping
 
@@ -175,7 +175,7 @@ Uses correct `jupyter.el` API: `jupyter-add-hook` for iopub subscription (not `j
 | B26 | P5-T2 | done |
 | B27 | P5-T2 | done |
 | B28 | P5-T2 | done |
-| B29 | P9-T1 | pending |
+| B29 | P9-T1 | done |
 | B30 | P7-T1 | done |
 | B31 | P7-T1 | done |
 | B32 | P7-T1 | done |
