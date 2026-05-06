@@ -167,19 +167,36 @@ CELL is an ejn-cell EIEIO object."
             ;; Ensure window margins are wide enough
             (set-window-margins (selected-window) 12)))))))
 
+(defvar-local ejn--pre-change-snapshot nil
+  "Full buffer content captured by `ejn--undo-before-change'.
+
+Used by `ejn--undo-after-change' to reconstruct the before-text
+for undo records without relying on start/end/pre-change-length
+math.")
+
 (defvar ejn--undo-debounce-seconds 1
   "Seconds within which rapid changes are coalesced into one undo record.")
+
+(defun ejn--undo-before-change (start end)
+  "Capture full buffer content before a change, for undo reconstruction.
+Called by `before-change-functions' with arguments START and END.
+Stores the full buffer content (without text properties) into
+`ejn--pre-change-snapshot' for use by `ejn--undo-after-change'."
+  (setq ejn--pre-change-snapshot
+        (buffer-substring-no-properties (point-min) (point-max))))
 
 (defun ejn--undo-after-change (start end pre-change-length)
   "After-change wrapper that coalesces rapid typing into single undo records.
 
 Receives standard after-change arguments START, END, PRE-CHANGE-LENGTH.
 Determines which cell and notebook the current buffer belongs to.
-Reconstructs the before-state by removing the changed region from the
-current buffer content. Captures the after-state from the current buffer.
+Uses `ejn--pre-change-snapshot' (captured by `ejn--undo-before-change')
+for the before-text, falling back to an empty string if no snapshot is
+available. Captures the after-state from the current buffer.
 Checks the notebook's undo stack for a pending record on the same cell
 within `ejn--undo-debounce-seconds'. If found, updates its after field.
 Otherwise, pushes a new `ejn-undo-record' with operation `:content'.
+Clears `ejn--pre-change-snapshot' after use.
 
 Returns nil."
   (let* ((cell (and (boundp 'ejn--cell) ejn--cell))
@@ -188,14 +205,11 @@ Returns nil."
          (now (float-time)))
     (when (and cell notebook cell-id)
       (let* ((undo-stack (slot-value notebook 'undo-stack))
-             (full (buffer-substring-no-properties (point-min) (point-max)))
-             (buf-len (length full))
-             (after-text full)
-             (start-clamped (min start buf-len))
-             (end-clamped (min end buf-len))
-             (before-text (concat (substring full 0 start-clamped)
-                                  (substring full end-clamped)))
+             (before-text (or ejn--pre-change-snapshot ""))
+             (after-text (buffer-substring-no-properties (point-min) (point-max)))
              (top-record (car undo-stack)))
+        ;; Clear snapshot immediately so it can't be reused
+        (setq ejn--pre-change-snapshot nil)
         (if (and top-record
                  (string= (ejn-undo-record-cell-id top-record) cell-id)
                  (< (- now (ejn-undo-record-timestamp top-record))
@@ -219,9 +233,11 @@ Returns nil."
 (defun ejn-global-undo ()
   "Undo the last change in the current notebook.
 
-Pops the top `ejn-undo-record' from the notebook's undo stack,
-restores the affected cell's buffer to its `before' state, and
-moves point to that cell's buffer.
+Pops the top `ejn-undo-record' from the notebook's undo stack.
+For `:content' operations, restores the affected cell's buffer to its
+`before' state and moves point to that cell's buffer.
+For structural operations (`:insert', `:delete', `:move', etc.),
+dispatches to `ejn--undo-structural-change'.
 
 Signals `user-error' if there is no associated notebook or if the
 undo stack is empty."
@@ -237,32 +253,40 @@ undo stack is empty."
            (new-stack (cdr undo-stack))
            (cell-id (ejn-undo-record-cell-id record))
            (before-text (ejn-undo-record-before record))
-           (target-cell
-            (cl-find cell-id (slot-value notebook 'cells)
-                     :key (lambda (c) (slot-value c 'id))
-                     :test #'string=))
-           (target-buf (and target-cell (slot-value target-cell 'buffer))))
-      (unless target-cell
-        (user-error "Cannot find cell with id %s" cell-id))
-      (unless (and target-buf (buffer-live-p target-buf))
-        (user-error "Buffer for cell %s is not live" cell-id))
+           (operation (ejn-undo-record-operation record)))
       ;; Update the undo stack
       (oset notebook undo-stack new-stack)
-      ;; Restore the cell buffer to the before state using temp buffer
-      ;; (per P2-T14 lesson: with-temp-buffer kills before replace-buffer-contents)
-      (let ((temp-buf (generate-new-buffer " *ejn-undo-temp*")))
-        (unwind-protect
-            (progn
-              (with-current-buffer temp-buf
-                (insert before-text))
-              (with-current-buffer target-buf
-                (erase-buffer)
-                (replace-buffer-contents temp-buf)))
-          (kill-buffer temp-buf)))
-      ;; Also update the cell's :source slot to match
-      (oset target-cell source before-text)
-      ;; Move point to the target cell's buffer
-      (switch-to-buffer target-buf))))
+      (if (eq operation :content)
+          ;; Content undo: restore cell buffer to before-text
+          (let* ((target-cell
+                  (cl-find cell-id (slot-value notebook 'cells)
+                           :key (lambda (c) (slot-value c 'id))
+                           :test #'string=))
+                 (target-buf (and target-cell (slot-value target-cell 'buffer))))
+            (unless target-cell
+              (user-error "Cannot find cell with id %s" cell-id))
+            (unless (and target-buf (buffer-live-p target-buf))
+              (user-error "Buffer for cell %s is not live" cell-id))
+            ;; Restore the cell buffer to the before state using temp buffer
+            ;; (per P2-T14 lesson: with-temp-buffer kills before replace-buffer-contents)
+            (let ((temp-buf (generate-new-buffer " *ejn-undo-temp*")))
+              (unwind-protect
+                  (progn
+                    (with-current-buffer temp-buf
+                      (insert before-text))
+                    (with-current-buffer target-buf
+                      (replace-buffer-contents temp-buf)))
+                (kill-buffer temp-buf)))
+            ;; Also update the cell's :source slot to match
+            (oset target-cell source before-text)
+            ;; Move point to the target cell's buffer
+            (switch-to-buffer target-buf))
+        ;; Structural undo: dispatch to structural undo handler
+        (ejn--undo-structural-change record)
+        (when (fboundp 'ejn--poly-refresh-cells)
+          (when-let* ((master-buf (slot-value notebook 'master-buffer)))
+            (with-current-buffer master-buf
+              (ejn--poly-refresh-cells))))))))
 
 (defun ejn--undo-structural-change (record)
   "Reverse a structural undo RECORD (an `ejn-undo-record' struct).

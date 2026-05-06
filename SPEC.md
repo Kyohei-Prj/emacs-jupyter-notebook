@@ -92,6 +92,10 @@ No changes to the EIEIO classes (`ejn-notebook`, `ejn-cell`) or the `ejn-undo-re
 - No changes to the LSP composite file generation (`ejn-lsp-generate-composite`).
 - No changes to `ejn:notebook-open` or `ejn-kernel-complete`.
 
+## Current phase
+
+Phase 8 — Undo system (resuming P8-T3)
+
 ## Task list
 
 ### Phase 1 — Foundation (variables + open)
@@ -135,9 +139,9 @@ Uses correct `jupyter.el` API: `jupyter-add-hook` for iopub subscription (not `j
 
 ### Phase 8 — Undo system
 
-- [ ] P8-T1 Add `ejn--undo-before-change` (`before-change-functions` hook capturing full buffer to `ejn--pre-change-snapshot`); rewrite `ejn--undo-after-change` to use snapshot for `before-text`; register hook in `ejn-cell-open-buffer` (B40) [tdd] (data capture, state mutation, conditional debounce logic)
-- [ ] P8-T2 Fix `ejn-global-undo`: remove `erase-buffer` before `replace-buffer-contents`; dispatch structural undo via `ejn--undo-structural-change` when `operation` is not `:content` (B41, B42) [tdd] (state mutation, conditional dispatch)
-- [ ] P8-T3 Fix `with-current-buffer` nesting in `ejn:worksheet-toggle-cell-type` and `ejn:worksheet-change-cell-type`: close form before markdown render / header refresh / master re-render (B43, B44) [smoke] (structural — parenthesis fix only)
+- [x] P8-T1 Add `ejn--undo-before-change` (`before-change-functions` hook capturing full buffer to `ejn--pre-change-snapshot`); rewrite `ejn--undo-after-change` to use snapshot for `before-text`; register hook in `ejn-cell-open-buffer` (B40) [tdd] (data capture, state mutation, conditional debounce logic)
+- [x] P8-T2 Fix `ejn-global-undo`: remove `erase-buffer` before `replace-buffer-contents`; dispatch structural undo via `ejn--undo-structural-change` when `operation` is not `:content` (B41, B42) [tdd] (state mutation, conditional dispatch)
+- [x] P8-T3 Fix `with-current-buffer` nesting in `ejn:worksheet-toggle-cell-type` and `ejn:worksheet-change-cell-type`: close form before markdown render / header refresh / master re-render (B43, B44) [smoke] (structural — parenthesis fix only)
 
 ### Phase 9 — Save failure handling on close
 
@@ -186,7 +190,7 @@ Uses correct `jupyter.el` API: `jupyter-add-hook` for iopub subscription (not `j
 | B37 | P6-T2 | done |
 | B38 | P6-T1 | done |
 | B39 | P6-T3 | done |
-| B40 | P8-T1 | pending |
+| B40 | P8-T1 | done |
 | B41 | P8-T2 | pending |
 | B42 | P8-T2 | pending |
 | B43 | P8-T3 | pending |

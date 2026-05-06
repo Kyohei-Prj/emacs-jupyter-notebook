@@ -40,6 +40,7 @@
 (declare-function ejn-lsp-unregister-cell 'ejn-lsp (cell))
 (declare-function ejn--setup-cell-visuals 'ejn-ui (cell))
 (declare-function ejn--undo-after-change 'ejn-ui (start end pre-change-length))
+(declare-function ejn--undo-before-change 'ejn-ui (start end))
 (declare-function make-ejn-undo-record 'ejn-ui (&rest args))
 
 ;; Buffer-local variable holding the ejn-cell for the current cell buffer
@@ -61,7 +62,8 @@ Flushes any dirty content to the shadow file before unregistering LSP."
       (ejn-shadow-sync-cell ejn--cell))
     (when (fboundp 'ejn-lsp-unregister-cell)
       (ejn-lsp-unregister-cell ejn--cell)))
-  (remove-hook 'after-change-functions #'ejn--undo-after-change 'local))
+  (remove-hook 'after-change-functions #'ejn--undo-after-change 'local)
+  (remove-hook 'before-change-functions #'ejn--undo-before-change 'local))
 
 (defun ejn-cell-refresh-buffer (cell)
   "Replace the cell buffer's contents with CELL's `:source'.
@@ -121,16 +123,19 @@ file via `ejn-shadow-write-cell' (when NOTEBOOK is given), update
            (ejn-shadow-write-cell cell notebook))
          (when (and notebook (fboundp 'ejn-lsp-setup-cell-buffer))
            (ejn-lsp-setup-cell-buffer cell notebook))
-         ;; Register after-change hooks AFTER all setup functions
-         ;; to avoid triggering them during initial buffer population.
-         (with-current-buffer new-buf
-           (remove-hook 'after-change-functions #'ejn--cell-after-change-hook 'local)
-           (when (fboundp 'ejn--undo-after-change)
-             (add-hook 'after-change-functions
-                       #'ejn--undo-after-change 'append 'local))
-           (when (fboundp 'ejn-lsp--debounced-composite-regen)
-             (add-hook 'after-change-functions
-                       #'ejn-lsp--debounced-composite-regen 'append 'local)))
+         ;; Register change hooks AFTER all setup functions
+          ;; to avoid triggering them during initial buffer population.
+          (with-current-buffer new-buf
+            (remove-hook 'after-change-functions #'ejn--cell-after-change-hook 'local)
+            (when (fboundp 'ejn--undo-after-change)
+              (add-hook 'after-change-functions
+                        #'ejn--undo-after-change 'append 'local))
+            (when (fboundp 'ejn--undo-before-change)
+              (add-hook 'before-change-functions
+                        #'ejn--undo-before-change 'append 'local))
+            (when (fboundp 'ejn-lsp--debounced-composite-regen)
+              (add-hook 'after-change-functions
+                        #'ejn-lsp--debounced-composite-regen 'append 'local)))
          new-buf))))
 
 (defun ejn-cell-initialize (cell notebook)
