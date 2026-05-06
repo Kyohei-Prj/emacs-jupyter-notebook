@@ -541,6 +541,32 @@ is copied to the notebook's kill ring and then removed."
   (interactive)
   (ejn:worksheet-copy-cell t))
 
+(defun ejn:notebook-start-kernel (&optional kernel-name)
+  "Start a Jupyter kernel for the current notebook.
+
+Prompts for a kernelspec name via `completing-read' if KERNEL-NAME
+is nil. Stores the client in the notebook's `:kernel-id' slot and
+activates `ejn-kernel-manager-mode' in the master buffer.
+
+Signals `user-error' if no notebook is associated with this buffer,
+if no kernelspecs are available, or if a kernel is already running."
+  (interactive)
+  (let ((notebook (ejn-notebook-of-buffer)))
+    (unless notebook
+      (user-error "No notebook associated with this buffer"))
+    (when (ejn-kernel-alive-p notebook)
+      (user-error "A kernel is already running. Use C-c C-r to reconnect"))
+    (let* ((specs    (jupyter-available-kernelspecs))
+           (names    (mapcar #'jupyter-kernelspec-name specs)))
+      (unless names
+        (user-error "No Jupyter kernelspecs found. Is Jupyter installed?"))
+      (let* ((selected (or kernel-name
+                           (completing-read "Start kernel: " names nil t
+                                            nil nil (car names))))
+             (client   (ejn-kernel-start notebook selected)))
+        (message "EJN: kernel started (%s)" selected)
+        client))))
+
 ;;;###autoload
 (defun ejn-open-file ()
   "Open a Jupyter Notebook .ipynb file.
@@ -602,6 +628,7 @@ Returns nil."
     (define-key map [M-up] #'ejn:pytools-not-move-cell-up-km)
 
     ;; Phase 4 stubs — interactive commands that signal `user-error`
+    (define-key map (kbd "C-c C-S-k") #'ejn:notebook-start-kernel)
     (define-key map [M-S-return] #'ejn:worksheet-execute-cell-and-insert-below)
     (define-key map [M-return] #'ejn:worksheet-execute-cell-and-goto-next)
     (define-key map (kbd "C-c C-o") #'ejn:notebook-open)

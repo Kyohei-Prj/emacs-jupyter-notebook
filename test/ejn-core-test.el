@@ -265,4 +265,25 @@ without modification."
     (should (stringp (slot-value cell 'source)))
     (should (string= (slot-value cell 'source) "# Hello World"))))
 
+
+;;; ===== P6-T1 B38: ejn:notebook-start-kernel smoke test =====
+
+(ert-deftest ejn-core-test-p6-t1--start-kernel-smoke ()
+  "Smoke: `ejn:notebook-start-kernel' is defined, interactive, and
+keybound to `C-c C-S-k' in `ejn-mode-map'; signals `user-error'
+from a buffer with no associated notebook."
+  ;; 1. Function exists and is interactive
+  (should (fboundp 'ejn:notebook-start-kernel))
+  (should (commandp 'ejn:notebook-start-kernel))
+
+  ;; 2. Keybinding is registered in ejn-mode-map
+  (should (equal (lookup-key ejn-mode-map (kbd "C-c C-S-k"))
+                 #'ejn:notebook-start-kernel))
+
+  ;; 3. Signals user-error from a buffer with no notebook
+  (with-temp-buffer
+    (should-error
+     (ejn:notebook-start-kernel)
+     :type 'user-error)))
+
 ;;; ejn-core-test.el ends here

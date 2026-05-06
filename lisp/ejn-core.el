@@ -51,9 +51,9 @@
           :type list
           :documentation "Ordered list of ejn-cell objects.")
    (kernel-id :initarg :kernel-id
-               :initform nil
-               :type (or object null)
-               :documentation "Kernel identifier (jupyter-kernel-client instance).")
+                :initform nil
+                :type (or t null)
+                :documentation "Kernel identifier (jupyter-kernel-client instance).")
    (ejn-cell-kill-ring :initarg :ejn-cell-kill-ring
                        :initform nil
                        :type list

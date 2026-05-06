@@ -94,7 +94,7 @@ No changes to the EIEIO classes (`ejn-notebook`, `ejn-cell`) or the `ejn-undo-re
 
 ## Current phase
 
-Phase 5 — JSON serialization (save/load)
+Phase 6 — Kernel execution + iopub messaging
 
 ## Task list
 
@@ -129,9 +129,9 @@ Merges plan Tasks 3 and 4: all structural commands get guards, `switch-to-buffer
 
 Uses correct `jupyter.el` API: `jupyter-add-hook` for iopub subscription (not `jupyter-message-subscribed` or `jupyter-add-receive-callback`); `jupyter-message-type`/`jupyter-message-get` accessors (not raw `plist-get`).
 
-- [ ] P6-T1 Add `ejn:notebook-start-kernel` interactive command to `ejn.el` with `C-c C-S-k` keybinding; prompts for kernelspec; stores client in `notebook.kernel-id`; activates `ejn-kernel-manager-mode` (B38) [smoke] (structural wiring — wrapper + keybinding, no logic)
-- [ ] P6-T2 Rewrite `ejn--execute-cell` in `ejn-network.el`: call `ejn-shadow-sync-cell` before send; use `jupyter-execute-request` within kernel client context; store `(jupyter-request-id req)` in cell slot for parent-ID correlation (B36, B37) [tdd] (I/O, state mutation, client context management)
-- [ ] P6-T3 Rewrite iopub pipeline: register `jupyter-iopub-message-hook` in `ejn-kernel-start` (called with `(client msg)`); rewrite `ejn--iopub-handler` to accept `(client msg)`, use `jupyter-message-type`/`jupyter-message-get` accessors, correlate messages to cells via parent-ID matching against stored request-ids; rewrite `ejn--render-output` for `stream`/`execute_result`/`display_data`/`error`/`execute_reply`; update `exec-count` on `execute_reply` (B34, B35, B39) [tdd] (message dispatch, MIME rendering, conditional branches, parent-ID correlation)
+- [x] P6-T1 Add `ejn:notebook-start-kernel` interactive command to `ejn.el` with `C-c C-S-k` keybinding; prompts for kernelspec; stores client in `notebook.kernel-id`; activates `ejn-kernel-manager-mode` (B38) [smoke] (structural wiring — wrapper + keybinding, no logic)
+- [x] P6-T2 Rewrite `ejn--execute-cell` in `ejn-network.el`: call `ejn-shadow-sync-cell` before send; use `jupyter-execute-request` within kernel client context; store `(jupyter-request-id req)` in cell slot for parent-ID correlation (B36, B37) [tdd] (I/O, state mutation, client context management)
+- [x] P6-T3 Rewrite iopub pipeline: register `jupyter-iopub-message-hook` in `ejn-kernel-start` (called with `(client msg)`); rewrite `ejn--iopub-handler` to accept `(client msg)`, use `jupyter-message-type`/`jupyter-message-get` accessors, correlate messages to cells via parent-ID matching against stored request-ids; rewrite `ejn--render-output` for `stream`/`execute_result`/`display_data`/`error`/`execute_reply`; update `exec-count` on `execute_reply` (B34, B35, B39) [tdd] (message dispatch, MIME rendering, conditional branches, parent-ID correlation)
 
 ### Phase 7 — LSP registration + master view scroll
 
@@ -174,11 +174,11 @@ Uses correct `jupyter.el` API: `jupyter-add-hook` for iopub subscription (not `j
 | B21 | P4-T1 | done |
 | B22 | P4-T1 | done |
 | B23 | P4-T1 | done |
-| B24 | P5-T1 | pending |
-| B25 | P5-T2 | pending |
-| B26 | P5-T2 | pending |
-| B27 | P5-T2 | pending |
-| B28 | P5-T2 | pending |
+| B24 | P5-T1 | done |
+| B25 | P5-T2 | done |
+| B26 | P5-T2 | done |
+| B27 | P5-T2 | done |
+| B28 | P5-T2 | done |
 | B29 | P9-T1 | pending |
 | B30 | P7-T1 | pending |
 | B31 | P7-T1 | pending |
@@ -188,7 +188,7 @@ Uses correct `jupyter.el` API: `jupyter-add-hook` for iopub subscription (not `j
 | B35 | P6-T3 | pending |
 | B36 | P6-T2 | pending |
 | B37 | P6-T2 | pending |
-| B38 | P6-T1 | pending |
+| B38 | P6-T1 | done |
 | B39 | P6-T3 | pending |
 | B40 | P8-T1 | pending |
 | B41 | P8-T2 | pending |
