@@ -92,6 +92,10 @@ No changes to the EIEIO classes (`ejn-notebook`, `ejn-cell`) or the `ejn-undo-re
 - No changes to the LSP composite file generation (`ejn-lsp-generate-composite`).
 - No changes to `ejn:notebook-open` or `ejn-kernel-complete`.
 
+## Current phase
+
+Phase 7 — LSP registration + master view scroll
+
 ## Task list
 
 ### Phase 1 — Foundation (variables + open)
@@ -131,7 +135,7 @@ Uses correct `jupyter.el` API: `jupyter-add-hook` for iopub subscription (not `j
 
 ### Phase 7 — LSP registration + master view scroll
 
-- [ ] P7-T1 Fix `ejn-lsp--register-virtual-buffer`: extract integer `offset-line` from `(LINE . COL)` cons via `car`; wrap args in `(list ...)`. Fix `ejn--create-master-view` scroll hook: use `buffer-local-value` for `window-scroll-functions` check. Add `defconst ejn--cell-chunk-head-prefix`; replace all `format "# %%%%<ejn-cell:…"` call sites with the constant (B30–B33) [smoke] (structural API call fix, no new logic)
+- [x] P7-T1 Fix `ejn-lsp--register-virtual-buffer`: extract integer `offset-line` from `(LINE . COL)` cons via `car`; wrap args in `(list ...)`. Fix `ejn--create-master-view` scroll hook: use `buffer-local-value` for `window-scroll-functions` check. Add `defconst ejn--cell-chunk-head-prefix`; replace all `format "# %%%%<ejn-cell:…"` call sites with the constant (B30–B33) [smoke] (structural API call fix, no new logic)
 
 ### Phase 8 — Undo system
 

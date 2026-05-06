@@ -220,10 +220,12 @@ Sets buffer-local `ejn--cell-lsp-attached-p' to t.
 Returns nil."
   (let* ((real-buffer (slot-value cell 'buffer))
          (virtual-file (ejn-lsp-composite-path notebook))
-         (offset-line (ejn-lsp-pos-to-composite cell notebook 0 0)))
-    (lsp-virtual-buffer-register :real-buffer real-buffer
-                                 :virtual-file virtual-file
-                                 :offset-line offset-line)
+         (offset-cons (ejn-lsp-pos-to-composite cell notebook 0 0))
+         (offset-line (if offset-cons (car offset-cons) 0)))
+    (lsp-virtual-buffer-register
+     (list :real-buffer real-buffer
+           :virtual-file virtual-file
+           :offset-line offset-line))
     (with-current-buffer real-buffer
       (set (make-local-variable 'ejn--cell-lsp-attached-p) t))))
 

@@ -37,6 +37,9 @@ Chunk delimiters use sentinel comment format:
   :hostmode 'poly-ejn-hostmode
   :innermodes '(poly-ejn-code-innermode poly-ejn-markdown-innermode))
 
+(defconst ejn--cell-chunk-head-prefix "# %%<ejn-cell:"
+  "Prefix string for polymode chunk head delimiters in master view buffers.")
+
 (defun ejn--cleanup-master-view ()
   "Cleanup function called when the master view buffer is killed."
   nil)
@@ -59,9 +62,9 @@ in the current buffer."
     (dolist (cell cells)
       (let ((cell-type (slot-value cell 'type))
             (source (slot-value cell 'source)))
-        (insert (format "# %%%%<ejn-cell:%d:%s>\n" idx (symbol-name cell-type)))
+        (insert (format "%s%d:%s>\n" ejn--cell-chunk-head-prefix idx (symbol-name cell-type)))
         (insert (or source ""))
-        (insert (format "\n# %%%%<ejn-cell:%d:end>\n" idx))
+        (insert (format "\n%s%d:end>\n" ejn--cell-chunk-head-prefix idx))
         (cl-incf idx)))))
 
 (defun ejn--poly-refresh-cells ()
@@ -98,7 +101,7 @@ Returns the buffer."
       (add-hook 'kill-buffer-hook #'ejn--cleanup-master-view 'append 'local)
       (unless (memq #'ejn--master-scroll-hook
                     (buffer-local-value 'window-scroll-functions (current-buffer)))
-        (add-hook 'window-scroll-functions #'ejn--master-scroll-hook 'append))
+        (add-hook 'window-scroll-functions #'ejn--master-scroll-hook 'append 'local))
       (oset notebook master-buffer buf)
       (ejn--poly-render-cells notebook)
       (ejn-mode 1))
@@ -117,7 +120,7 @@ Initializes cells that scroll into the visible window area."
             (idx 0))
         (dolist (cell cells)
           (unless (slot-value cell 'initialized-p)
-            (let ((head-marker (format "# %%%%<ejn-cell:%d:" idx)))
+            (let ((head-marker (format "%s%d:" ejn--cell-chunk-head-prefix idx)))
               (when (save-excursion
                       (goto-char start)
                       (search-forward head-marker (max start end) t))
