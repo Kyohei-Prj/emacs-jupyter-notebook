@@ -30,17 +30,10 @@
 
 (require 'cl-lib)
 (require 'eieio)
-
-;; jupyter dependency declaration
-;; autoload avoids cl-check-type expansion errors in Emacs 30
-(autoload #'jupyter "jupyter" "Jupyter support" t)
+(require 'jupyter)
 
 ;; Forward declaration for function defined in ejn-ui.el
 (declare-function ejn-cell-refresh-header 'ejn-ui (cell))
-
-;; Forward declaration for internal helper
-(declare-function ejn--execute-cell--with-client
-                  'ejn-network (cell code buf notebook))
 
 ;; Alist mapping jupyter clients to their ejn-notebook objects.
 ;; Used by the iopub handler to find the notebook for a given client.
@@ -252,35 +245,20 @@ cell, or nil if no match is found."
                 (when (equal pending-id parent-id)
                   (cl-return cell))))))))))
 
-(defun ejn--wait-idle (req &optional timeout)
-  "Wait for REQ to become idle, returning REQ or nil on timeout.
+(defun ejn--wait-idle (notebook &optional timeout)
+  "Wait for the kernel of NOTEBOOK to become idle.
 
-TIMEOUT is the number of seconds to wait.  Returns REQ if the kernel
-becomes idle within the timeout, nil if the timeout elapses."  (condition-case err
-								   (jupyter-idle req timeout)
-								 (jupyter-timeout-before-idle
-								  (message "Kernel did not become idle within %d seconds" timeout)
-								  nil)))
-
-(defun ejn--execute-cell--with-client (cell code buf notebook)
-  "Execute CELL with CODE in NOTEBOOK, storing state in BUF.
-
-This helper is called within `jupyter-with-client' context.
-All needed values are passed as arguments to avoid lexical
-closure issues with the test mocking of `jupyter-with-client'.
-
-IOPUB messages are handled by `ejn--iopub-handler' registered via
-`jupyter-add-hook' in `ejn-kernel-start'.  This function only stores
-the request ID for parent-ID correlation.
-
-Returns the `jupyter-request' object."
-  (let ((req (jupyter-sent (jupyter-execute-request :code code))))
-    ;; Store request-id in cell buffer for parent-ID correlation
-    (with-current-buffer buf
-      (make-local-variable 'ejn--pending-request-id)
-      (setq ejn--pending-request-id
-            (jupyter-request-id req)))
-    req))
+TIMEOUT is the number of seconds to wait (default 30).
+Returns t if the kernel becomes idle, nil on timeout."
+  (let ((timeout (or timeout 30))
+        (start (float-time)))
+    (while (and (not (string= (ejn-kernel-execution-state notebook) "idle"))
+                (< (- (float-time) start) timeout))
+      (sit-for 0.1))
+    (if (string= (ejn-kernel-execution-state notebook) "idle")
+        t
+      (message "Kernel did not become idle within %d seconds" timeout)
+      nil)))
 
 (defun ejn--execute-cell (cell)
   "Send the source of CELL to the kernel for execution.
@@ -293,7 +271,7 @@ cell's buffer-local `ejn--pending-request-id' variable.
 
 Signals a `user-error' if no kernel is attached.
 
-Returns the `jupyter-request' object."
+Returns the monadic result from `jupyter-with-client'."
   (ejn-shadow-sync-cell cell)
   (let ((notebook (ejn--cell-notebook cell))
         (code (slot-value cell 'source))
@@ -304,8 +282,11 @@ Returns the `jupyter-request' object."
       (or client
           (user-error "No kernel started for this notebook"))
       (jupyter-with-client client
-			   (funcall #'ejn--execute-cell--with-client
-				    cell code buf notebook)))))
+        (jupyter-mlet* ((req (jupyter-sent (jupyter-execute-request :code code))))
+          (with-current-buffer buf
+            (make-local-variable 'ejn--pending-request-id)
+            (setq ejn--pending-request-id
+                  (jupyter-request-id req))))))))
 
 (defun ejn--output-overlay (cell)
   "Return (or create) the output overlay for CELL.
@@ -472,8 +453,8 @@ Returns nil."
     (when (and (eq (slot-value cell 'type) 'code)
                (slot-value cell 'buffer)
                (buffer-live-p (slot-value cell 'buffer)))
-      (let ((req (ejn--execute-cell cell)))
-        (ejn--wait-idle req 30))))
+      (ejn--execute-cell cell)
+      (ejn--wait-idle notebook 30)))
   nil)
 
 (defun ejn--set-output-visibility-all (notebook visible-p)

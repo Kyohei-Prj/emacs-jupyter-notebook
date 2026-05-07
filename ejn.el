@@ -169,15 +169,16 @@ buffers, and cleans up the cache directory."
     (when-let ((master-buf (slot-value notebook 'master-buffer)))
       (when (buffer-live-p master-buf)
         (kill-buffer master-buf)))
-    (let* ((nb-stem (file-name-sans-extension
-                     (file-name-nondirectory
-                      (slot-value notebook 'path))))
-           (cache-dir (expand-file-name
-                      (concat ".ejn-cache/" nb-stem)
-                      (file-name-directory
-                       (slot-value notebook 'path)))))
+   (let* ((nb-stem (file-name-sans-extension
+                      (file-name-nondirectory
+                       (slot-value notebook 'path))))
+            (cache-dir (expand-file-name
+                       (concat ".ejn-cache/" nb-stem)
+                       (file-name-directory
+                        (slot-value notebook 'path)))))
       (when (file-directory-p cache-dir)
-        (delete-directory cache-dir 'recursive)))))
+        (delete-directory cache-dir 'recursive)))
+    (ejn--unregister-notebook notebook)))
 
 (defun ejn:worksheet-execute-cell (&optional arg)
   "Execute the current cell.
@@ -381,9 +382,9 @@ Signals a `user-error' if there is no notebook or no kernel attached."
 (defun ejn:notebook-close ()
   "Close the current notebook without killing the kernel.
 
-Kills all cell buffers and the master view buffer, then removes
-the cache directory.  Prompts to save dirty cells before closing.
-The kernel process is NOT stopped."
+  Kills all cell buffers and the master view buffer, then removes
+  the cache directory.  Prompts to save dirty cells before closing.
+  The kernel process is NOT stopped."
   (interactive)
   (let ((notebook (ejn-notebook-of-buffer)))
     (unless notebook
@@ -415,7 +416,8 @@ The kernel process is NOT stopped."
                        (concat ".ejn-cache/" nb-stem)
                        (file-name-directory nb-path))))
       (when (file-directory-p cache-dir)
-        (delete-directory cache-dir 'recursive)))))
+        (delete-directory cache-dir 'recursive)))
+    (ejn--unregister-notebook notebook)))
 
 (defun ejn:tb-show ()
   "Show the most recent kernel traceback in a dedicated buffer.

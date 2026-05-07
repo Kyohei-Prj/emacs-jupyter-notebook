@@ -16,16 +16,16 @@
 ;; Inner mode: python-mode for code cells
 ;; Delimiters: # %%<ejn-cell:N:code> ... # %%<ejn-cell:N:end>
 (define-innermode poly-ejn-code-innermode
-  :head-matcher "# %%<ejn-cell:[0-9]+:code>"
-  :tail-matcher "# %%<ejn-cell:[0-9]+:end>"
-  :mode 'python-mode)
+   :head-matcher "# %%<ejn-cell:[0-9]+:code>"
+   :tail-matcher "# %%<ejn-cell:[0-9]+:end>"
+   :mode 'python-mode)
 
 ;; Inner mode: markdown-mode for markdown cells
 ;; Delimiters: # %%<ejn-cell:N:markdown> ... # %%<ejn-cell:N:end>
 (define-innermode poly-ejn-markdown-innermode
-  :head-matcher "# %%<ejn-cell:[0-9]+:markdown>"
-  :tail-matcher "# %%<ejn-cell:[0-9]+:end>"
-  :mode 'markdown-mode)
+   :head-matcher "# %%<ejn-cell:[0-9]+:markdown>"
+   :tail-matcher "# %%<ejn-cell:[0-9]+:end>"
+   :mode 'markdown-mode)
 
 ;; Polymode: combines host + inner modes
 (define-polymode poly-ejn-mode nil

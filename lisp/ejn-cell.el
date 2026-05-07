@@ -99,44 +99,44 @@ file via `ejn-shadow-write-cell' (when NOTEBOOK is given), update
     (if (buffer-live-p buf)
         (get-buffer buf)
       (let ((new-buf (generate-new-buffer
-                       (format "*ejn-cell:%s*" (slot-value cell 'id)))))
+                      (format "*ejn-cell:%s*" (slot-value cell 'id)))))
         (with-current-buffer new-buf
-           (insert (slot-value cell 'source))
-           (cl-case (slot-value cell 'type)
-             (code (python-mode))
-             (markdown
-              (condition-case nil
-                  (markdown-mode)
-                ((command-error void-function)
-                 (fundamental-mode))))
-             (raw (fundamental-mode)))
-           (ejn-mode 1)
-           (set (make-local-variable 'ejn--cell) cell)
-           (when notebook
-             (set (make-local-variable 'ejn--notebook) notebook))
-           (add-hook 'kill-buffer-hook
-                     #'ejn--cell-kill-buffer-hook 'append 'local))
-         (oset cell buffer new-buf)
-         (when (fboundp 'ejn--setup-cell-visuals)
-           (ejn--setup-cell-visuals cell))
-         (when notebook
-           (ejn-shadow-write-cell cell notebook))
-         (when (and notebook (fboundp 'ejn-lsp-setup-cell-buffer))
-           (ejn-lsp-setup-cell-buffer cell notebook))
-         ;; Register change hooks AFTER all setup functions
-          ;; to avoid triggering them during initial buffer population.
-          (with-current-buffer new-buf
-            (remove-hook 'after-change-functions #'ejn--cell-after-change-hook 'local)
-            (when (fboundp 'ejn--undo-after-change)
-              (add-hook 'after-change-functions
-                        #'ejn--undo-after-change 'append 'local))
-            (when (fboundp 'ejn--undo-before-change)
-              (add-hook 'before-change-functions
-                        #'ejn--undo-before-change 'append 'local))
-            (when (fboundp 'ejn-lsp--debounced-composite-regen)
-              (add-hook 'after-change-functions
-                        #'ejn-lsp--debounced-composite-regen 'append 'local)))
-         new-buf))))
+          (insert (slot-value cell 'source))
+          (cl-case (slot-value cell 'type)
+            (code (python-mode))
+            (markdown
+             (condition-case nil
+                 (markdown-mode)
+               ((command-error void-function)
+                (fundamental-mode))))
+            (raw (fundamental-mode)))
+          (ejn-mode 1)
+          (set (make-local-variable 'ejn--cell) cell)
+          (when notebook
+            (set (make-local-variable 'ejn--notebook) notebook))
+          (add-hook 'kill-buffer-hook
+                    #'ejn--cell-kill-buffer-hook 'append 'local))
+        (oset cell buffer new-buf)
+        (when (fboundp 'ejn--setup-cell-visuals)
+          (ejn--setup-cell-visuals cell))
+        (when notebook
+          (ejn-shadow-write-cell cell notebook))
+        (when (and notebook (fboundp 'ejn-lsp-setup-cell-buffer))
+          (ejn-lsp-setup-cell-buffer cell notebook))
+        ;; Register change hooks AFTER all setup functions
+        ;; to avoid triggering them during initial buffer population.
+        (with-current-buffer new-buf
+          (remove-hook 'after-change-functions #'ejn--cell-after-change-hook 'local)
+          (when (fboundp 'ejn--undo-after-change)
+            (add-hook 'after-change-functions
+                      #'ejn--undo-after-change 'append 'local))
+          (when (fboundp 'ejn--undo-before-change)
+            (add-hook 'before-change-functions
+                      #'ejn--undo-before-change 'append 'local))
+          (when (fboundp 'ejn-lsp--debounced-composite-regen)
+            (add-hook 'after-change-functions
+                      #'ejn-lsp--debounced-composite-regen 'append 'local)))
+        new-buf))))
 
 (defun ejn-cell-initialize (cell notebook)
   "Initialize CELL for lazy loading within NOTEBOOK.
@@ -188,8 +188,8 @@ The master view is refreshed via `ejn--poly-refresh-cells'.
 `ejn--record-structural-change' is called as a hook for future undo.
 Returns the new cell."
   (let* ((new-cell (make-instance 'ejn-cell
-                                    :type type
-                                    :source (or source "")))
+                                  :type type
+                                  :source (or source "")))
          (cells (slot-value notebook 'cells))
          (before (cl-subseq cells 0 index))
          (after (cl-subseq cells index)))
@@ -417,11 +417,11 @@ With KILL non-nil, also remove the cell."
   "Navigate to the next cell.
 
 If in a cell buffer, switch to the next cell's buffer.
-If in the master view buffer, search forward for the next cell
-chunk header and move point there."
+If in the master view buffer, move point to the body of the next
+cell (the line after its chunk head delimiter)."
   (interactive)
   (if (bound-and-true-p ejn--cell)
-      ;; Cell buffer path (unchanged)
+      ;; Cell buffer path
       (let* ((notebook      (ejn-notebook-of-buffer))
              (cells         (slot-value notebook 'cells))
              (current-cell  ejn--cell)
@@ -431,24 +431,31 @@ chunk header and move point there."
             (let ((next-cell (nth next-index cells)))
               (switch-to-buffer (ejn-cell-open-buffer next-cell notebook)))
           (user-error "No more cells below")))
-    ;; Master view path: search for next chunk header
-    (condition-case nil
-        (progn
-          (forward-char 1)
-          (if (re-search-forward "^# %%<ejn-cell:[0-9]+:" nil t)
-              (beginning-of-line)
-            (user-error "No more cells below")))
-      (error (user-error "No more cells below")))))
+    ;; Master view path: find next cell body after point
+    (let* ((notebook (ejn-notebook-of-buffer))
+           (cells (and notebook (slot-value notebook 'cells)))
+           (num-cells (length cells))
+           (prefix "# %%<ejn-cell:")
+           (orig-point (point)))
+      (unless notebook (user-error "No notebook associated with this buffer"))
+      (catch 'found
+        (cl-loop for idx from 0 below num-cells
+                 for delim = (format "%s%d:" prefix idx)
+                 do (when (search-forward delim nil t)
+                      (forward-line 1)
+                      (when (> (point) orig-point)
+                        (throw 'found t))))
+        (user-error "No more cells below")))))
 
 (defun ejn:worksheet-goto-prev-input ()
   "Navigate to the previous cell.
 
 If in a cell buffer, switch to the previous cell's buffer.
-If in the master view buffer, search backward for the previous cell
-chunk header and move point there."
+If in the master view buffer, move point to the body of the
+previous cell (the line after its chunk head delimiter)."
   (interactive)
   (if (bound-and-true-p ejn--cell)
-      ;; Cell buffer path (unchanged)
+      ;; Cell buffer path
       (let* ((notebook      (ejn-notebook-of-buffer))
              (cells         (slot-value notebook 'cells))
              (current-cell  ejn--cell)
@@ -457,13 +464,24 @@ chunk header and move point there."
             (let ((prev-cell (nth (1- current-index) cells)))
               (switch-to-buffer (ejn-cell-open-buffer prev-cell notebook)))
           (user-error "No more cells above")))
-    ;; Master view path: search for previous chunk header
-    (condition-case nil
-        (progn
-          (if (re-search-backward "^# %%<ejn-cell:[0-9]+:" nil t)
-              (beginning-of-line)
-            (user-error "No more cells above")))
-      (error (user-error "No more cells above")))))
+    ;; Master view path: find last cell body before point
+    (let* ((notebook (ejn-notebook-of-buffer))
+           (cells (and notebook (slot-value notebook 'cells)))
+           (num-cells (length cells))
+           (prefix "# %%<ejn-cell:")
+           (cur-pos (point))
+           (target nil))
+      (unless notebook (user-error "No notebook associated with this buffer"))
+      (goto-char (point-min))
+      (cl-loop for idx from 0 below num-cells
+               for delim = (format "%s%d:" prefix idx)
+               do (when (search-forward delim nil t)
+                    (forward-line 1)
+                    (when (< (point) cur-pos)
+                      (setq target (point)))))
+      (goto-char (or target (point-min)))
+      (unless target
+        (user-error "No more cells above")))))
 
 (provide 'ejn-cell)
 

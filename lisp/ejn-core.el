@@ -237,6 +237,7 @@ Signals `json-error' if the file is not valid JSON or not a recognized nbformat.
                              (list (format "Unrecognized nbformat: %s in %s"
                                            nbformat file-path)))))))
       (oset nb cells cells)
+      (ejn--register-notebook nb)
       nb)))
 
 (defun ejn-shadow-write-cell (cell notebook)
@@ -358,14 +359,40 @@ Returns nil."
 (defvar-local ejn--notebook nil
   "Buffer-local variable storing the ejn-notebook for the current view.")
 
+(defvar ejn--live-notebooks nil
+  "List of all live ejn-notebook objects. Used for fallback lookup.")
+
+(defun ejn--register-notebook (notebook)
+  "Add NOTEBOOK to `ejn--live-notebooks' if not already present."
+  (unless (memq notebook ejn--live-notebooks)
+    (push notebook ejn--live-notebooks)))
+
+(defun ejn--unregister-notebook (notebook)
+  "Remove NOTEBOOK from `ejn--live-notebooks'."
+  (setq ejn--live-notebooks (delq notebook ejn--live-notebooks)))
+
 (defun ejn-notebook-of-buffer (&optional buffer)
   "Return the ejn-notebook associated with BUFFER.
 
 BUFFER defaults to the current buffer if not provided.
-Reads the buffer-local `ejn--notebook' variable from the buffer.
+First tries the buffer-local `ejn--notebook' variable.  If that
+is nil (e.g., inside a polymode inner-mode region where the
+binding is shadowed), falls back to scanning `ejn--live-notebooks'
+for a notebook whose master buffer or any cell buffer matches
+BUFFER.
 Returns nil if no notebook is associated with BUFFER."
-  (with-current-buffer (or buffer (current-buffer))
-    (buffer-local-value 'ejn--notebook (current-buffer))))
+  (let ((buf (or buffer (current-buffer))))
+    (with-current-buffer buf
+      (or (buffer-local-value 'ejn--notebook (current-buffer))
+          ;; Fallback: scan live notebooks for one whose buffers include BUF
+          (cl-find-if
+           (lambda (nb)
+             (or (eq (slot-value nb 'master-buffer) buf)
+                 (cl-find-if
+                  (lambda (cell)
+                    (eq (slot-value cell 'buffer) buf))
+                  (slot-value nb 'cells))))
+           ejn--live-notebooks)))))
 
 (provide 'ejn-core)
 

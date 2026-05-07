@@ -454,27 +454,34 @@
 ;;; ===== ejn:worksheet-goto-next-input (master-view) =====
 
 (ert-deftest ejn-cell-test-p3-t1--goto-next-master-uses-re-search-forward ()
-  "goto-next in master-view uses re-search-forward for chunk header regex."
+  "goto-next in master-view uses search-forward for chunk header."
   (with-temp-buffer
     (insert "# %%<ejn-cell:0:>\ncell 0\n\n# %%<ejn-cell:1:>\ncell 1\n\n# %%<ejn-cell:2:>\ncell 2\n")
     (goto-char (point-min))
     (kill-local-variable 'ejn--cell)
-    ;; Save original functions, then wrap to track calls
-    (let ((re-search-forward-called nil)
+    ;; Set up mock notebook so ejn-notebook-of-buffer returns it
+    (let* ((mock-cell-0 (make-instance 'ejn-cell :type 'code :source "cell 0"))
+           (mock-cell-1 (make-instance 'ejn-cell :type 'code :source "cell 1"))
+           (mock-cell-2 (make-instance 'ejn-cell :type 'code :source "cell 2"))
+           (mock-nb (make-instance 'ejn-notebook
+                                   :path "/tmp/test.ipynb"
+                                   :cells (list mock-cell-0 mock-cell-1 mock-cell-2)))
+           (search-forward-called nil)
           (next-button-called nil)
-          (orig-re-search-forward (symbol-function 're-search-forward)))
-      (cl-letf (((symbol-function 're-search-forward)
-                 (lambda (regexp &optional limit repeat)
-                   (setq re-search-forward-called t)
-                   (funcall orig-re-search-forward regexp limit repeat)))
+          (orig-search-forward (symbol-function 'search-forward)))
+      (set (make-local-variable 'ejn--notebook) mock-nb)
+      (cl-letf (((symbol-function 'search-forward)
+                 (lambda (string &optional limit start)
+                   (setq search-forward-called t)
+                   (funcall orig-search-forward string limit start)))
                 ((symbol-function 'next-button)
                  (lambda (&optional _)
                    (setq next-button-called t)
                    (error "next-button should not be called"))))
         (ejn:worksheet-goto-next-input)
-        (should re-search-forward-called)
+        (should search-forward-called)
         (should-not next-button-called)
-        (should (looking-at "^# %%<ejn-cell:1:"))))))
+        (should (looking-at "cell 0"))))))
 
 (ert-deftest ejn-cell-test-p3-t1--goto-next-master-error-no-more-cells ()
   "goto-next in master-view signals user-error when no more cells below."
@@ -490,26 +497,33 @@
 ;;; ===== ejn:worksheet-goto-prev-input (master-view) =====
 
 (ert-deftest ejn-cell-test-p3-t1--goto-prev-master-uses-re-search-backward ()
-  "goto-prev in master-view uses re-search-backward for chunk header regex."
+  "goto-prev in master-view uses search-forward for chunk header."
   (with-temp-buffer
     (insert "# %%<ejn-cell:0:>\ncell 0\n\n# %%<ejn-cell:1:>\ncell 1\n\n# %%<ejn-cell:2:>\ncell 2\n")
     (goto-char (point-max))
     (kill-local-variable 'ejn--cell)
-    (let ((re-search-backward-called nil)
-          (previous-button-called nil)
-          (orig-re-search-backward (symbol-function 're-search-backward)))
-      (cl-letf (((symbol-function 're-search-backward)
-                 (lambda (regexp &optional limit repeat)
-                   (setq re-search-backward-called t)
-                   (funcall orig-re-search-backward regexp limit repeat)))
+    (let* ((mock-cell-0 (make-instance 'ejn-cell :type 'code :source "cell 0"))
+           (mock-cell-1 (make-instance 'ejn-cell :type 'code :source "cell 1"))
+           (mock-cell-2 (make-instance 'ejn-cell :type 'code :source "cell 2"))
+           (mock-nb (make-instance 'ejn-notebook
+                                   :path "/tmp/test.ipynb"
+                                   :cells (list mock-cell-0 mock-cell-1 mock-cell-2)))
+           (search-forward-called nil)
+           (previous-button-called nil)
+           (orig-search-forward (symbol-function 'search-forward)))
+      (set (make-local-variable 'ejn--notebook) mock-nb)
+      (cl-letf (((symbol-function 'search-forward)
+                 (lambda (string &optional limit start)
+                   (setq search-forward-called t)
+                   (funcall orig-search-forward string limit start)))
                 ((symbol-function 'previous-button)
                  (lambda (&optional _)
                    (setq previous-button-called t)
                    (error "previous-button should not be called"))))
         (ejn:worksheet-goto-prev-input)
-        (should re-search-backward-called)
+        (should search-forward-called)
         (should-not previous-button-called)
-        (should (looking-at "^# %%<ejn-cell:2:"))))))
+        (should (looking-at "cell 2"))))))
 
 (ert-deftest ejn-cell-test-p3-t1--goto-prev-master-error-no-more-cells ()
   "goto-prev in master-view signals user-error when no more cells above."
