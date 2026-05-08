@@ -1,8 +1,11 @@
-.PHONY: all compile lint lint-pkg lint-checkdoc lint-declare test clean help
+.PHONY: all deps compile lint lint-pkg lint-checkdoc lint-declare test clean help
 
 all: compile lint test
 
-compile:
+deps:
+	eask install-deps
+
+compile: deps
 	eask compile
 
 lint: lint-pkg lint-checkdoc lint-declare
@@ -16,7 +19,7 @@ lint-checkdoc:
 lint-declare:
 	eask lint declare lisp/*.el test/*.el
 
-test:
+test: deps
 	eask test ert test/*.el
 
 clean:
@@ -24,11 +27,12 @@ clean:
 
 help:
 	@echo "EJN Makefile targets:"
-	@echo "  compile       - Byte-compile all .el files"
+	@echo "  deps          - Install dependencies"
+	@echo "  compile       - Byte-compile all .el files (installs deps first)"
 	@echo "  lint          - Run all linters"
 	@echo "  lint-pkg      - Run package-lint on ejn.el"
 	@echo "  lint-checkdoc - Run checkdoc on lisp/ and test/"
 	@echo "  lint-declare  - Run check-declare on lisp/ and test/"
-	@echo "  test          - Run ERT test suite"
+	@echo "  test          - Run ERT test suite (installs deps first)"
 	@echo "  clean         - Remove build artifacts"
 	@echo "  all           - Compile, lint, and test"
