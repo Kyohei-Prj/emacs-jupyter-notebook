@@ -17,6 +17,9 @@
 ;; You should have received a copy of the GNU General Public License
 ;; along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+;; Prefix: ejn-
+;; URL: https://github.com/emacs-jupyter-notebook/emacs-jupyter-notebook
+
 ;;; Commentary:
 
 ;; Structured debug logging, execution tracing, and profiling hooks.

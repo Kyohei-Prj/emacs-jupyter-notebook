@@ -5,7 +5,8 @@
 ;; Author: Kyohei
 ;; Keywords: convenience, tools, languages
 ;; Version: 0.1.0
-;; Package-Requires: ((emacs "29") (dash "2.19.1") (s "1.12.0") (f "0.20.0") (compat "27.1"))
+;; Package-Requires: ((emacs "29") (dash "2.19.1") (s "1.12.0") (f "0.20.0"))
+;; Homepage: https://github.com/kyohei/emacs-jupyter-notebook
 ;; License: GPL-3.0-or-later
 
 ;; This program is free software; you can redistribute it and/or modify
@@ -29,6 +30,7 @@
 ;;; Code:
 
 (require 'ejn-core)
+(require 'ejn-log)
 
 (provide 'ejn)
 ;;; ejn.el ends here

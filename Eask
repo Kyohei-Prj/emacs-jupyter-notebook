@@ -11,4 +11,4 @@
 (depends-on "f")
 (depends-on "compat")
 
-(load-paths "lisp")
+(load-paths "lisp" "test")
