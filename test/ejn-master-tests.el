@@ -449,9 +449,9 @@
   "Verify the hostmode uses special-mode."
   (should (eq (oref poly-ejn-hostmode mode) 'special-mode)))
 
-(ert-deftest ejn-master-p5-t15--code-innermode-is-python-mode ()
-  "Verify the code innermode uses python-mode."
-  (should (eq (oref poly-ejn-code-innermode mode) 'python-mode)))
+(ert-deftest ejn-master-p5-t15--code-innermode-is-python-ts-mode ()
+  "Verify the code innermode uses python-ts-mode."
+  (should (eq (oref poly-ejn-code-innermode mode) 'python-ts-mode)))
 
 (ert-deftest ejn-master-p5-t15--markdown-innermode-is-markdown-mode ()
   "Verify the markdown innermode uses markdown-mode."

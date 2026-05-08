@@ -136,7 +136,7 @@ Argument: cell (ejn-cell)
 Returns: buffer (the cell's editing buffer)
 Behavior: If cell's :buffer slot is live, switch to it. Otherwise
   create a new buffer with :source content, set major-mode to
-  python-mode for code cells / markdown-mode for markdown cells,
+  python-ts-mode for code cells / markdown-mode for markdown cells,
   attach after-change-functions hook for dirty tracking, update
   :buffer and :shadow-file slots, return the buffer.
 ```
@@ -211,7 +211,7 @@ All structural commands reserve a hook point for Phase 5 global undo via
 
 ### Non-goals
 
-- Kernel language detection from kernelspec — all code cells default to `python-mode` for Phase 2. Language-specific mode selection is a Phase 3 concern.
+- Kernel language detection from kernelspec — all code cells default to `python-ts-mode` for Phase 2. Language-specific mode selection is a Phase 3 concern.
 - nbformat version writing during save — save always writes nbformat 4.x. Reading nbformat 3.x is supported for loading only.
 - Concurrent buffer access safety — not a concern since Emacs is single-threaded. Buffer modifications happen sequentially.
 - Performance optimization for large notebooks — lazy initialization is a Phase 5 concern. All buffers are created at open time in Phase 2.
@@ -247,7 +247,7 @@ All structural commands reserve a hook point for Phase 5 global undo via
 
 #### Cell Buffers & Two-Way Sync
 
-- [x] P2-T13 Implement `ejn-cell-open-buffer` in `lisp/ejn-cell.el` [tdd] (state mutation + conditional I/O — if `:buffer` is live switches to it, otherwise creates new buffer with `:source` content, sets `major-mode` (`python-mode` for code, `markdown-mode` for markdown), attaches `after-change-functions` hook, sets buffer-local `ejn-notebook` back-pointer, updates `:buffer` and `:shadow-file` slots)
+- [x] P2-T13 Implement `ejn-cell-open-buffer` in `lisp/ejn-cell.el` [tdd] (state mutation + conditional I/O — if `:buffer` is live switches to it, otherwise creates new buffer with `:source` content, sets `major-mode` (`python-ts-mode` for code, `markdown-mode` for markdown), attaches `after-change-functions` hook, sets buffer-local `ejn-notebook` back-pointer, updates `:buffer` and `:shadow-file` slots)
 - [x] P2-T14 Implement `ejn-cell-refresh-buffer` in `lisp/ejn-cell.el` [tdd] (state mutation — calls `replace-buffer-contents` with `:source`, preserves point position and undo history)
 - [x] P2-T15 Implement `ejn-notebook-of-buffer` in `lisp/ejn-core.el` [smoke] (simple accessor — reads buffer-local `ejn-notebook` from master view buffer, returns `ejn-notebook` object or nil)
 

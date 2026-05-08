@@ -52,7 +52,7 @@
           :documentation "Ordered list of ejn-cell objects.")
    (kernel-id :initarg :kernel-id
               :initform nil
-              :type (or object null)
+              :type (or t null)
               :documentation "Kernel identifier (jupyter-kernel-client instance).")
    (ejn-cell-kill-ring :initarg :ejn-cell-kill-ring
                        :initform nil
@@ -77,7 +77,7 @@
   ((id :initarg :id
        :initform nil
        :type (or string null)
-       :documentation "Unique cell identifier generated via cl-gensym.")
+       :documentation "Unique cell identifier (nbformat 4.5 id, or generated via cl-gensym).")
    (type :initarg :type
          :initform nil
          :type (or symbol null)
@@ -142,12 +142,21 @@ Emacs's json-parse-buffer represents JSON null as the symbol :null."
 (defun ejn--parse-cell-data (cell-json)
   "Parse a single cell JSON hash table CELL-JSON into an ejn-cell.
 
-CELL-JSON is a hash table with keys:
-cell_type, source, outputs, execution_count.
+CELL-JSON is a hash table with keys: id, cell_type, source, outputs,
+execution_count.
+
+FIX (Major #1): The original code never read the `id' field, causing
+every round-trip through EJN to destroy the original nbformat 4.5 cell
+IDs and replace them with generated symbols.  This breaks external tools
+and git diffs.  We now pass the `id' value to `make-instance', so
+`initialize-instance :after' only generates a new ID when the field is
+absent (e.g. nbformat < 4.5 cells without an id field).
+
 Returns a new ejn-cell instance."
-  (let* ((cell-type (gethash "cell_type" cell-json))
-         (source (ejn--json-null-to-nil (gethash "source" cell-json)))
-         (outputs (gethash "outputs" cell-json))
+  (let* ((cell-id   (ejn--json-null-to-nil (gethash "id" cell-json)))
+         (cell-type (gethash "cell_type" cell-json))
+         (source    (ejn--json-null-to-nil (gethash "source" cell-json)))
+         (outputs   (gethash "outputs" cell-json))
          (exec-count (ejn--json-null-to-nil
                       (gethash "execution_count" cell-json))))
     ;; JSON arrays parse as vectors; convert to list for EIEIO type constraint
@@ -155,10 +164,12 @@ Returns a new ejn-cell instance."
       (setq outputs (append outputs nil)))
     ;; Normalize :null to nil for outputs
     (setq outputs (ejn--json-null-to-nil outputs))
-    ;; Handle source which may be a list of strings (nbformat 4) or a plain string
-    (when (listp source)
-      (setq source (string-join source "")))
+    ;; Handle source which may be a vector (JSON array), list, or plain string
+    (cond
+     ((vectorp source) (setq source (mapconcat #'identity source "")))
+     ((listp source)   (setq source (string-join source ""))))
     (make-instance 'ejn-cell
+                   :id cell-id          ; may be nil → initialize-instance generates one
                    :type (intern cell-type)
                    :source source
                    :outputs outputs
@@ -178,8 +189,8 @@ Returns a list of ejn-cell objects."
 (defun ejn--parse-cells-nbformat3 (notebook-json)
   "Parse cells from a nbformat 3.x NOTEBOOK-JSON hash table.
 
-Reads cells from `notebook[\"worksheets\"][0][\"cells\"]' and maps each
-JSON cell to `ejn-cell' via `ejn--parse-cell-data'.
+Reads cells from `notebook[\"worksheets\"][0][\"cells\"]` and maps each
+JSON cell to `ejn-cell` via `ejn--parse-cell-data`.
 Returns a list of ejn-cell objects."
   (let* ((worksheets (gethash "worksheets" notebook-json))
          (worksheet (and (vectorp worksheets)
@@ -208,7 +219,7 @@ Signals `json-error' if the file is not valid JSON or not a recognized nbformat.
           (with-temp-buffer
             (insert-file-contents file-path)
             (condition-case err
-                (json-parse-buffer :object-type 'hash-table)
+		(json-parse-buffer :object-type 'hash-table)
               (json-readtable-error
                (signal 'json-error
                        (list (format "Invalid JSON in %s" file-path)
@@ -241,11 +252,11 @@ Signals `json-error' if the file is not valid JSON or not a recognized nbformat.
 (defun ejn-shadow-write-cell (cell notebook)
   "Write CELL's :source to a shadow file within NOTEBOOK's cache directory.
 
-Creates `.ejn-cache/<notebook-stem>/' directory if needed.
+Creates `.ejn-cache/<notebook-stem>/` directory if needed.
 Generates a zero-padded filename based on CELL's index in NOTEBOOK's
-`:cells' list.  Extension is determined by cell type:
+`:cells` list.  Extension is determined by cell type:
 code → .py, markdown → .md, raw → .raw.
-Updates CELL's `:shadow-file' slot.
+Updates CELL's `:shadow-file` slot.
 Returns the absolute path to the shadow file."
   (let* ((nb-path (slot-value notebook 'path))
          (nb-stem (file-name-sans-extension
@@ -262,8 +273,10 @@ Returns the absolute path to the shadow file."
          (shadow-filename (format "cell_%03d%s" cell-index ext))
          (shadow-path (expand-file-name shadow-filename cache-dir)))
     (make-directory cache-dir t)
-    (with-temp-file shadow-path
-      (insert (slot-value cell 'source)))
+    (let ((tmp-path (concat shadow-path ".tmp")))
+      (with-temp-file tmp-path
+        (insert (or (slot-value cell 'source) "")))
+      (rename-file tmp-path shadow-path 'replace))
     (oset cell shadow-file shadow-path)
     shadow-path))
 
@@ -303,9 +316,10 @@ or if CELL has no buffer."
 (defun ejn--flush-all-dirty-cells (notebook)
   "Flush all dirty cells in NOTEBOOK to the EIEIO model.
 
-Iterates NOTEBOOK's `:cells' list.  For each cell with `:dirty' set
-and a live `:buffer', calls `ejn-shadow-sync-cell' to flush buffer
-content into the `:source' slot and shadow file, clearing the dirty flag.
+Iterates NOTEBOOK's `:cells` list.  For each cell with `:dirty` set
+and a live `:buffer`, calls `ejn-shadow-sync-cell' to flush buffer
+content into the `:source` slot and shadow file, clearing the dirty
+flag.
 Returns nil."
   (dolist (cell (slot-value notebook 'cells))
     (when (and (slot-value cell 'dirty)
@@ -340,18 +354,18 @@ Returns nil."
                        (expected-path (expand-file-name
                                        expected-filename cache-dir)))
                   (push expected-path expected-paths)))
-    ;; Second pass: delete old shadow files not needed by any cell
-    (cl-loop for cell in cells
-             do (let ((old-shadow (slot-value cell 'shadow-file)))
-                  (when (and old-shadow
-                             (not (member old-shadow expected-paths))
-                             (file-exists-p old-shadow))
-                    (delete-file old-shadow))))
+    ;; Second pass: delete orphan shadow files via directory glob
+    (when (file-directory-p cache-dir)
+      (dolist (existing-file
+               (directory-files cache-dir t "\\`cell_[0-9]\\{3\\}\\."))
+        (unless (member existing-file expected-paths)
+          (delete-file existing-file))))
     ;; Third pass: write all shadow files at their correct indices
-    (cl-loop for cell in cells
+    (cl-loop for idx from 0
+             for cell in cells
              do (ejn-shadow-write-cell cell notebook))))
 
-(defvar ejn--notebook nil
+(defvar-local ejn--notebook nil
   "Buffer-local variable storing the ejn-notebook for the current view.")
 
 (defun ejn-notebook-of-buffer (&optional buffer)

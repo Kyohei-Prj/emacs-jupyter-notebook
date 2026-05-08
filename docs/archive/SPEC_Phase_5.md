@@ -8,7 +8,7 @@ Replace the raw buffer scaffolding with a polished, cohesive notebook UI and sol
 
 2. **Global undo** — `C-u` in any cell buffer calls `ejn-global-undo`, which pops the top record from the notebook's undo stack, restores the named cell's buffer to its `before` state, and moves point to that buffer — regardless of which cell is currently active. Rapid typing is coalesced into single records using a 1-second debounce window. Structural operations (insert, delete, move, split, merge) are also undoable.
 
-3. **Polymode master view** — The master view buffer uses `poly-ejn-mode` with `special-mode` as host, `python-mode` for code cell chunks, and `markdown-mode` for Markdown cell chunks. Replaces the button-based master view entirely. The master view serves as both navigation hub and readable, rendered notebook surface.
+3. **Polymode master view** — The master view buffer uses `poly-ejn-mode` with `special-mode` as host, `python-ts-mode` for code cell chunks, and `markdown-mode` for Markdown cell chunks. Replaces the button-based master view entirely. The master view serves as both navigation hub and readable, rendered notebook surface.
 
 4. **Markdown cell rendering** — Markdown cells are rendered in place using `markdown-mode`'s inline rendering capabilities (bold, italics, links, code spans) using text properties, without spawning an external process.
 
@@ -20,7 +20,7 @@ Replace the raw buffer scaffolding with a polished, cohesive notebook UI and sol
 
 8. **Scratchsheet** — `C-c C-/` opens a transient cell buffer attached to the current notebook's kernel but not saved to the `.ipynb` file. Lives in `.ejn-cache/<stem>/scratch.py`.
 
-9. **Traceback viewer** — `C-c C-$` opens a dedicated buffer showing the full, syntax-highlighted traceback from the most recent kernel error, using `python-mode`.
+9. **Traceback viewer** — `C-c C-$` opens a dedicated buffer showing the full, syntax-highlighted traceback from the most recent kernel error, using `python-ts-mode`.
 
 10. **Shared output buffer** — `C-c C-;` opens a persistent output buffer that appends output from the current cell each time it is executed, without overwriting in place.
 
@@ -81,7 +81,7 @@ Replace the raw buffer scaffolding with a polished, cohesive notebook UI and sol
 
 | Function | Signature | Behavior |
 |---|---|---|
-| `poly-ejn-mode` | `()` | Polymode with `special-mode` host, `python-mode` inner for code cells, `markdown-mode` inner for Markdown cells. |
+| `poly-ejn-mode` | `()` | Polymode with `special-mode` host, `python-ts-mode` inner for code cells, `markdown-mode` inner for Markdown cells. |
 | `ejn--poly-chunk-start` | `(cell-index)` | Returns chunk start delimiter for cell at CELL-INDEX. |
 | `ejn--poly-chunk-end` | `(cell-index)` | Returns chunk end delimiter for cell at CELL-INDEX. |
 | `ejn--poly-render-cells` | `(notebook)` | Replaces `ejn--render-master-cells`. Renders cells using polymode chunk delimiters. |
@@ -177,7 +177,7 @@ Classification reasoning per task:
 
 #### Phase E — Polymode Master View (ejn-master.el)
 
-- [x] P5-T15 Define `poly-ejn-mode` with chunk delimiters in `ejn-master.el` [tdd] (polymode definition: special-mode host, python-mode inner for code chunks, markdown-mode inner for markdown chunks; chunk delimiters keyed on sentinel comment format)
+- [x] P5-T15 Define `poly-ejn-mode` with chunk delimiters in `ejn-master.el` [tdd] (polymode definition: special-mode host, python-ts-mode inner for code chunks, markdown-mode inner for markdown chunks; chunk delimiters keyed on sentinel comment format)
 - [x] P5-T16 Implement `ejn--poly-render-cells` in `ejn-master.el` [tdd] (replaces `ejn--render-master-cells`: renders cells using polymode chunk delimiters with cell content between delimiters)
 - [x] P5-T17 Implement `ejn--poly-refresh-cells` in `ejn-master.el` [tdd] (replaces `ejn--refresh-master-cells`: clears buffer and re-renders with polymode chunk delimiters)
 - [x] P5-T18 Wire `ejn--poly-render-cells` into `ejn--create-master-view` [smoke] (structural wiring — replaces call to `ejn--render-master-cells`)
@@ -192,7 +192,7 @@ Classification reasoning per task:
 
 - [x] P5-T22 Replace `ejn:notebook-close` stub with real implementation in `ejn.el` [tdd] (kills all cell buffers, kills master view buffer, cleans up `.ejn-cache/<stem>/` directory; prompts to save if any cells dirty; does NOT kill the kernel)
 - [x] P5-T23 Replace `ejn:notebook-scratchsheet-open` stub with real implementation in `ejn.el` [tdd] (creates transient cell buffer attached to notebook's kernel; writes to `.ejn-cache/<stem>/scratch.py`; cell has `:scratch-p` flag; not persisted on save)
-- [x] P5-T24 Replace `ejn:tb-show` stub with real implementation in `ejn.el` [tdd] (opens dedicated buffer with python-mode showing syntax-highlighted traceback from most recent kernel error; uses `ansi-color-apply` for ANSI-stripped traceback text)
+- [x] P5-T24 Replace `ejn:tb-show` stub with real implementation in `ejn.el` [tdd] (opens dedicated buffer with python-ts-mode showing syntax-highlighted traceback from most recent kernel error; uses `ansi-color-apply` for ANSI-stripped traceback text)
 - [x] P5-T25 Replace `ejn:shared-output-show-code-cell-at-point` stub with real implementation in `ejn.el` [tdd] (opens persistent shared output buffer; appends output from current cell each time it is executed; buffer name includes notebook stem)
 
 #### Phase H — Lazy Buffer Initialization (ejn-cell.el + ejn-master.el)

@@ -21,7 +21,7 @@
 
 ;;; Commentary:
 
-;; LSP integration for Emacs Jupyter Notebook.
+;; LSP integration for Emacs Jupyter Notebook - scaffolding only.
 
 ;; URL: https://github.com/emacs-jupyter-notebook/emacs-jupyter-notebook
 ;; Package-Requires: ((emacs "30.1"))
@@ -71,21 +71,11 @@ Pure function — no side effects."
 (defun ejn-lsp-generate-composite (notebook)
   "Generate composite.py for NOTEBOOK and return its absolute path.
 
-Iterates NOTEBOOK's `:cells', selecting only cells of type `code'.
-Concatenates each code cell's `:source' with a sentinel line
-(`# ejn:cell:N' where N is the 0-based index among code cells).
-The format for each cell block is:
-
-  # ejn:cell:N\\n
-  <source>\\n
-
-The trailing \\n after source is always emitted so that consecutive
-sentinel lines are separated consistently regardless of whether the
-source already ends with a newline.  `ejn-lsp-pos-to-composite' and
-`ejn-lsp-pos-from-composite' are aligned with this layout.
-
-Writes atomically via a `.tmp' file and `rename-file'.
-Returns the absolute path to `composite.py'."
+Iterates NOTEBOOK's `:cells`, selecting only cells of type `code`.
+Concatenates each code cell's `:source` with a sentinel line
+(`# ejn:cell:N` where N is the 0-based index among code cells).
+Writes atomically via a `.tmp` file and `rename-file`.
+Returns the absolute path to `composite.py`."
   (let* ((cells (slot-value notebook 'cells))
          (code-cells (cl-loop for cell in cells
                               when (eq (slot-value cell 'type) 'code)
@@ -98,11 +88,7 @@ Returns the absolute path to `composite.py'."
                              for cell in code-cells
                              do (princ (ejn-lsp-sentinel-line idx))
                              do (princ (slot-value cell 'source))
-                             ;; Always emit a trailing newline after source
-                             ;; so the next sentinel starts on a fresh line.
-                             do (unless (string-suffix-p
-                                         "\n" (slot-value cell 'source))
-                                  (princ "\n"))))))
+                             do (princ "\n")))))
     (make-directory cache-dir t)
     (with-temp-file tmp-path
       (insert content))
@@ -112,45 +98,42 @@ Returns the absolute path to `composite.py'."
 (defun ejn-lsp-pos-to-composite (cell notebook buffer-line buffer-col)
   "Translate a position in CELL's buffer to the composite file position.
 
-CELL is an `ejn-cell' instance.  NOTEBOOK is an `ejn-notebook' instance.
+CELL is an `ejn-cell' instance. NOTEBOOK is an `ejn-notebook' instance.
 BUFFER-LINE and BUFFER-COL are 0-based line and column within CELL's buffer.
 Returns `(COMPOSITE-LINE . COMPOSITE-COL)' for code cells, or `nil' for
-non-code cells (markdown, raw).
-
-Layout per cell block in composite.py (FIX #9 — consistent with generator):
-  Line offset+0 : sentinel  (# ejn:cell:N)
-  Line offset+1 … offset+source_lines : source content
-  (no extra blank line — generator always normalises trailing newline)
-Each block therefore occupies exactly (1 + source_lines) lines."
-  (if (not (eq (slot-value cell 'type) 'code))
-      nil
-    (let* ((cells (slot-value notebook 'cells))
-           (code-cells (cl-loop for c in cells
-                                when (eq (slot-value c 'type) 'code)
-                                collect c))
-           (code-idx (cl-position cell code-cells))
-           (offset 0))
-      ;; Sum line contributions of all preceding code cells.
-      ;; Each block = 1 sentinel line + source_lines content lines.
-      ;; The generator always normalises a trailing newline, so there is
-      ;; NO additional blank separator line between cells.
-      (dolist (preceding (cl-subseq code-cells 0 code-idx))
-        (let* ((source (slot-value preceding 'source))
-               (source-lines (ejn-lsp-cell-line-count source)))
-          (cl-incf offset (1+ source-lines))))
-      ;; Current cell: sentinel (1 line) + buffer-line offset
-      (cl-incf offset (1+ buffer-line))
-      (cons offset buffer-col))))
+non-code cells (markdown, raw)."
+  (if (eq (slot-value cell 'type) 'code)
+      (let* ((cells (slot-value notebook 'cells))
+             (code-cells (cl-loop for c in cells
+				  when (eq (slot-value c 'type) 'code)
+                                  collect c))
+             (code-idx (cl-position cell code-cells))
+             (preceding-cells (cl-subseq code-cells 0 code-idx))
+             (offset 0))
+	;; Sum line contributions of all preceding code cells
+	(dolist (preceding preceding-cells)
+	  (let* ((source (slot-value preceding 'source))
+		 (source-lines (ejn-lsp-cell-line-count source))
+		 (has-trailing-newline (string-suffix-p "\n" source)))
+            ;; Each preceding cell contributes: sentinel (1) + source lines
+            ;; + separator (1) if source ends with a trailing newline
+            (cl-incf offset (1+ source-lines))
+            (when has-trailing-newline
+              (cl-incf offset 1))))
+	;; Add current cell's sentinel (1 line) + buffer-line offset
+	(cl-incf offset (1+ buffer-line))
+	(cons offset buffer-col))
+    nil))
 
 (defvar ejn-lsp--composite-regen-timer nil
   "Buffer-local timer for debounced composite regeneration.")
 
-(defun ejn-lsp--debounced-composite-regen (_start _end _pre-change-length)
+(defun ejn-lsp--debounced-composite-regen (start end pre-change-length)
   "After-change callback to debounce composite regeneration.
 
 Cancels any pending composite regen timer, then schedules
 `ejn-lsp-generate-composite' on a 0.3s idle timer.
-_START, _END, and _PRE-CHANGE-LENGTH are the standard
+START, END, and PRE-CHANGE-LENGTH are the standard
 `after-change-functions' callback arguments (unused).
 Stores the timer ID in the buffer-local variable
 `ejn-lsp--composite-regen-timer'."
@@ -168,7 +151,7 @@ Stores the timer ID in the buffer-local variable
   "Return the 0-based index of CELL among code-only cells in NOTEBOOK.
 
 Returns -1 if CELL is not a code cell (markdown, raw, etc.).
-CELL is an `ejn-cell' instance.  NOTEBOOK is an `ejn-notebook' instance.
+CELL is an `ejn-cell' instance. NOTEBOOK is an `ejn-notebook' instance.
 Pure function — no side effects."
   (if (eq (slot-value cell 'type) 'code)
       (let* ((cells (slot-value notebook 'cells))
@@ -181,16 +164,11 @@ Pure function — no side effects."
 (defun ejn-lsp-pos-from-composite (notebook composite-line)
   "Given a 0-based COMPOSITE-LINE in composite.py, return (CELL . CELL-LINE) or nil.
 
-NOTEBOOK is an ejn-notebook instance.  COMPOSITE-LINE is a 0-based line
-number in the composite file.  Returns a cons of the ejn-cell instance and
-the 0-based line within that cell's source.
-
-Returns nil for sentinel lines (lines with `# ejn:cell:N') and lines
-beyond the last cell.
-
-FIX #9 — layout is consistent with `ejn-lsp-generate-composite':
-each block occupies exactly (1 + source_lines) lines with no extra blank
-separator, because the generator always normalises trailing newlines."
+NOTEBOOK is an ejn-notebook instance. COMPOSITE-LINE is a 0-based line number
+in the composite file. Returns a cons of the ejn-cell instance and the
+0-based line within that cell's source. Returns nil for sentinel lines
+(lines with `# ejn:cell:N`), separator lines (empty lines between cells
+caused by trailing newlines in source), and lines beyond the last cell."
   (let* ((cells (slot-value notebook 'cells))
          (code-cells (cl-loop for c in cells
                               when (eq (slot-value c 'type) 'code)
@@ -199,7 +177,8 @@ separator, because the generator always normalises trailing newlines."
     (catch 'ejn-lsp-pos-from-composite
       (dolist (cell code-cells)
         (let* ((source (slot-value cell 'source))
-               (source-lines (ejn-lsp-cell-line-count source)))
+               (source-lines (ejn-lsp-cell-line-count source))
+               (has-trailing-newline (string-suffix-p "\n" source)))
           ;; Sentinel line → nil
           (when (eq composite-line offset)
             (throw 'ejn-lsp-pos-from-composite nil))
@@ -211,8 +190,15 @@ separator, because the generator always normalises trailing newlines."
               (throw 'ejn-lsp-pos-from-composite
                      (cons cell (- composite-line content-start)))))
 
-          ;; Advance offset: sentinel (1) + source lines
-          (cl-incf offset (1+ source-lines))))
+          ;; Separator line (if source has trailing newline) → nil
+          (when (and has-trailing-newline
+                     (eq composite-line (+ offset source-lines 1)))
+            (throw 'ejn-lsp-pos-from-composite nil))
+
+          ;; Advance offset
+          (cl-incf offset (1+ source-lines))
+          (when has-trailing-newline
+            (cl-incf offset 1))))
       ;; Beyond last cell → nil
       nil)))
 
@@ -223,27 +209,19 @@ separator, because the generator always normalises trailing newlines."
 (declare-function lsp-find-definition (&rest args) "lsp-mode")
 (declare-function lsp-virtual-buffer-register (&rest args) "lsp-virtual-buffer")
 (declare-function lsp-virtual-buffer-unregister (&rest args) "lsp-virtual-buffer")
-(declare-function lsp-request "lsp-mode" (method params &rest args))
 
 (defun ejn-lsp--register-virtual-buffer (cell notebook)
   "Register CELL's buffer as an LSP virtual buffer for the composite file.
 
-Calls `lsp-virtual-buffer-register' with a plist containing:
-  :real-buffer  — CELL's buffer
-  :virtual-file — composite path via `ejn-lsp-composite-path'
-  :offset-line  — 0-based start line of this cell in the composite file
-
-FIX #5: `lsp-virtual-buffer-register' takes a single plist argument, not
-keyword arguments directly.  The call is now `(lsp-virtual-buffer-register
-PLIST)' rather than `(lsp-virtual-buffer-register :key val ...)'.
-
+Calls `lsp-virtual-buffer-register' with :real-buffer (CELL's buffer),
+:virtual-file (composite path via `ejn-lsp-composite-path'), and
+:offset-line (from `ejn-lsp-pos-to-composite' at buffer position 0,0).
 Sets buffer-local `ejn--cell-lsp-attached-p' to t.
 Returns nil."
   (let* ((real-buffer (slot-value cell 'buffer))
          (virtual-file (ejn-lsp-composite-path notebook))
-         (offset-pair (ejn-lsp-pos-to-composite cell notebook 0 0))
-         (offset-line (if offset-pair (car offset-pair) 0)))
-    ;; lsp-virtual-buffer-register expects a single plist argument.
+         (offset-cons (ejn-lsp-pos-to-composite cell notebook 0 0))
+         (offset-line (if offset-cons (car offset-cons) 0)))
     (lsp-virtual-buffer-register
      (list :real-buffer real-buffer
            :virtual-file virtual-file
@@ -256,12 +234,13 @@ Returns nil."
 
 Generate composite file, call `lsp' on the composite path, display a
 warning message about limited position translation, and set
-`ejn--cell-lsp-attached-p' to t.
+`ejn--cell-lsp-attached-p' to `t'.
 
-CELL is an `ejn-cell' instance.  NOTEBOOK is an `ejn-notebook' instance.
+CELL is an `ejn-cell' instance. NOTEBOOK is an `ejn-notebook' instance.
 Returns nil."
-  (ejn-lsp-generate-composite notebook)
-  (message "Warning: LSP attached via composite file (limited position translation)")
+  (let ((composite-path (ejn-lsp-generate-composite notebook)))
+    (lsp composite-path)
+    (message "Warning: LSP attached via composite file (limited position translation)"))
   (when (slot-value cell 'buffer)
     (with-current-buffer (slot-value cell 'buffer)
       (set (make-local-variable 'ejn--cell-lsp-attached-p) t))))
@@ -277,26 +256,28 @@ Returns nil."
   (when (slot-value cell 'buffer)
     (unless (with-current-buffer (slot-value cell 'buffer)
               ejn--cell-lsp-attached-p)
-      (if (fboundp 'lsp-virtual-buffer-register)
-          (condition-case-unless-debug _err
-              (ejn-lsp--register-virtual-buffer cell notebook)
-            (error
-             (ejn-lsp--register-fallback cell notebook)))
-        (ejn-lsp--register-fallback cell notebook)))))
+      (condition-case-unless-debug err
+          (ejn-lsp--register-virtual-buffer cell notebook)
+        (error
+         (ejn-lsp--register-fallback cell notebook))))))
 
 (defun ejn-lsp-unregister-cell (cell)
   "Unregister CELL from LSP support.
 
 Calls `lsp-virtual-buffer-unregister' if available and the cell was
-registered via virtual buffer.  Clears `ejn--cell-lsp-attached-p' in the
-cell's buffer.  Returns nil."
+registered via virtual buffer. Otherwise calls `lsp-kill-workspace'
+for fallback cleanup. Clears `ejn--cell-lsp-attached-p' in the
+cell's buffer. Returns nil."
   (when (slot-value cell 'buffer)
     (when (with-current-buffer (slot-value cell 'buffer)
             ejn--cell-lsp-attached-p)
-      (condition-case-unless-debug _err
+      (condition-case-unless-debug err
           (when (fboundp 'lsp-virtual-buffer-unregister)
             (lsp-virtual-buffer-unregister))
-        (error nil))
+        (error
+         (condition-case-unless-debug _err2
+             (lsp-kill-workspace)
+           (error nil))))
       (with-current-buffer (slot-value cell 'buffer)
         (set (make-local-variable 'ejn--cell-lsp-attached-p) nil)))))
 
@@ -326,10 +307,10 @@ Returns nil."
 (defun ejn-lsp--translate-xref-to-cell (xref notebook)
   "Translate an XREF pointing to composite file to a cell buffer position.
 
-XREF is an xref object (typically from `lsp-find-definition').
+XREF is an xref object (typically from lsp-find-definition).
 NOTEBOOK is the current ejn-notebook.
 Returns (BUFFER . LINE) where BUFFER is the target cell's buffer and
-LINE is the 0-based line within that cell.  Returns nil if XREF does
+LINE is the 0-based line within that cell. Returns nil if XREF does
 not point to the composite file or cannot be mapped."
   (let* ((location (xref-item-location xref))
          (composite-path (ejn-lsp-composite-path notebook)))
@@ -347,16 +328,10 @@ not point to the composite file or cannot be mapped."
 (defun ejn:pytools-jump-to-source ()
   "Jump to the source definition of the symbol at point via LSP.
 
-FIX #6: `lsp-find-definition' operates on the current buffer and point,
-not on a passed position argument.  To map from the cell buffer into the
-composite file we:
-1. Compute the composite (line, col) for the current point.
-2. Temporarily visit the composite file in a buffer.
-3. Move point to the composite position.
-4. Call `lsp-request' (textDocument/definition) directly with the
-   composite URI so the LSP server sees the right location.
-5. Translate the returned xref back to a cell buffer position.
-
+Translates the current buffer position to a composite file position,
+calls `lsp-find-definition', translates the xref result back to a
+cell buffer via `ejn-lsp--translate-xref-to-cell', and switches to
+the target cell buffer at the resolved line.
 Signals `user-error' if no definition is found."
   (interactive)
   (let* ((cell ejn--cell)
@@ -364,63 +339,17 @@ Signals `user-error' if no definition is found."
          (buffer-line (1- (line-number-at-pos)))
          (buffer-col (- (point) (line-beginning-position)))
          (composite-pos (ejn-lsp-pos-to-composite
-                         cell notebook buffer-line buffer-col)))
-    (unless composite-pos
-      (user-error "Cannot determine composite position for this cell"))
-    (let* ((composite-path (ejn-lsp-composite-path notebook))
-           ;; Use 1-based line/col for LSP protocol
-           (lsp-line (car composite-pos))
-           (lsp-col  (cdr composite-pos))
-           (uri (concat "file://" composite-path))
-           ;; Send a raw textDocument/definition request against the
-           ;; composite file so lsp-mode doesn't use (point) in the
-           ;; cell buffer.
-           (response
-            (condition-case err
-                (lsp-request "textDocument/definition"
-                             `(:textDocument (:uri ,uri)
-					     :position (:line ,lsp-line :character ,lsp-col)))
-              (error
-               (user-error "LSP definition request failed: %s"
-                           (error-message-string err)))))
-           ;; response may be a single location or a vector of locations
-           (locations (cond
-                       ((vectorp response) (append response nil))
-                       ((listp response)   response)
-                       (t                  (list response))))
-           (first-loc (car locations)))
-      (unless first-loc
-        (user-error "No definition found"))
-      ;; Build a synthetic xref-file-location from the response plist
-      (let* ((target-uri  (or (plist-get first-loc :uri)
-                              (plist-get (plist-get first-loc :targetUri) :uri)
-                              (plist-get first-loc :targetUri)))
-             (range       (or (plist-get first-loc :range)
-                              (plist-get first-loc :targetSelectionRange)
-                              (plist-get first-loc :targetRange)))
-             (start       (and range (plist-get range :start)))
-             (def-line    (and start (plist-get start :line)))
-             (def-col     (and start (plist-get start :character))))
-        (unless (and target-uri def-line)
-          (user-error "No definition found"))
-        ;; If the definition is in the composite file, translate back to cell
-        (if (string= target-uri uri)
-            (let ((mapped (ejn-lsp-pos-from-composite notebook def-line)))
-              (if mapped
-                  (let* ((target-cell (car mapped))
-                         (target-line (cdr mapped))
-                         (target-buf  (ejn-cell-open-buffer target-cell notebook)))
-                    (switch-to-buffer target-buf)
-                    (goto-char (point-min))
-                    (forward-line target-line)
-                    (when def-col (move-to-column def-col)))
-                (user-error "Definition maps to a sentinel/separator line")))
-          ;; Definition is in an external file — visit it directly
-          (let ((file-path (string-remove-prefix "file://" target-uri)))
-            (find-file file-path)
-            (goto-char (point-min))
-            (forward-line def-line)
-            (when def-col (move-to-column def-col))))))))
+                         cell notebook buffer-line buffer-col))
+         (xrefs (lsp-find-definition composite-pos))
+         (xref (car xrefs)))
+    (unless xref
+      (user-error "No definition found"))
+    (let ((result (ejn-lsp--translate-xref-to-cell xref notebook)))
+      (let ((target-buf (car result))
+            (target-line (cdr result)))
+        (switch-to-buffer target-buf)
+        (goto-char (point-min))
+        (forward-line target-line)))))
 
 (defun ejn:pytools-jump-back ()
   "Jump back to the previous location in the xref navigation stack.
@@ -428,9 +357,9 @@ Delegates to `xref-pop-marker-stack'."
   (interactive)
   (xref-pop-marker-stack))
 
-(defun ejn-kernel-complete (_callback)
-  "Stub for kernel-based completion.  Reserved for Phase 4.
-_CALLBACK is unused.  Signals `user-error'."
+(defun ejn-kernel-complete (callback)
+  "Stub for kernel-based completion. Reserved for Phase 4.
+CALLBACK is unused. Signals `user-error'."
   (signal 'user-error '("Kernel completion requires Phase 4")))
 
 (provide 'ejn-lsp)

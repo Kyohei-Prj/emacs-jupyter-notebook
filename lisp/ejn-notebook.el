@@ -1,4 +1,4 @@
-;;; ejn-notebook.el --- Notebook persistence for EJN  -*- lexical-binding: t -*-
+;;; ejn-notebook.el --- Notebook file commands for EJN  -*- lexical-binding: t -*-
 
 ;; Copyright (C) 2025  EJN Contributors
 
@@ -21,185 +21,130 @@
 
 ;;; Commentary:
 
-;; Notebook persistence utilities for Emacs Jupyter Notebook.
-;;
-;; This file provides:
-;;   - `ejn--cell-to-json'       : Serialize an ejn-cell to an nbformat 4 plist
-;;   - `ejn-notebook-save'       : Write a notebook to its .ipynb file
-;;   - `ejn-notebook-save-as'    : Write a notebook to a new path
-;;   - `ejn-notebook-rename'     : Rename a notebook file in place
+;; Notebook file commands: save, rename, etc.
 
 ;;; Code:
 
 (require 'cl-lib)
-(require 'eieio)
 (require 'json)
 (require 'ejn-core)
-
-(declare-function ejn--flush-all-dirty-cells 'ejn-core (notebook))
-
-;; ---------------------------------------------------------------------------
-;; Output normalisation
-;;
-;; FIX #11: The original ejn--cell-to-json passed (slot-value cell 'outputs)
-;; directly to json-encode.  Outputs are parsed as a list of hash-tables with
-;; string keys.  json-encode emits hash-tables faithfully, but:
-;;   1. The JSON library may reorder keys.
-;;   2. Keys stored as symbols (not strings) would be encoded incorrectly.
-;;   3. :null values from the original parse are not re-emitted as JSON null.
-;; Fixed by normalising each output item through
-;; `ejn--normalise-output-item', which ensures all hash-table keys are
-;; strings and :null values are mapped back to JSON null before encoding.
-;; ---------------------------------------------------------------------------
-
-(defun ejn--normalise-output-item (item)
-  "Return a normalised copy of output ITEM suitable for json-encode.
-
-ITEM is expected to be a hash-table with string keys as produced by
-`json-parse-buffer :object-type hash-table'.  Returns a new hash-table
-with the same keys and values, except:
-  - symbol keys are converted to their `symbol-name' string form.
-  - :null values are converted to the symbol `json-null' which
-    `json-encode' renders as JSON null.
-
-Returns ITEM unchanged if it is not a hash-table."
-  (if (not (hash-table-p item))
-      item
-    (let ((normalised (make-hash-table :test 'equal
-                                       :size (hash-table-count item))))
-      (maphash
-       (lambda (key val)
-         (let ((str-key (if (symbolp key) (symbol-name key) key))
-               (norm-val (cond
-                          ((eq val :null) json-null)
-                          ((hash-table-p val) (ejn--normalise-output-item val))
-                          ((vectorp val)
-                           (vconcat (mapcar #'ejn--normalise-output-item val)))
-                          ((listp val)
-                           (mapcar #'ejn--normalise-output-item val))
-                          (t val))))
-           (puthash str-key norm-val normalised)))
-       item)
-      normalised)))
-
-(defun ejn--normalise-outputs (outputs)
-  "Normalise OUTPUTS list for JSON serialisation.
-
-OUTPUTS is a list of output hash-tables from the cell's `:outputs' slot.
-Returns a new list (or vector suitable for `json-encode') in which each
-item has been passed through `ejn--normalise-output-item'.
-
-When OUTPUTS is nil, returns the empty vector `[]' (JSON []).
-When OUTPUTS is already a vector, converts to list first, then normalises."
-  (cond
-   ((null outputs)
-    (vector))
-   ((vectorp outputs)
-    (vconcat (mapcar #'ejn--normalise-output-item (append outputs nil))))
-   ((listp outputs)
-    (vconcat (mapcar #'ejn--normalise-output-item outputs)))
-   (t
-    (vector))))
+(declare-function ejn-open-file "ejn" ())
 
 (defun ejn--cell-to-json (cell)
-  "Serialise CELL to an nbformat 4 JSON-encodable alist.
-
-FIX #11: Passes `:outputs' through `ejn--normalise-outputs' before
-encoding to ensure string keys, nil→json-null conversion, and
-vector output so `json-encode' produces a JSON array.
-
-Returns an alist with string keys matching the nbformat 4 schema:
-  cell_type, source, outputs, execution_count, metadata."
-  (let* ((cell-type (slot-value cell 'type))
-         (source (or (slot-value cell 'source) ""))
-         (raw-outputs (slot-value cell 'outputs))
-         ;; Normalise outputs: ensures string keys and null-safety
-         (outputs (ejn--normalise-outputs raw-outputs))
-         (exec-count (or (slot-value cell 'exec-count) json-null))
-         (metadata (make-hash-table :test 'equal)))
-    `(("cell_type"       . ,(symbol-name cell-type))
-      ("source"          . ,source)
-      ("outputs"         . ,outputs)
-      ("execution_count" . ,exec-count)
-      ("metadata"        . ,metadata))))
+  "Convert CELL to a valid nbformat 4.5 cell hash-table."
+  (let ((cell-json (make-hash-table :test 'equal))
+        (outputs   (slot-value cell 'outputs)))
+    (puthash "id"              (slot-value cell 'id)                       cell-json)
+    (puthash "cell_type"       (symbol-name (slot-value cell 'type))       cell-json)
+    (puthash "source"          (or (slot-value cell 'source) "")           cell-json)
+    (puthash "execution_count" (slot-value cell 'exec-count)               cell-json)
+    (puthash "outputs"         (or outputs (vector))                       cell-json)
+    (puthash "metadata"        (make-hash-table :test 'equal)              cell-json)
+    cell-json))
 
 (defun ejn--notebook-to-json (notebook)
-  "Serialise NOTEBOOK to a nbformat 4.5 JSON-encodable alist.
+  "Build a full nbformat 4.x JSON structure from NOTEBOOK.
 
-Builds the top-level .ipynb structure:
-  nbformat, nbformat_minor, metadata, cells (as a vector).
-
-All dirty cells are flushed (via `ejn--flush-all-dirty-cells') before
-serialisation so that any unsaved buffer edits are included.
-
-Returns an alist suitable for passing to `json-encode'."
-  ;; Flush dirty cells first
-  (ejn--flush-all-dirty-cells notebook)
-  (let* ((cells (slot-value notebook 'cells))
-         (cell-json-vector
-          (vconcat (mapcar #'ejn--cell-to-json cells)))
-         (metadata (or (slot-value notebook 'metadata)
-                       (make-hash-table :test 'equal))))
-    `(("nbformat"       . 4)
-      ("nbformat_minor" . 5)
-      ("metadata"       . ,metadata)
-      ("cells"          . ,cell-json-vector))))
+Returns a hash-table representing the complete notebook."
+  (let ((nb-json (make-hash-table :test 'equal)))
+    (puthash "nbformat" 4 nb-json)
+    (puthash "nbformat_minor" 5 nb-json)
+    (puthash "metadata" (or (slot-value notebook 'metadata)
+                            (make-hash-table :test 'equal))
+	     nb-json)
+    (let* ((cells      (slot-value notebook 'cells))
+           (cells-json (make-vector (length cells) nil)))
+      (cl-loop for cell in cells
+               for idx from 0
+               do (setf (aref cells-json idx)
+                        (ejn--cell-to-json cell)))
+      (puthash "cells" cells-json nb-json))
+    nb-json))
 
 (defun ejn-notebook-save (notebook)
-  "Save NOTEBOOK to its `:path' file in nbformat 4.5.
+  "Serialize NOTEBOOK to valid .ipynb JSON at its :path slot.
 
-Flushes dirty cells, serialises the notebook via `ejn--notebook-to-json',
-and writes JSON atomically to a `.tmp' file before renaming to the target
-path.  Displays a message on success.  Signals on write error.
+Flushes all dirty cell buffers to the EIEIO model first.
+Clears all :dirty flags after successful write.
+Returns t on success, nil on failure.
 
-Returns the path written to."
-  (let* ((path (slot-value notebook 'path))
-         (tmp-path (concat path ".tmp"))
-         (json-content (json-encode (ejn--notebook-to-json notebook))))
-    (with-temp-file tmp-path
-      (insert json-content)
-      (insert "\n"))
-    (rename-file tmp-path path 'replace)
-    (message "Saved: %s" path)
-    path))
+FIX (Minor #2): The original code wrote unindented single-line JSON via
+`json-encode', producing unreadable .ipynb files and impractical git
+diffs.  Now uses `json-encoding-pretty-print' to emit indented output
+that matches the standard Jupyter format."
+  (condition-case err
+      (progn
+        (ejn--flush-all-dirty-cells notebook)
+        (let ((nb-json (ejn--notebook-to-json notebook)))
+          (with-temp-file (slot-value notebook 'path)
+            (let ((json-encoding-pretty-print t))
+              (insert (json-encode nb-json)))))
+        (dolist (cell (slot-value notebook 'cells))
+          (oset cell dirty nil))
+        t)
+    (error
+     (message "ejn-notebook-save: %s" (error-message-string err))
+     nil)))
 
-(defun ejn-notebook-save-as (notebook new-path)
-  "Save NOTEBOOK to NEW-PATH and update the notebook's `:path' slot.
+;;;###autoload
+(defun ejn:notebook-save-notebook-command ()
+  "Save the current notebook to its .ipynb file.
 
-Flushes dirty cells, serialises the notebook, writes JSON atomically to
-NEW-PATH, updates NOTEBOOK's `:path' slot to NEW-PATH, and refreshes
-the master buffer's name.
-Returns NEW-PATH."
-  (let* ((json-content (json-encode (ejn--notebook-to-json notebook)))
-         (tmp-path (concat new-path ".tmp")))
-    (with-temp-file tmp-path
-      (insert json-content)
-      (insert "\n"))
-    (rename-file tmp-path new-path 'replace)
-    ;; Update path slot
+Retrieves the notebook associated with the current buffer via
+`ejn-notebook-of-buffer', flushes all dirty cell buffers,
+serializes the notebook to .ipynb JSON at the notebook's :path,
+and clears all :dirty flags.
+Returns t on success."
+  (interactive)
+  (let ((notebook (ejn-notebook-of-buffer)))
+    (unless notebook
+      (user-error "No notebook associated with current buffer"))
+    (ejn-notebook-save notebook)))
+
+(defun ejn-notebook-rename (notebook new-path)
+  "Rename NOTEBOOK's .ipynb file to NEW-PATH on disk.
+
+Renames the .ipynb file via `rename-file', updates the :path slot,
+and renames `.ejn-cache/<old-stem>/' directory to match the new stem.
+Returns t on success."
+  (let* ((old-path      (slot-value notebook 'path))
+         (nb-dir        (file-name-directory old-path))
+         (old-stem      (file-name-sans-extension
+                         (file-name-nondirectory old-path)))
+         (new-stem      (file-name-sans-extension
+                         (file-name-nondirectory new-path)))
+         (old-cache-dir (expand-file-name
+                         (concat ".ejn-cache/" old-stem)
+                         nb-dir))
+         (new-cache-dir (expand-file-name
+                         (concat ".ejn-cache/" new-stem)
+                         nb-dir)))
+    (rename-file old-path new-path 'replace)
     (oset notebook path new-path)
-    ;; Rename master buffer to reflect new stem
-    (when-let* ((master-buf (slot-value notebook 'master-buffer))
-                ((buffer-live-p master-buf)))
-      (let* ((new-stem (file-name-sans-extension
-                        (file-name-nondirectory new-path)))
-             (new-buf-name (format "*ejn:%s*" new-stem)))
-        (with-current-buffer master-buf
-          (rename-buffer new-buf-name 'unique))))
-    (message "Saved as: %s" new-path)
-    new-path))
+    (when (file-directory-p old-cache-dir)
+      (rename-file old-cache-dir new-cache-dir 'replace))
+    t))
 
-(defun ejn-notebook-rename (notebook new-name)
-  "Rename NOTEBOOK's underlying file to NEW-NAME (a basename, not a full path).
+;;;###autoload
+(defun ejn:notebook-rename-command ()
+  "Rename the current notebook file and its cache directory.
 
-NEW-NAME should be a filename without a path (e.g., \"analysis.ipynb\").
-The notebook file is renamed to a sibling of the current `:path'.
-Calls `ejn-notebook-save-as' with the new full path.
-Returns the new full path."
-  (let* ((current-path (slot-value notebook 'path))
-         (dir (file-name-directory current-path))
-         (new-path (expand-file-name new-name dir)))
-    (ejn-notebook-save-as notebook new-path)))
+Prompts for a new filename via `read-file-name', renames the
+.ipynb file on disk, updates the :path slot, and renames the
+.ejn-cache directory to match.  Returns t on success."
+  (interactive)
+  (let ((notebook (ejn-notebook-of-buffer)))
+    (unless notebook
+      (user-error "No notebook associated with current buffer"))
+    (let* ((old-path    (slot-value notebook 'path))
+           (dir         (file-name-directory old-path))
+           (default-name (file-name-nondirectory old-path))
+           (new-name    (read-file-name
+                         "New notebook name: " dir default-name t default-name))
+           (new-path    (expand-file-name new-name dir)))
+      (ejn-notebook-rename notebook new-path))))
+
+(defalias 'ejn:file-open #'ejn-open-file)
 
 (provide 'ejn-notebook)
 

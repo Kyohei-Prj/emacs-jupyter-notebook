@@ -21,7 +21,7 @@
 
 ;;; Commentary:
 
-;; Network utilities for Emacs Jupyter Notebook.
+;; Network utilities for Emacs Jupyter Notebook - scaffolding only.
 
 ;; URL: https://github.com/emacs-jupyter-notebook/emacs-jupyter-notebook
 ;; Package-Requires: ((emacs "30.1"))
@@ -38,9 +38,24 @@
 ;; Forward declaration for function defined in ejn-ui.el
 (declare-function ejn-cell-refresh-header 'ejn-ui (cell))
 
-;; ---------------------------------------------------------------------------
-;; Kernel manager minor mode
-;; ---------------------------------------------------------------------------
+;; Forward declaration for internal helper
+(declare-function ejn--execute-cell--with-client
+                  'ejn-network (cell code buf notebook))
+
+;; FIX (Major #3): Changed from `defconst' to `defvar'.
+;;
+;; The original `defconst' declaration emits a `setting-constant' warning
+;; whenever `ejn-kernel-start' pushes onto this alist, and mutating a
+;; constant is considered undefined behaviour in future Emacs builds.
+;; `defvar' is the correct form for a mutable alist that is written at
+;; runtime.
+(defvar ejn--client-to-notebook nil
+  "Alist mapping jupyter kernel clients to `ejn-notebook' objects.
+
+Each element is a cons cell (CLIENT . NOTEBOOK).  Used by
+`ejn--iopub-handler' to find the notebook that owns the client
+receiving the iopub message.")
+
 
 (define-minor-mode ejn-kernel-manager-mode
   "Minor mode for managing Jupyter kernel in EJN master view.
@@ -75,10 +90,6 @@ Called by the iopub handler when kernel status changes."
     (with-current-buffer master-buf
       (force-mode-line-update))))
 
-;; ---------------------------------------------------------------------------
-;; Kernel lifecycle
-;; ---------------------------------------------------------------------------
-
 (defun ejn-kernel-start (notebook &optional kernel-name)
   "Start a Jupyter kernel for NOTEBOOK and return the client.
 
@@ -86,6 +97,9 @@ Creates a `jupyter-kernel-client' from the kernelspec specified by
 KERNEL-NAME (or the default kernelspec if KERNEL-NAME is nil).  Stores
 the client in the notebook's `:kernel-id' slot.  Activates
 `ejn-kernel-manager-mode' in the notebook's master buffer.
+Registers `ejn--iopub-handler' on the client's
+`jupyter-iopub-message-hook' and stores the client-to-notebook
+mapping in `ejn--client-to-notebook'.
 
 Returns the `jupyter-kernel-client' instance."
   (let* ((kernelspecs (jupyter-available-kernelspecs))
@@ -98,6 +112,9 @@ Returns the `jupyter-kernel-client' instance."
          (kernel (jupyter-kernel :spec spec))
          (client (jupyter-client kernel)))
     (oset notebook kernel-id client)
+    (push (cons client notebook) ejn--client-to-notebook)
+    (jupyter-add-hook client 'jupyter-iopub-message-hook
+                      #'ejn--iopub-handler)
     (when-let* ((master-buf (slot-value notebook 'master-buffer)))
       (with-current-buffer master-buf
         (ejn-kernel-manager-mode 1)))
@@ -126,9 +143,9 @@ started for this notebook."
 (defun ejn-kernel-execution-state (notebook)
   "Return kernel execution state string for NOTEBOOK.
 
-Returns one of: \"idle\", \"busy\", \"starting\", or \"dead\".
+Returns one of: `\"idle\"', `\"busy\"', `\"starting\"', or `\"dead\"'.
 If no kernel client is stored in the notebook's `:kernel-id' slot,
-returns \"dead\".  Otherwise, returns the client's `execution-state'
+returns `\"dead\"'.  Otherwise, returns the client's `execution-state'
 slot value."
   (let ((client (slot-value notebook 'kernel-id)))
     (if client
@@ -186,13 +203,9 @@ Returns a string like \\(EJN [LANG | ●State]\\) where LANG is the
 kernel language name and State is the execution state.  Returns nil if
 no kernel is started for NOTEBOOK."
   (when-let ((client (slot-value notebook 'kernel-id)))
-    (let ((lang (jupyter-kernel-language client))
+    (let ((lang  (jupyter-kernel-language client))
           (state (ejn-kernel-execution-state notebook)))
       (format " EJN [%s | \u25CF%s]" lang state))))
-
-;; ---------------------------------------------------------------------------
-;; Cell/notebook helpers
-;; ---------------------------------------------------------------------------
 
 (defun ejn--cell-notebook (cell)
   "Return the notebook object for CELL.
@@ -202,95 +215,126 @@ Reads the buffer-local `ejn--notebook' variable from the cell's buffer."
     (when (buffer-live-p buf)
       (buffer-local-value 'ejn--notebook buf))))
 
-;; ---------------------------------------------------------------------------
-;; Iopub message dispatch
-;; ---------------------------------------------------------------------------
+(defun ejn--iopub-handler (client msg)
+  "Dispatch IOPUB message MSG received on CLIENT.
 
-(defun ejn--iopub-handler (cell msg &optional notebook)
-  "Dispatch IOPUB message MSG for CELL by message type.
+Uses `jupyter-message-type' and `jupyter-message-get' accessors
+to read message content.  Correlates messages to cells by matching
+the parent message ID against each cell buffer's
+`ejn--pending-request-id' variable.
 
-Updates the mode-line on status messages.  Calls `ejn-cell-refresh-header'
-on status:idle messages to update the cell header.  Calls `ejn--render-output'
-for stream, execute_result, display_data, and error messages.
-NOTEBOOK is the notebook containing CELL (used for mode-line update).
-If NOTEBOOK is nil, it is looked up from the cell's buffer."
-  (when-let* ((msg-type (plist-get msg 'msg_type))
-              (nb (or notebook
-                      (ejn--cell-notebook cell))))
+For status messages, updates the mode-line and refreshes the cell
+header on idle state.  For other message types, calls
+`ejn--render-output' to display output."
+  (let* ((nb       (cdr (cl-assoc client ejn--client-to-notebook :test #'equal)))
+         (msg-type (jupyter-message-type msg))
+         (parent-id (jupyter-message-parent-id msg)))
     (pcase msg-type
       ("status"
-       (ejn--update-mode-line nb)
-       (when-let* ((content (plist-get msg 'content))
-                   (exec-state (plist-get content 'execution_state)))
+       (when nb (ejn--update-mode-line nb))
+       (when-let ((exec-state (jupyter-message-get msg :execution_state)))
          (when (equal exec-state "idle")
-           (ejn-cell-refresh-header cell))))
-      ((or "stream" "execute_result" "display_data" "error")
-       (ejn--render-output cell msg)))))
+           (when-let ((cell (ejn--find-cell-by-parent-id parent-id nb)))
+             (ejn-cell-refresh-header cell)))))
+      ((or "stream" "execute_result" "display_data" "error"
+           "execute_reply")
+       (when-let ((cell (ejn--find-cell-by-parent-id parent-id nb)))
+         (ejn--render-output cell msg))))))
+
+(defun ejn--find-cell-by-parent-id (parent-id &optional notebook)
+  "Find the cell whose pending request ID matches PARENT-ID.
+
+Searches NOTEBOOK's cells, comparing PARENT-ID against each cell
+buffer's `ejn--pending-request-id' variable.  Returns the matching
+cell, or nil if no match is found."
+  (cl-block nil
+    (when notebook
+      (let ((cells (slot-value notebook 'cells)))
+        (cl-dolist (cell cells)
+          (let ((buf (slot-value cell 'buffer)))
+            (when (buffer-live-p buf)
+              (let ((pending-id (buffer-local-value
+                                 'ejn--pending-request-id buf)))
+                (when (equal pending-id parent-id)
+                  (cl-return cell))))))))))
 
 (defun ejn--wait-idle (req &optional timeout)
   "Wait for REQ to become idle, returning REQ or nil on timeout.
 
 TIMEOUT is the number of seconds to wait.  Returns REQ if the kernel
 becomes idle within the timeout, nil if the timeout elapses."
-  (condition-case _err
+  (condition-case err
       (jupyter-idle req timeout)
     (jupyter-timeout-before-idle
      (message "Kernel did not become idle within %d seconds" timeout)
      nil)))
 
-;; ---------------------------------------------------------------------------
-;; Cell execution
-;; ---------------------------------------------------------------------------
+(defun ejn--execute-cell--with-client (cell code buf notebook)
+  "Execute CELL with CODE in NOTEBOOK, storing state in BUF.
+
+This helper is called within `jupyter-with-client' context.
+All needed values are passed as arguments to avoid lexical
+closure issues with the test mocking of `jupyter-with-client'.
+
+IOPUB messages are handled by `ejn--iopub-handler' registered via
+`jupyter-add-hook' in `ejn-kernel-start'.  This function only stores
+the request ID for parent-ID correlation.
+
+Returns the `jupyter-request' object."
+  (let ((req (jupyter-sent (jupyter-execute-request :code code))))
+    ;; Store request-id in cell buffer for parent-ID correlation
+    (with-current-buffer buf
+      (make-local-variable 'ejn--pending-request-id)
+      (setq ejn--pending-request-id
+            (jupyter-request-id req)))
+    req))
 
 (defun ejn--execute-cell (cell)
   "Send the source of CELL to the kernel for execution.
 
-Creates an execute request with the cell's source code, sends it
-through the kernel client, and registers the iopub callback
-`ejn--iopub-handler' to process kernel output messages.
+Synchronizes CELL's buffer content to the `:source' slot via
+`ejn-shadow-sync-cell', retrieves the kernel client from the
+notebook's `:kernel-id' slot, and sends an execute request using
+the `jupyter-with-client' macro.  Stores the request ID in the
+cell's buffer-local `ejn--pending-request-id' variable.
+
+Signals a `user-error' if no kernel is attached.
 
 Returns the `jupyter-request' object."
-  (let* ((code (slot-value cell 'source))
-         (dreq (jupyter-execute-request :code code))
-         (req (jupyter-sent dreq))
-         (notebook (ejn--cell-notebook cell)))
-    (jupyter-message-subscribed
-     req
-     (list (cons "iopub"
-                 (lambda (msg)
-                   (ejn--iopub-handler cell msg notebook)))))
-    req))
-
-;; ---------------------------------------------------------------------------
-;; Output overlay management
-;;
-;; FIX #1: The original ejn--output-overlay used `when' which evaluated to
-;; the overlay value but did NOT return early — execution always fell through
-;; to the `with-current-buffer' form, leaking overlays on every call.
-;; Fixed by using `if' so the live-overlay branch returns immediately.
-;;
-;; FIX #8: The original ejn--render-output called `jupyter-insert' which
-;; inserts content at point directly into the buffer, not into the overlay's
-;; after-string.  Fixed to capture rendered text into a temp buffer and store
-;; it as the overlay's after-string so output does not appear as raw buffer
-;; text mixed with the cell's source.
-;; ---------------------------------------------------------------------------
+  (ejn-shadow-sync-cell cell)
+  (let ((notebook (ejn--cell-notebook cell))
+        (code (slot-value cell 'source))
+        (buf  (slot-value cell 'buffer)))
+    (or notebook
+        (user-error "No notebook found for this cell"))
+    (let ((client (slot-value notebook 'kernel-id)))
+      (or client
+          (user-error "No kernel started for this notebook"))
+      (jupyter-with-client client
+			   (funcall #'ejn--execute-cell--with-client
+				    cell code buf notebook)))))
 
 (defun ejn--output-overlay (cell)
   "Return (or create) the output overlay for CELL.
 
-FIX #1: Uses `if' instead of `when' so the existing-overlay branch
-returns immediately without falling through to the creation path.
+If CELL already has a live output overlay stored in its
+`:output-overlay' slot, return it.  Otherwise, create a new overlay
+at point-max of the cell's buffer with an empty `:after-string', store
+it in the cell's `:output-overlay' slot, and return it.
 
-If CELL already has a live output overlay in its `:output-overlay'
-slot, return it.  Otherwise, create a new overlay at point-max of the
-cell's buffer with an empty `:after-string', store it in the cell's
-`:output-overlay' slot, and return it."
-  (let* ((buf (slot-value cell 'buffer))
+FIX (Critical #4): The original implementation used `(when ...)' as a
+guard, which in Emacs Lisp discards its return value and always falls
+through to the creation code.  This caused a new overlay to be stacked
+on the buffer on every call, resulting in duplicate output and an
+ever-growing set of live overlays.  Replaced with `(if ...)' so exactly
+one branch executes: either the existing overlay is returned, or a new
+one is created."
+  (let* ((buf     (slot-value cell 'buffer))
          (overlay (slot-value cell 'output-overlay)))
-    ;; FIX #1: `if' returns on the true branch; previously `when' fell through.
-    (if (and overlay (overlayp overlay) (overlay-buffer overlay))
+    (if (and overlay (overlayp overlay))
+        ;; Existing overlay — return it directly.
         overlay
+      ;; No valid overlay yet — create one at point-max.
       (with-current-buffer buf
         (goto-char (point-max))
         (let ((new-overlay (make-overlay (point) (point))))
@@ -299,38 +343,100 @@ cell's buffer with an empty `:after-string', store it in the cell's
           new-overlay)))))
 
 (defun ejn--render-output (cell msg)
-  "Render output from MSG into CELL's output overlay's after-string.
+  "Render output from MSG into CELL's output overlay.
 
-FIX #8: Previously called `jupyter-insert' at point inside the cell
-buffer, mixing output with source text.  Now captures rendered content
-into a temporary buffer via `jupyter-insert', converts it to a string,
-and appends it to the overlay's `after-string' so output is displayed
-below the cell source without modifying buffer text.
+Dispatches on `jupyter-message-type' to handle stream, execute_result,
+display_data, error, and execute_reply messages.  Uses
+`jupyter-message-get' accessors to read message content.
 
-Extracts the `:data' and `:metadata' from MSG's content plist and
-passes them to `jupyter-insert' for MIME dispatch.  If the message has
-no data or the cell has no live buffer, does nothing.
+For stream messages, extracts `:name' and `:text' and appends text
+to the overlay's after-string.
+
+For execute_result and display_data, calls `jupyter-insert' with
+`:data' and `:metadata' from the content.
+
+For error messages, displays `:ename' and `:evalue' in the overlay,
+and stores the traceback in the notebook's `:last-traceback' slot.
+
+For execute_reply, updates the cell's `:exec-count' slot from
+`:execution_count' in the content.
 
 Returns nil."
-  (let* ((content (plist-get msg 'content))
-         (data (plist-get content 'data))
-         (metadata (plist-get content 'metadata)))
-    (when (and data
-               (slot-value cell 'buffer)
-               (buffer-live-p (slot-value cell 'buffer)))
-      (let* ((overlay (ejn--output-overlay cell))
-             ;; Render into a scratch buffer to capture the string
-             (rendered
-              (with-temp-buffer
-                (condition-case _err
-                    (jupyter-insert data metadata)
-                  (error nil))
-                (buffer-string)))
-             ;; Append to existing after-string
-             (existing (or (overlay-get overlay 'after-string) "")))
-        (overlay-put overlay 'after-string
-                     (concat existing rendered)))))
+  (let ((msg-type (jupyter-message-type msg)))
+    (pcase msg-type
+      ("stream"
+       (ejn--render-output--stream cell msg))
+      ("execute_result"
+       (ejn--render-output--mime cell msg))
+      ("display_data"
+       (ejn--render-output--mime cell msg))
+      ("error"
+       (ejn--render-output--error cell msg))
+      ("execute_reply"
+       (ejn--render-output--execute-reply cell msg))
+      (_ nil)))
   nil)
+
+(defun ejn--render-output--stream (cell msg)
+  "Render a `stream' message MSG into CELL's output overlay.
+
+Extracts `:name' and `:text' from MSG's content and appends the text
+to the overlay's after-string."
+  (let* ((name (jupyter-message-get msg :name))
+         (text (jupyter-message-get msg :text)))
+    (when text
+      (let ((display-text (format "%s%s"
+                                  (propertize (or name "output")
+                                              'face 'font-lock-builtin-face)
+                                  text))
+            (overlay (ejn--output-overlay cell)))
+        (overlay-put overlay 'after-string
+                     (concat (overlay-get overlay 'after-string)
+                             display-text))))))
+
+(defun ejn--render-output--mime (cell msg)
+  "Render a `execute_result' or `display_data' message MSG into CELL.
+
+Calls `jupyter-insert' with `:data' and `:metadata' from MSG's content,
+positioned at the output overlay."
+  (when-let* ((data     (jupyter-message-get msg :data))
+              (metadata (jupyter-message-get msg :metadata))
+              (buf      (slot-value cell 'buffer))
+              ((buffer-live-p buf)))
+    (with-current-buffer buf
+      (let ((overlay (ejn--output-overlay cell)))
+        (goto-char (overlay-start overlay))
+        (jupyter-insert data metadata)))))
+
+(defun ejn--render-output--error (cell msg)
+  "Render an `error' message MSG into CELL's output overlay.
+
+Displays `:ename' and `:evalue' in the overlay with error face,
+and stores the joined traceback in the notebook's `:last-traceback' slot."
+  (let* ((ename        (jupyter-message-get msg :ename))
+         (evalue       (jupyter-message-get msg :evalue))
+         (traceback    (jupyter-message-get msg :traceback))
+         (display-text (format "%s: %s" ename evalue))
+         (overlay      (ejn--output-overlay cell)))
+    (overlay-put overlay 'after-string
+                 (propertize display-text 'face 'error))
+    (when-let* ((tb-text (and (listp traceback)
+                              (string-join traceback "\n")))
+                (buf     (slot-value cell 'buffer))
+                ((buffer-live-p buf))
+                (notebook (with-current-buffer buf
+                            (buffer-local-value 'ejn--notebook buf))))
+      (oset notebook last-traceback tb-text))))
+
+(defun ejn--render-output--execute-reply (cell msg)
+  "Handle an `execute_reply' message MSG for CELL.
+
+Updates the cell's `:exec-count' slot from `:execution_count' in
+MSG's content, and refreshes the cell header."
+  (when-let ((exec-count (jupyter-message-get msg :execution_count)))
+    (oset cell exec-count exec-count)
+    (when (fboundp 'ejn-cell-refresh-header)
+      (ejn-cell-refresh-header cell))))
 
 (defun ejn--clear-output (cell)
   "Delete the output overlay for CELL.  Returns nil.
@@ -355,7 +461,7 @@ property is set (hiding output) and the slot is set to nil.  If
 and the slot is set to t."
   (when-let ((overlay (slot-value cell 'output-overlay)))
     (let ((after-string (overlay-get overlay 'after-string))
-          (visible-p (slot-value cell 'output-visible-p)))
+          (visible-p    (slot-value cell 'output-visible-p)))
       (if visible-p
           ;; Hide: set invisible property, update slot to nil
           (progn

@@ -49,13 +49,13 @@
 
 ;;; Tests — P2-T8: ejn-cell-open-buffer sets major mode for code cells
 
-(ert-deftest ejn-cell-p2-t8--open-buffer-sets-python-mode-for-code ()
-  "Verify `ejn-cell-open-buffer' sets `python-mode' for code cells."
+(ert-deftest ejn-cell-p2-t8--open-buffer-sets-python-ts-mode-for-code ()
+  "Verify `ejn-cell-open-buffer' sets `python-ts-mode' for code cells."
   (let* ((cell (make-instance 'ejn-cell
                               :type 'code
                               :source "pass")))
     (with-current-buffer (ejn-cell-open-buffer cell)
-      (should (eq major-mode 'python-mode)))))
+      (should (eq major-mode 'python-ts-mode)))))
 
 ;;; Tests — P2-T8: ejn-cell-open-buffer sets major mode for markdown cells
 
@@ -425,7 +425,7 @@
       ;; There should be 2 cells in the notebook
       (should (= (length (slot-value nb 'cells)) 2)))
     (unwind-protect nil
-        (kill-buffer master-buf))))
+      (kill-buffer master-buf))))
 
 ;;; Tests — P2-T16: ejn--make-cell returns the new cell
 
@@ -927,8 +927,8 @@
 (ert-deftest ejn-cell-p2-t20--splits-source-at-points-line ()
   "Verify `ejn:worksheet-split-cell-at-point' splits the cell source at point's line."
   (let* ((nb (make-instance 'ejn-notebook
-                             :path "/tmp/test-split-line.ipynb"
-                             :cells nil))
+                            :path "/tmp/test-split-line.ipynb"
+                            :cells nil))
          (cell (make-instance 'ejn-cell
                               :type 'code
                               :source "line1\nline2\nline3"))
@@ -962,8 +962,8 @@
 (ert-deftest ejn-cell-p2-t20--creates-new-cell-below-with-after-part ()
   "Verify the new cell is inserted after the current cell and contains the after part."
   (let* ((nb (make-instance 'ejn-notebook
-                             :path "/tmp/test-split-below.ipynb"
-                             :cells nil))
+                            :path "/tmp/test-split-below.ipynb"
+                            :cells nil))
          (cell-a (make-instance 'ejn-cell :type 'code :source "A"))
          (cell-b (make-instance 'ejn-cell :type 'code :source "x = 1\ny = 2"))
          (cell-c (make-instance 'ejn-cell :type 'code :source "C"))
@@ -997,8 +997,8 @@
 (ert-deftest ejn-cell-p2-t20--both-cells-share-original-type ()
   "Verify both the original and new cell share the original cell type."
   (let* ((nb (make-instance 'ejn-notebook
-                             :path "/tmp/test-split-type.ipynb"
-                             :cells nil))
+                            :path "/tmp/test-split-type.ipynb"
+                            :cells nil))
          (cell (make-instance 'ejn-cell
                               :type 'markdown
                               :source "# heading\nsome text"))
@@ -1028,8 +1028,8 @@
 (ert-deftest ejn-cell-p2-t20--shadow-files-written-for-both-cells ()
   "Verify shadow files exist for both the original and new cell after split."
   (let* ((nb (make-instance 'ejn-notebook
-                             :path "/tmp/test-split-shadow.ipynb"
-                             :cells nil))
+                            :path "/tmp/test-split-shadow.ipynb"
+                            :cells nil))
          (cell (make-instance 'ejn-cell
                               :type 'code
                               :source "x = 1\ny = 2"))
@@ -1062,8 +1062,8 @@
 (ert-deftest ejn-cell-p2-t20--refreshes-master-view ()
   "Verify the master view is refreshed after splitting, showing both cells."
   (let* ((nb (make-instance 'ejn-notebook
-                             :path "/tmp/test-split-refresh.ipynb"
-                             :cells nil))
+                            :path "/tmp/test-split-refresh.ipynb"
+                            :cells nil))
          (cell (make-instance 'ejn-cell
                               :type 'code
                               :source "AAA\nBBB"))
@@ -1081,7 +1081,7 @@
           (with-current-buffer master-buf
             (should (= (length (slot-value nb 'cells)) 2))
             (let ((content (buffer-substring-no-properties
-                             (point-min) (point-max))))
+                            (point-min) (point-max))))
               (should (string-match-p "AAA" content))
               (should (string-match-p "BBB" content))))
           (should (buffer-live-p master-buf)))
@@ -1097,8 +1097,8 @@
 (ert-deftest ejn-cell-p2-t20--split-at-beginning-before-is-empty ()
   "Verify splitting at the beginning of source produces empty before part."
   (let* ((nb (make-instance 'ejn-notebook
-                             :path "/tmp/test-split-begin.ipynb"
-                             :cells nil))
+                            :path "/tmp/test-split-begin.ipynb"
+                            :cells nil))
          (cell (make-instance 'ejn-cell
                               :type 'code
                               :source "line1\nline2\nline3"))
@@ -1127,8 +1127,8 @@
 (ert-deftest ejn-cell-p2-t20--split-at-end-after-is-empty ()
   "Verify splitting at the end of source produces empty after part."
   (let* ((nb (make-instance 'ejn-notebook
-                             :path "/tmp/test-split-end.ipynb"
-                             :cells nil))
+                            :path "/tmp/test-split-end.ipynb"
+                            :cells nil))
          (cell (make-instance 'ejn-cell
                               :type 'code
                               :source "line1\nline2\n"))
@@ -1163,8 +1163,8 @@
 (ert-deftest ejn-cell-p2-t21--concatenates-sources-with-blank-line-separator ()
   "Verify `ejn:worksheet-merge-cell' concatenates current cell's source with cell below using blank line separator."
   (let* ((nb (make-instance 'ejn-notebook
-                             :path "/tmp/test-merge-concat.ipynb"
-                             :cells nil))
+                            :path "/tmp/test-merge-concat.ipynb"
+                            :cells nil))
          (cell-a (make-instance 'ejn-cell :type 'code :source "x = 1"))
          (cell-b (make-instance 'ejn-cell :type 'code :source "y = 2"))
          (master-buf nil)
@@ -1186,8 +1186,8 @@
 (ert-deftest ejn-cell-p2-t21--removes-lower-cell-from-cells-list ()
   "Verify `ejn:worksheet-merge-cell' removes the lower cell from NOTEBOOK's `:cells' list."
   (let* ((nb (make-instance 'ejn-notebook
-                             :path "/tmp/test-merge-remove.ipynb"
-                             :cells nil))
+                            :path "/tmp/test-merge-remove.ipynb"
+                            :cells nil))
          (cell-a (make-instance 'ejn-cell :type 'code :source "A"))
          (cell-b (make-instance 'ejn-cell :type 'code :source "B"))
          (cell-c (make-instance 'ejn-cell :type 'code :source "C"))
@@ -1213,8 +1213,8 @@
 (ert-deftest ejn-cell-p2-t21--kills-lower-cell-buffer-if-live ()
   "Verify `ejn:worksheet-merge-cell' kills the lower cell's buffer when it is live."
   (let* ((nb (make-instance 'ejn-notebook
-                             :path "/tmp/test-merge-kill-buf.ipynb"
-                             :cells nil))
+                            :path "/tmp/test-merge-kill-buf.ipynb"
+                            :cells nil))
          (cell-a (make-instance 'ejn-cell :type 'code :source "A"))
          (cell-b (make-instance 'ejn-cell :type 'code :source "B"))
          (master-buf nil)
@@ -1239,8 +1239,8 @@
 (ert-deftest ejn-cell-p2-t21--removes-lower-cell-shadow-file ()
   "Verify `ejn:worksheet-merge-cell' deletes the lower cell's shadow file from disk."
   (let* ((nb (make-instance 'ejn-notebook
-                             :path "/tmp/test-merge-kill-shadow.ipynb"
-                             :cells nil))
+                            :path "/tmp/test-merge-kill-shadow.ipynb"
+                            :cells nil))
          (cell-a (make-instance 'ejn-cell :type 'code :source "A"))
          (cell-b (make-instance 'ejn-cell :type 'code :source "B"))
          (master-buf nil)
@@ -1267,8 +1267,8 @@
 (ert-deftest ejn-cell-p2-t21--updates-current-cell-shadow-file ()
   "Verify `ejn:worksheet-merge-cell' writes the merged source to the current cell's shadow file."
   (let* ((nb (make-instance 'ejn-notebook
-                             :path "/tmp/test-merge-update-shadow.ipynb"
-                             :cells nil))
+                            :path "/tmp/test-merge-update-shadow.ipynb"
+                            :cells nil))
          (cell-a (make-instance 'ejn-cell :type 'code :source "A"))
          (cell-b (make-instance 'ejn-cell :type 'code :source "B"))
          (master-buf nil)
@@ -1296,8 +1296,8 @@
 (ert-deftest ejn-cell-p2-t21--refreshes-master-view ()
   "Verify `ejn:worksheet-merge-cell' re-renders the master view after merge."
   (let* ((nb (make-instance 'ejn-notebook
-                             :path "/tmp/test-merge-refresh.ipynb"
-                             :cells nil))
+                            :path "/tmp/test-merge-refresh.ipynb"
+                            :cells nil))
          (cell-a (make-instance 'ejn-cell :type 'code :source "AAA"))
          (cell-b (make-instance 'ejn-cell :type 'code :source "BBB"))
          (cell-c (make-instance 'ejn-cell :type 'code :source "CCC"))
@@ -1321,7 +1321,7 @@
           (with-current-buffer master-buf
             (should (= (length (slot-value nb 'cells)) 2))
             (let ((content (buffer-substring-no-properties
-                             (point-min) (point-max))))
+                            (point-min) (point-max))))
               (should (string-match-p "AAA" content))
               (should (string-match-p "CCC" content))
               ;; BBB should still appear but as part of the merged cell content
@@ -1335,8 +1335,8 @@
 (ert-deftest ejn-cell-p2-t21--signals-error-on-last-cell ()
   "Verify `ejn:worksheet-merge-cell' signals an error when called on the last cell."
   (let* ((nb (make-instance 'ejn-notebook
-                             :path "/tmp/test-merge-last.ipynb"
-                             :cells nil))
+                            :path "/tmp/test-merge-last.ipynb"
+                            :cells nil))
          (cell-a (make-instance 'ejn-cell :type 'code :source "A"))
          (cell-b (make-instance 'ejn-cell :type 'code :source "B"))
          (master-buf nil)
@@ -1356,8 +1356,8 @@
 (ert-deftest ejn-cell-p2-t21--signals-error-on-single-cell ()
   "Verify `ejn:worksheet-merge-cell' signals an error when there is only one cell."
   (let* ((nb (make-instance 'ejn-notebook
-                             :path "/tmp/test-merge-single.ipynb"
-                             :cells nil))
+                            :path "/tmp/test-merge-single.ipynb"
+                            :cells nil))
          (cell-a (make-instance 'ejn-cell :type 'code :source "A"))
          (master-buf nil)
          (buf-a nil))
@@ -1382,8 +1382,8 @@
 (ert-deftest ejn-cell-p2-t22--copies-source-and-type-to-kill-ring ()
   "Verify `ejn:worksheet-copy-cell' pushes a copy of the cell's `:source' and `:type' onto the notebook's `ejn-cell-kill-ring'."
   (let* ((nb (make-instance 'ejn-notebook
-                             :path "/tmp/test-copy-cell.ipynb"
-                             :cells nil))
+                            :path "/tmp/test-copy-cell.ipynb"
+                            :cells nil))
          (cell (make-instance 'ejn-cell
                               :type 'code
                               :source "print('hello')"))
@@ -1412,8 +1412,8 @@
 (ert-deftest ejn-cell-p2-t22--multiple-copies-cons-most-recent-first ()
   "Verify multiple copies are cons'd onto the kill ring with most recent at the top."
   (let* ((nb (make-instance 'ejn-notebook
-                             :path "/tmp/test-copy-multi.ipynb"
-                             :cells nil))
+                            :path "/tmp/test-copy-multi.ipynb"
+                            :cells nil))
          (cell-a (make-instance 'ejn-cell :type 'code :source "A"))
          (cell-b (make-instance 'ejn-cell :type 'markdown :source "B"))
          (master-buf nil)
@@ -1450,8 +1450,8 @@
 (ert-deftest ejn-cell-p2-t22--kill-arg-copies-and-kills-cell ()
   "Verify calling `ejn:worksheet-copy-cell' with `t' copies and kills the cell."
   (let* ((nb (make-instance 'ejn-notebook
-                             :path "/tmp/test-copy-kill.ipynb"
-                             :cells nil))
+                            :path "/tmp/test-copy-kill.ipynb"
+                            :cells nil))
          (cell-a (make-instance 'ejn-cell :type 'code :source "A"))
          (cell-b (make-instance 'ejn-cell :type 'code :source "B"))
          (master-buf nil)
@@ -1485,8 +1485,8 @@
 (ert-deftest ejn-cell-p2-t22--copy-only-does-not-kill-cell ()
   "Verify calling `ejn:worksheet-copy-cell' with `nil' copies without killing."
   (let* ((nb (make-instance 'ejn-notebook
-                             :path "/tmp/test-copy-only.ipynb"
-                             :cells nil))
+                            :path "/tmp/test-copy-only.ipynb"
+                            :cells nil))
          (cell-a (make-instance 'ejn-cell :type 'code :source "A"))
          (cell-b (make-instance 'ejn-cell :type 'code :source "B"))
          (master-buf nil)
@@ -1519,8 +1519,8 @@
 (ert-deftest ejn-cell-p2-t23--yanks-cell-below-with-source-and-type ()
   "Verify `ejn:worksheet-yank-cell' creates a new cell below the current cell using source and type from the kill ring's top entry."
   (let* ((nb (make-instance 'ejn-notebook
-                             :path "/tmp/test-yank-cell.ipynb"
-                             :cells nil))
+                            :path "/tmp/test-yank-cell.ipynb"
+                            :cells nil))
          (cell-a (make-instance 'ejn-cell :type 'code :source "A"))
          (cell-b (make-instance 'ejn-cell :type 'markdown :source "# B"))
          (master-buf nil)
@@ -1561,8 +1561,8 @@
 (ert-deftest ejn-cell-p2-t23--pops-entry-from-kill-ring ()
   "Verify `ejn:worksheet-yank-cell' removes the top entry from the kill ring, leaving older entries intact."
   (let* ((nb (make-instance 'ejn-notebook
-                             :path "/tmp/test-yank-pop.ipynb"
-                             :cells nil))
+                            :path "/tmp/test-yank-pop.ipynb"
+                            :cells nil))
          (cell (make-instance 'ejn-cell :type 'code :source "X"))
          (master-buf nil)
          (buf nil))
@@ -1595,8 +1595,8 @@
 (ert-deftest ejn-cell-p2-t23--signals-error-when-kill-ring-empty ()
   "Verify `ejn:worksheet-yank-cell' signals an error when the kill ring is empty."
   (let* ((nb (make-instance 'ejn-notebook
-                             :path "/tmp/test-yank-empty.ipynb"
-                             :cells nil))
+                            :path "/tmp/test-yank-empty.ipynb"
+                            :cells nil))
          (cell (make-instance 'ejn-cell :type 'code :source "X"))
          (master-buf nil)
          (buf nil))
@@ -1617,8 +1617,8 @@
 (ert-deftest ejn-cell-p2-t23--new-cell-has-shadow-file ()
   "Verify `ejn:worksheet-yank-cell' writes a shadow file for the new cell."
   (let* ((nb (make-instance 'ejn-notebook
-                             :path "/tmp/test-yank-shadow.ipynb"
-                             :cells nil))
+                            :path "/tmp/test-yank-shadow.ipynb"
+                            :cells nil))
          (cell (make-instance 'ejn-cell :type 'code :source "X"))
          (master-buf nil)
          (buf nil))
@@ -1651,8 +1651,8 @@
 (ert-deftest ejn-cell-p2-t23--refreshes-master-view ()
   "Verify `ejn:worksheet-yank-cell' re-renders the master view buffer."
   (let* ((nb (make-instance 'ejn-notebook
-                             :path "/tmp/test-yank-refresh.ipynb"
-                             :cells nil))
+                            :path "/tmp/test-yank-refresh.ipynb"
+                            :cells nil))
          (cell (make-instance 'ejn-cell :type 'code :source "ORIGINAL"))
          (master-buf nil)
          (buf nil))
@@ -1668,7 +1668,7 @@
           ;; Master view should show the yanked content
           (with-current-buffer master-buf
             (let ((content (buffer-substring-no-properties
-                             (point-min) (point-max))))
+                            (point-min) (point-max))))
               (should (string-match-p "YANKED" content))
               (should (string-match-p "ORIGINAL" content)))))
       (when (buffer-live-p buf) (kill-buffer buf))
@@ -1689,8 +1689,8 @@
 (ert-deftest ejn-cell-p2-t24--goto-next-in-cell-buffer-navigates-to-next-cell ()
   "Verify `ejn:worksheet-goto-next-input' in a cell buffer opens and switches to the next cell's buffer."
   (let* ((nb (make-instance 'ejn-notebook
-                             :path "/tmp/test-goto-next.ipynb"
-                             :cells nil))
+                            :path "/tmp/test-goto-next.ipynb"
+                            :cells nil))
          (cell-a (make-instance 'ejn-cell :type 'code :source "A"))
          (cell-b (make-instance 'ejn-cell :type 'code :source "B"))
          (master-buf nil)
@@ -1717,8 +1717,8 @@
 (ert-deftest ejn-cell-p2-t24--goto-prev-in-cell-buffer-navigates-to-prev-cell ()
   "Verify `ejn:worksheet-goto-prev-input' in a cell buffer opens and switches to the previous cell's buffer."
   (let* ((nb (make-instance 'ejn-notebook
-                             :path "/tmp/test-goto-prev.ipynb"
-                             :cells nil))
+                            :path "/tmp/test-goto-prev.ipynb"
+                            :cells nil))
          (cell-a (make-instance 'ejn-cell :type 'code :source "A"))
          (cell-b (make-instance 'ejn-cell :type 'code :source "B"))
          (master-buf nil)
@@ -1758,8 +1758,8 @@ After kill, every remaining cell's shadow file path must reflect its
 current index in the cells list (cell_000.py, cell_001.py, etc.),
 and stale shadow files (like the killed cell's) must be cleaned up."
   (let* ((nb (make-instance 'ejn-notebook
-                             :path "/tmp/test-kill-reindex.ipynb"
-                             :cells nil))
+                            :path "/tmp/test-kill-reindex.ipynb"
+                            :cells nil))
          (cell-a (make-instance 'ejn-cell :type 'code :source "A"))
          (cell-b (make-instance 'ejn-cell :type 'code :source "B"))
          (cell-c (make-instance 'ejn-cell :type 'code :source "C"))
@@ -1816,7 +1816,7 @@ and stale shadow files (like the killed cell's) must be cleaned up."
             ;; D's old shadow file (cell_003.py) must be cleaned up
             ;; since no cell occupies index 3 anymore
             (should-not (file-exists-p shadow-d-old)))
-        )
+          )
       ;; Cleanup buffers
       (when (buffer-live-p (slot-value cell-a 'buffer))
         (kill-buffer (slot-value cell-a 'buffer)))
@@ -1836,8 +1836,8 @@ cells shift. After split, every cell's shadow file path must reflect its
 current index in the cells list (cell_000.py, cell_001.py, etc.), and
 all shadow files must exist with correct content."
   (let* ((nb (make-instance 'ejn-notebook
-                             :path "/tmp/test-split-reindex.ipynb"
-                             :cells nil))
+                            :path "/tmp/test-split-reindex.ipynb"
+                            :cells nil))
          (cell-a (make-instance 'ejn-cell :type 'code :source "A"))
          (cell-b (make-instance 'ejn-cell :type 'code :source "x = 1\ny = 2"))
          (cell-c (make-instance 'ejn-cell :type 'code :source "C"))
@@ -1944,8 +1944,8 @@ When cells A, B, C, D exist at indices 0,1,2,3 and B is merged with C
 Cell D shifts from index 3 to index 2, so its shadow file must be
 reindexed from cell_003.py to cell_002.py."
   (let* ((nb (make-instance 'ejn-notebook
-                             :path "/tmp/test-merge-reindex.ipynb"
-                             :cells nil))
+                            :path "/tmp/test-merge-reindex.ipynb"
+                            :cells nil))
          (cell-a (make-instance 'ejn-cell :type 'code :source "A"))
          (cell-b (make-instance 'ejn-cell :type 'code :source "B"))
          (cell-c (make-instance 'ejn-cell :type 'code :source "C"))
@@ -2001,13 +2001,13 @@ reindexed from cell_003.py to cell_002.py."
                                (buffer-string))))
             ;; D's old shadow file must be cleaned up
             (should-not (file-exists-p shadow-d-old))))
-       ;; Cleanup buffers
-       (when (buffer-live-p (slot-value cell-a 'buffer))
-         (kill-buffer (slot-value cell-a 'buffer)))
-       (when (buffer-live-p (slot-value cell-b 'buffer))
-         (kill-buffer (slot-value cell-b 'buffer)))
-       (when (buffer-live-p (slot-value cell-d 'buffer))
-         (kill-buffer (slot-value cell-d 'buffer)))
-       (kill-buffer master-buf))))
+      ;; Cleanup buffers
+      (when (buffer-live-p (slot-value cell-a 'buffer))
+        (kill-buffer (slot-value cell-a 'buffer)))
+      (when (buffer-live-p (slot-value cell-b 'buffer))
+        (kill-buffer (slot-value cell-b 'buffer)))
+      (when (buffer-live-p (slot-value cell-d 'buffer))
+        (kill-buffer (slot-value cell-d 'buffer)))
+      (kill-buffer master-buf))))
 
 ;;; ejn-cell-tests.el ends here

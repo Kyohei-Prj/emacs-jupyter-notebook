@@ -74,7 +74,7 @@ Only cells of type `code` are included in the composite. Markdown and raw cells 
 ### Tech stack
 
 - `lsp-mode` → primary LSP client; provides `lsp-virtual-buffer` API for position translation.
-- `python-mode` → major mode for code cell buffers; LSP server (e.g., `pyright`, `ruff`) attaches to this mode.
+- `python-ts-mode` → major mode for code cell buffers; LSP server (e.g., `pyright`, `ruff`) attaches to this mode.
 - No new Emacs packages beyond `lsp-mode`.
 
 ### Non-goals

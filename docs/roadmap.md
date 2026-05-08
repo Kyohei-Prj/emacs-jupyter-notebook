@@ -264,7 +264,7 @@ For `eglot` users, implement an equivalent shim using `eglot`'s `eglot-managed-p
 
 When `ejn-cell-open-buffer` creates a new cell buffer, it must:
 
-1. Set `major-mode` to `python-mode` (or the kernel language's mode).
+1. Set `major-mode` to `python-ts-mode` (or the kernel language's mode).
 2. Set `default-directory` to the notebook's directory so `project.el` resolves the workspace root correctly.
 3. Ensure the composite file exists on disk before calling `lsp` or `eglot`, since the LSP server may index it immediately on attach.
 4. Call `lsp` (or `eglot`) to attach the server.
@@ -414,7 +414,7 @@ Replace the button-based master view with a true `polymode` composition that ren
 
 Define a `poly-ejn-mode` with:
 - A **host mode** of `special-mode` for the inter-cell scaffold.
-- An **inner mode** of `python-mode` for code cells, with chunk delimiters keyed on the sentinel comments written into the composite file format.
+- An **inner mode** of `python-ts-mode` for code cells, with chunk delimiters keyed on the sentinel comments written into the composite file format.
 - An **inner mode** of `gfm-mode` (GitHub Flavored Markdown) or `markdown-mode` for Markdown cells.
 
 This allows the master view to serve double duty: both navigation hub and a readable, rendered notebook surface. The individual cell buffers remain available for focused editing via `ejn-cell-open-buffer`.
@@ -429,7 +429,7 @@ Add a toggle `ejn-worksheet-toggle-cell-type` (bound to `C-c C-t`) that switches
 
 Finalize the two cell-type mutation commands, which require Polymode to be in place for proper re-rendering:
 
-- **`C-c C-t` (`ejn:worksheet-toggle-cell-type`)** — cycles the current cell's type between `code` and `markdown`. After toggling, the cell's buffer major mode is updated (`python-mode` ↔ `markdown-mode`) and the master view re-renders the cell with the correct Polymode inner mode.
+- **`C-c C-t` (`ejn:worksheet-toggle-cell-type`)** — cycles the current cell's type between `code` and `markdown`. After toggling, the cell's buffer major mode is updated (`python-ts-mode` ↔ `markdown-mode`) and the master view re-renders the cell with the correct Polymode inner mode.
 - **`C-c C-u` (`ejn:worksheet-change-cell-type`)** — presents a `completing-read` of all available cell types (including `raw` for nbformat raw cells) and applies the selection. More explicit than the toggle, useful when working with raw cells.
 
 ### 5.6 Notebook Utility & Scratchsheet Commands
@@ -438,7 +438,7 @@ Implement the remaining notebook-level commands that require the full UI to be i
 
 - **`C-c C-#` (`ejn:notebook-close`)** — closes the notebook: kills all cell buffers, kills the master view buffer, and cleans up the `.ejn-cache/<notebook-stem>/` directory. Prompts to save if any cells are dirty. Does **not** kill the kernel (use `C-c C-q` for that).
 - **`C-c C-/` (`ejn:notebook-scratchsheet-open`)** — opens a transient "scratch" cell buffer attached to the current notebook's kernel but not saved to the `.ipynb` file. Useful for quick experiments without polluting the notebook. The scratch buffer lives in `.ejn-cache/<stem>/scratch.py` and is gitignored by default.
-- **`C-c C-$` (`ejn:tb-show`)** — opens a dedicated traceback buffer showing the full, syntax-highlighted traceback from the most recent kernel error. The buffer uses `python-mode` for ANSI-stripped traceback text and `compilation-mode`-style file links where the traceback references a source file.
+- **`C-c C-$` (`ejn:tb-show`)** — opens a dedicated traceback buffer showing the full, syntax-highlighted traceback from the most recent kernel error. The buffer uses `python-ts-mode` for ANSI-stripped traceback text and `compilation-mode`-style file links where the traceback references a source file.
 - **`C-c C-;` (`ejn:shared-output-show-code-cell-at-point`)** — opens a shared output buffer that persists across cell executions, appending output from the current cell each time it is executed. Useful for monitoring long-running cells without the output being overwritten in place.
 
 ### 5.7 Lazy Buffer Initialization
