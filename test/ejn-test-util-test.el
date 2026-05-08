@@ -3,6 +3,8 @@
 (require 'ert)
 (require 'ejn-test-util)
 
+;;; Code:
+
 (ert-deftest ejn-test-util-test/fixture-directory-exists ()
   "Test fixture directory should exist."
   (should (f-dir? ejn-test-fixtures-directory)))

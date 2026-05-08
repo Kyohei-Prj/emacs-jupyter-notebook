@@ -1,4 +1,4 @@
-gitignore_content = """# --- Emacs / Elisp General ---
+# --- Emacs / Elisp General ---
 *.elc
 site-lisp/
 *-autoloads.el
