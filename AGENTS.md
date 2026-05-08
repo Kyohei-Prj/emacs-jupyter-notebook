@@ -28,7 +28,7 @@ emacs-jupyter-notebook/
 - Whenever you encounter any errors, it is most likely unbalanced parenthesis. Use appropriate `skills` or `mcp` to handle it effeciently.
 - Use `elisp-dev` to refer to Emacs Lisp (elisp) document.
 - Write one function/code block at a time. Do not write all at once.
-- Official `jupyter.el` repository is cloned under `/home/kyohei/Projects/jupyter` as a reference.
+- Official `emacs-jupyter` repository is cloned under `/home/kyohei/Projects/jupyter` as a reference.
 - Official `code-cell.el` repository is cloned under `/home/kyohei/Project/code-cells.el/` as a reference.
 - Official `emacs-jupyter-notebook (ein)` repository is cloned under `/home/kyohei/Project/emacs-ipython-notebook/` as a reference.acs
 
