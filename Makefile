@@ -3,7 +3,7 @@
 all: compile lint test
 
 deps:
-	eask install-deps
+	eask install-deps --dev
 
 compile: deps
 	eask compile
