@@ -1,4 +1,4 @@
-;;; ejn-core.el --- EJN core utilities and configuration  -*- lexical-binding:t -*-
+;;; ejn-core.el --- EJN core utilities and configuration  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2025 Kyohei
 

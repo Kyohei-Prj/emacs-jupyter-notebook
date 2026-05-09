@@ -1,4 +1,4 @@
-;;; ejn.el --- Emacs Jupyter Notebook -*- lexical-binding:t -*-
+;;; ejn.el --- Emacs Jupyter Notebook -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2025 Kyohei
 

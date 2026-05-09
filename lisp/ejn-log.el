@@ -1,4 +1,4 @@
-;;; ejn-log.el --- Structured debug logging for EJN  -*- lexical-binding:t -*-
+;;; ejn-log.el --- Structured debug logging for EJN  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2025 Kyohei
 
@@ -61,7 +61,7 @@ Useful for tracking function entry points and parameters."
 Returns the elapsed time in seconds."
   (declare (indent 0))
   `(let ((start (float-time))
-          (result ,@body))
+         (result ,@body))
      (let ((elapsed (- (float-time) start)))
        (ejn-log-message "profile" "%.4fs — profile" elapsed)
        result)))

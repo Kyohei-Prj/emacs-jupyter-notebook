@@ -1,4 +1,4 @@
-;;; ejn-log-test.el --- Tests for ejn-log  -*- lexical-binding:t -*-
+;;; ejn-log-test.el --- Tests for ejn-log  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2025 Kyohei
 

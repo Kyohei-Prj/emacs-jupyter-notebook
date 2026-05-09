@@ -1,4 +1,4 @@
-;;; ejn-core-test.el --- Tests for ejn-core  -*- lexical-binding:t -*-
+;;; ejn-core-test.el --- Tests for ejn-core  -*- lexical-binding: t; -*-
 
 (require 'ert)
 

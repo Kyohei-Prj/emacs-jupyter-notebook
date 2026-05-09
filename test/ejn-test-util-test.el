@@ -1,4 +1,4 @@
-;;; ejn-test-util-test.el --- Tests for test utilities  -*- lexical-binding:t -*-
+;;; ejn-test-util-test.el --- Tests for test utilities  -*- lexical-binding: t; -*-
 
 (require 'ert)
 (require 'ejn-test-util)

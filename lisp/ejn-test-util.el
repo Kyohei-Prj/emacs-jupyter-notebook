@@ -1,4 +1,4 @@
-;;; ejn-test-util.el --- Test fixtures and utilities  -*- lexical-binding:t -*-
+;;; ejn-test-util.el --- Test fixtures and utilities  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2025 Kyohei
 
