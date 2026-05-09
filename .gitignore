@@ -34,3 +34,4 @@ elpa/
 # --- IDE/Editor Specific (Optional) ---
 .python-version
 .DS_Store
+.worktrees/
