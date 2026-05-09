@@ -125,5 +125,65 @@
                         :type 'ejn-invalid-notebook)
         (delete-file tmpfile)))))
 
+(ert-deftest ejn-persistence-test/serialize-produces-valid-json ()
+  "Serializing a notebook should produce valid JSON."
+  (require 'ejn-persistence)
+  (let ((nb (ejn-make-notebook))
+        (tmpfile (make-temp-file "ejn-test" nil ".ipynb")))
+    (ejn-notebook-insert-cell nb 'code :at 0)
+    (unwind-protect
+        (progn
+          (ejn-ipynb-serialize-notebook nb tmpfile)
+          (with-temp-buffer
+            (insert-file-contents tmpfile)
+            (let ((json-object-type 'alist)
+                  (json-array-type 'list)
+                  (json-key-type 'keyword))
+              (should (json-read-object)))))
+      (delete-file tmpfile))))
+
+(ert-deftest ejn-persistence-test/serialize-preserved-cell-ids ()
+  "Serialization should preserve cell IDs."
+  (require 'ejn-persistence)
+  (require 'ejn-test-util)
+  (let ((nb (ejn-ipynb-parse-notebook
+             (f-join ejn-test-fixtures-directory "sample.ipynb")))
+        (tmpfile (make-temp-file "ejn-test" nil ".ipynb")))
+    (unwind-protect
+        (progn
+          (ejn-ipynb-serialize-notebook nb tmpfile)
+          (with-temp-buffer
+            (insert-file-contents tmpfile)
+            (let ((json-object-type 'alist)
+                  (json-array-type 'list)
+                  (json-key-type 'keyword))
+              (let ((data (json-read-object)))
+                (let ((cells (cdr (assq :cells data))))
+                  (should (string= (cdr (assq :id (car cells)))
+                                   "test-cell-1"))))))
+      (delete-file tmpfile)))))
+
+(ert-deftest ejn-persistence-test/serialize-outputs-source-as-string ()
+  "Serialization should output source as a string."
+  (require 'ejn-persistence)
+  (let ((nb (ejn-make-notebook))
+        (tmpfile (make-temp-file "ejn-test" nil ".ipynb")))
+    (ejn-notebook-insert-cell nb 'code :at 0)
+    (ejn-notebook-set-cell-source nb
+                                  (ejn-cell-id (ejn-notebook-cell-at-index nb 0))
+                                  "print(1)\nprint(2)")
+    (unwind-protect
+        (progn
+          (ejn-ipynb-serialize-notebook nb tmpfile)
+          (with-temp-buffer
+            (insert-file-contents tmpfile)
+            (let ((json-object-type 'alist)
+                  (json-array-type 'list)
+                  (json-key-type 'keyword))
+              (let ((data (json-read-object)))
+                (let ((cell (car (cdr (assq :cells data)))))
+                  (should (stringp (cdr (assq :source cell))))))))
+      (delete-file tmpfile)))))
+
 (provide 'ejn-persistence-test)
 ;;; ejn-persistence-test.el ends here

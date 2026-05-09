@@ -134,5 +134,42 @@ Signals `ejn-unsupported-format' for unsupported nbformat versions."
        :dirty-set (make-hash-table :test 'equal)
        :undo-history nil))))
 
+(defun ejn-ipynb-serialize-output (output)
+  "Serialize an `ejn-output' struct to a JSON-compatible plist."
+  (let ((result (list :output_type (symbol-name (ejn-output-type output)))))
+    (when (ejn-output-mime-data output)
+      (plist-put result :data (ejn-output-mime-data output)))
+    (when (ejn-output-metadata output)
+      (plist-put result :metadata (ejn-output-metadata output)))
+    result))
+
+(defun ejn-ipynb-serialize-cell (cell)
+  "Serialize an `ejn-cell' struct to a JSON-compatible plist."
+  (list :id (ejn-cell-id cell)
+        :cell_type (symbol-name (ejn-cell-type cell))
+        :source (ejn-cell-source cell)
+        :outputs (vconcat (mapcar #'ejn-ipynb-serialize-output
+                                  (ejn-cell-outputs cell)))
+        :metadata (or (ejn-cell-metadata cell) nil)
+        :execution_count (ejn-cell-execution-count cell)))
+
+(defun ejn-ipynb-serialize-notebook (notebook &optional path)
+  "Serialize NOTEBOOK to nbformat v4 JSON.
+If PATH is given, write to that file. Otherwise return the JSON string."
+  (let ((data (list :nbformat (ejn-notebook-nbformat notebook)
+                    :nbformat_minor (ejn-notebook-nbformat-minor notebook)
+                    :metadata (or (ejn-notebook-metadata notebook) nil)
+                    :cells (vconcat (mapcar #'ejn-ipynb-serialize-cell
+                                           (ejn-notebook-cells notebook))))))
+    (when (ejn-notebook-id notebook)
+      (plist-put data :id (ejn-notebook-id notebook)))
+    (let ((json-string (json-encode data)))
+      (if path
+          (with-temp-buffer
+            (insert json-string)
+            (json-pretty-print (point-min) (point-max))
+            (write-region (point-min) (point-max) path nil 'nomessage))
+        json-string))))
+
 (provide 'ejn-persistence)
 ;;; ejn-persistence.el ends here
