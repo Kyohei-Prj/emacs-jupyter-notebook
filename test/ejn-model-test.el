@@ -151,5 +151,66 @@
     (ejn-notebook-delete-cell nb (ejn-cell-id (ejn-notebook-cell-at-index nb 0)))
     (should (ejn-notebook-dirty nb))))
 
+(ert-deftest ejn-model-test/transaction-marks-dirty ()
+  "A completed transaction should mark the notebook dirty."
+  (require 'ejn-model)
+  (let ((nb (ejn-make-notebook)))
+    (ejn-notebook-insert-cell nb 'code :at 0)
+    (ejn-notebook-clean-all nb)
+    (let ((cell-id (ejn-cell-id (ejn-notebook-cell-at-index nb 0))))
+      (ejn-with-transaction nb
+        (ejn-notebook-set-cell-source nb cell-id "new source")))
+    (should (ejn-notebook-dirty nb))))
+
+(ert-deftest ejn-model-test/transaction-rollback-on-error ()
+  "A transaction that errors should restore the previous state."
+  (require 'ejn-model)
+  (let ((nb (ejn-make-notebook)))
+    (ejn-notebook-insert-cell nb 'code :at 0)
+    (let ((cell-id (ejn-cell-id (ejn-notebook-cell-at-index nb 0)))
+          (original-source (ejn-cell-source (ejn-notebook-cell-at-index nb 0))))
+      (condition-case nil
+          (ejn-with-transaction nb
+            (ejn-notebook-set-cell-source nb cell-id "modified")
+            (error "Simulated error"))
+        (error nil))
+      (should (string= (ejn-cell-source (ejn-notebook-cell-by-id nb cell-id))
+                       original-source)))))
+
+(ert-deftest ejn-model-test/undo-group-records-snapshot ()
+  "An undo group should record a snapshot in the undo history."
+  (require 'ejn-model)
+  (let ((nb (ejn-make-notebook)))
+    (ejn-notebook-insert-cell nb 'code :at 0)
+    (let ((cell-id (ejn-cell-id (ejn-notebook-cell-at-index nb 0))))
+      (ejn-with-undo-group "Edit source" nb
+        (ejn-notebook-set-cell-source nb cell-id "new source")))
+    (should (> (length (ejn-notebook-undo-history nb)) 0))))
+
+(ert-deftest ejn-model-test/undo-restores-previous-state ()
+  "Undo should restore the model to its previous state."
+  (require 'ejn-model)
+  (let ((nb (ejn-make-notebook)))
+    (ejn-notebook-insert-cell nb 'code :at 0)
+    (let ((cell-id (ejn-cell-id (ejn-notebook-cell-at-index nb 0))))
+      (ejn-with-undo-group "Edit source" nb
+        (ejn-notebook-set-cell-source nb cell-id "new source"))
+      (ejn-undo nb)
+      (should (string= (ejn-cell-source (ejn-notebook-cell-by-id nb cell-id))
+                       "")))))
+
+(ert-deftest ejn-model-test/redo-reapplies-undone-change ()
+  "Redo should reapply an undone change."
+  (require 'ejn-model)
+  (let ((nb (ejn-make-notebook)))
+    (ejn-notebook-insert-cell nb 'code :at 0)
+    (let ((cell-id (ejn-cell-id (ejn-notebook-cell-at-index nb 0))))
+      (ejn-with-undo-group "Edit source" nb
+        (ejn-notebook-set-cell-source nb cell-id "new source"))
+      (ejn-undo nb)
+      (ejn-redo nb)
+      (should (string= (ejn-cell-source (ejn-notebook-cell-by-id nb cell-id))
+                       "new source")))))
+
 (provide 'ejn-model-test)
 ;;; ejn-model-test.el ends here

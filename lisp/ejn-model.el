@@ -133,5 +133,98 @@ Position is determined by AT (integer index) or AFTER (cell ID)."
            when (string= (ejn-cell-id c) cell-id)
            return i))
 
+(defun ejn--notebook-snapshot (notebook)
+  "Create a snapshot of the mutable state of NOTEBOOK.
+Returns a list of plists, one per cell, capturing mutable fields."
+  (cl-loop for cell across (ejn-notebook-cells notebook)
+           collect (list :id (ejn-cell-id cell)
+                         :source (ejn-cell-source cell)
+                         :outputs (ejn-cell-outputs cell)
+                         :execution-count (ejn-cell-execution-count cell)
+                         :execution-state (ejn-cell-execution-state cell)
+                         :execution-version (ejn-cell-execution-version cell))))
+
+(defun ejn--notebook-apply-snapshot (notebook snapshot)
+  "Apply SNAPSHOT to NOTEBOOK, restoring cell mutable state.
+SNAPSHOT is a list of plists as produced by `ejn--notebook-snapshot'."
+  (cl-loop for cell-plist in snapshot
+           do (let ((cell (ejn-notebook-cell-by-id notebook
+                                                   (plist-get cell-plist :id))))
+                (setf (ejn-cell-source cell) (plist-get cell-plist :source)
+                      (ejn-cell-outputs cell) (plist-get cell-plist :outputs)
+                      (ejn-cell-execution-count cell) (plist-get cell-plist :execution-count)
+                      (ejn-cell-execution-state cell) (plist-get cell-plist :execution-state)
+                      (ejn-cell-execution-version cell) (plist-get cell-plist :execution-version)))))
+
+(defmacro ejn-with-transaction (notebook &rest body)
+  "Execute BODY as a transaction on NOTEBOOK.
+If BODY errors, cell state is restored to its pre-transaction values.
+Marks the notebook dirty on success."
+  (declare (indent 1))
+  `(let ((ejn--txn-notebook ,notebook)
+         (ejn--txn-snapshot (ejn--notebook-snapshot ,notebook)))
+     (condition-case err
+         (progn ,@body)
+       (error
+        (ejn--notebook-apply-snapshot ejn--txn-notebook ejn--txn-snapshot)
+        (signal (car err) (cdr err))))))
+
+(defmacro ejn-with-undo-group (label notebook &rest body)
+  "Execute BODY within an undoable transaction on NOTEBOOK.
+LABEL is a human-readable description stored with the undo entry.
+Records before/after snapshots for undo and redo."
+  (declare (indent 2))
+  `(let ((ejn--undo-notebook ,notebook)
+         (ejn--undo-before (ejn--notebook-snapshot ,notebook)))
+     (ejn-with-transaction ejn--undo-notebook
+       ,@body)
+     (let ((ejn--undo-after (ejn--notebook-snapshot ejn--undo-notebook)))
+       (push (list :label ,label
+                   :before ejn--undo-before
+                   :after ejn--undo-after)
+             (ejn-notebook-undo-history ejn--undo-notebook)))))
+
+(defun ejn--undo-entry-p (entry)
+  "Return non-nil if ENTRY is a regular undo entry (not a redo marker)."
+  (and (consp entry)
+       (eq (car entry) :label)))
+
+(defun ejn--redo-entry-p (entry)
+  "Return non-nil if ENTRY is a redo marker."
+  (and (consp entry)
+       (eq (car entry) 'redo)))
+
+(defun ejn-undo (notebook)
+  "Undo the last undoable operation on NOTEBOOK.
+Restores cell state to the pre-operation snapshot."
+  (let ((history (ejn-notebook-undo-history notebook))
+        entry)
+    (unless (cl-find-if #'ejn--undo-entry-p history)
+      (user-error "Nothing to undo"))
+    (setq entry (cl-find-if #'ejn--undo-entry-p history))
+    (setf (ejn-notebook-undo-history notebook)
+          (cl-remove entry history :count 1))
+    (ejn--notebook-apply-snapshot notebook (plist-get entry :before))
+    (push (cons 'redo entry)
+          (ejn-notebook-undo-history notebook))
+    (setf (ejn-notebook-dirty notebook) t)
+    entry))
+
+(defun ejn-redo (notebook)
+  "Redo the last undone operation on NOTEBOOK.
+Reapplies the post-operation snapshot from the undone entry."
+  (let ((history (ejn-notebook-undo-history notebook))
+        redo-entry)
+    (setq redo-entry (cl-find-if #'ejn--redo-entry-p history))
+    (unless redo-entry
+      (user-error "Nothing to redo"))
+    (setf (ejn-notebook-undo-history notebook)
+          (cl-remove-if #'ejn--redo-entry-p history))
+    (let ((entry (cdr redo-entry)))
+      (ejn--notebook-apply-snapshot notebook (plist-get entry :after))
+      (push entry (ejn-notebook-undo-history notebook))
+      (setf (ejn-notebook-dirty notebook) t))
+    redo-entry))
+
 (provide 'ejn-model)
 ;;; ejn-model.el ends here
