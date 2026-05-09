@@ -74,5 +74,64 @@ Sets the overall dirty flag on NOTEBOOK."
   (clrhash (ejn-notebook-dirty-set notebook))
   (setf (ejn-notebook-dirty notebook) nil))
 
+(cl-defun ejn-notebook-insert-cell (notebook type &key at after)
+  "Insert a new cell of TYPE into NOTEBOOK.
+Position is determined by AT (integer index) or AFTER (cell ID)."
+  (let ((new-cell (ejn-make-cell type))
+        (cells (ejn-notebook-cells notebook)))
+    (let ((insert-index
+           (cond
+            (at at)
+            (after
+             (let ((idx (ejn-notebook-cell-index notebook after)))
+               (if idx (1+ idx) 0)))
+            (t (length cells)))))
+      (setf (ejn-notebook-cells notebook)
+            (vconcat (seq-take cells insert-index)
+                     (vector new-cell)
+                     (seq-drop cells insert-index))))
+    (ejn-notebook-mark-dirty notebook (ejn-cell-id new-cell))
+    new-cell))
+
+(defun ejn-notebook-delete-cell (notebook cell-id)
+  "Delete the cell with CELL-ID from NOTEBOOK."
+  (let ((idx (ejn-notebook-cell-index notebook cell-id)))
+    (unless idx
+      (error "Cell not found: %s" cell-id))
+    (let ((cells (ejn-notebook-cells notebook)))
+      (setf (ejn-notebook-cells notebook)
+            (vconcat (seq-take cells idx)
+                     (seq-drop cells (1+ idx)))))
+    (ejn-notebook-mark-dirty notebook cell-id)))
+
+(defun ejn-notebook-set-cell-source (notebook cell-id source)
+  "Set the source text of cell CELL-ID in NOTEBOOK to SOURCE."
+  (let ((cell (ejn-notebook-cell-by-id notebook cell-id)))
+    (setf (ejn-cell-source cell) source)
+    (ejn-notebook-mark-dirty notebook cell-id)))
+
+(defun ejn-notebook-cell-by-id (notebook cell-id)
+  "Return the cell with CELL-ID from NOTEBOOK, or signal an error."
+  (let ((cell nil))
+    (cl-loop for c across (ejn-notebook-cells notebook)
+             when (string= (ejn-cell-id c) cell-id)
+             do (setq cell c))
+    (unless cell
+      (error "Cell not found: %s" cell-id))
+    cell))
+
+(defun ejn-notebook-cell-at-index (notebook index)
+  "Return the cell at INDEX in NOTEBOOK, or nil."
+  (let ((cells (ejn-notebook-cells notebook)))
+    (when (< index (length cells))
+      (aref cells index))))
+
+(defun ejn-notebook-cell-index (notebook cell-id)
+  "Return the index of cell CELL-ID in NOTEBOOK, or nil."
+  (cl-loop for i from 0
+           for c across (ejn-notebook-cells notebook)
+           when (string= (ejn-cell-id c) cell-id)
+           return i))
+
 (provide 'ejn-model)
 ;;; ejn-model.el ends here
