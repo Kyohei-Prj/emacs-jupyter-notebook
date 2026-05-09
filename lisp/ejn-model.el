@@ -32,7 +32,7 @@
   dirty
   nbformat
   nbformat-minor
-  dirty-cells
+  dirty-set
   undo-history)
 
 (defun ejn-make-notebook (&optional metadata)
@@ -46,8 +46,33 @@ Returns an `ejn-notebook' struct initialized with defaults."
    :dirty nil
    :nbformat 4
    :nbformat-minor 5
-   :dirty-cells (make-hash-table :test 'equal)
+   :dirty-set (make-hash-table :test 'equal)
    :undo-history nil))
+
+(defun ejn-notebook-mark-dirty (notebook cell-id)
+  "Mark CELL-ID as dirty in NOTEBOOK.
+Sets the overall dirty flag on NOTEBOOK."
+  (puthash cell-id t (ejn-notebook-dirty-set notebook))
+  (setf (ejn-notebook-dirty notebook) t))
+
+(defun ejn-notebook-clean-cell (notebook cell-id)
+  "Remove CELL-ID from the dirty set in NOTEBOOK."
+  (remhash cell-id (ejn-notebook-dirty-set notebook))
+  (when (zerop (hash-table-count (ejn-notebook-dirty-set notebook)))
+    (setf (ejn-notebook-dirty notebook) nil)))
+
+(defun ejn-notebook-dirty-cells (notebook)
+  "Return a list of dirty cell IDs in NOTEBOOK."
+  (let ((result))
+    (maphash (lambda (key _value)
+               (push key result))
+             (ejn-notebook-dirty-set notebook))
+    result))
+
+(defun ejn-notebook-clean-all (notebook)
+  "Clear all dirty cells and reset the dirty flag in NOTEBOOK."
+  (clrhash (ejn-notebook-dirty-set notebook))
+  (setf (ejn-notebook-dirty notebook) nil))
 
 (provide 'ejn-model)
 ;;; ejn-model.el ends here
