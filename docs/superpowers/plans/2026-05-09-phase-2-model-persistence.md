@@ -836,7 +836,7 @@ Add to `test/ejn-model-test.el` (before the `provide` line):
     (ejn-notebook-insert-cell nb 'code :at 0)
     (let ((cell (ejn-notebook-cell-at-index nb 0))
           (cell-id (ejn-cell-id (ejn-notebook-cell-at-index nb 0))))
-      (should (eq (ejn-notebook-cell-by-id nb cell-id) cell))))
+      (should (eq (ejn-notebook-cell-by-id nb cell-id) cell)))))
 
 (ert-deftest ejn-model-test/cell-index-lookup ()
   "Getting cell index by ID should return the correct index."
@@ -845,7 +845,7 @@ Add to `test/ejn-model-test.el` (before the `provide` line):
     (ejn-notebook-insert-cell nb 'markdown :at 0)
     (ejn-notebook-insert-cell nb 'code :at 1)
     (let ((code-cell (ejn-notebook-cell-at-index nb 1)))
-      (should (= (ejn-notebook-cell-index nb (ejn-cell-id code-cell)) 1))))
+      (should (= (ejn-notebook-cell-index nb (ejn-cell-id code-cell)) 1)))))
 
 (ert-deftest ejn-model-test/insert-marks-notebook-dirty ()
   "Inserting a cell should mark the notebook dirty."
@@ -1024,7 +1024,7 @@ Add to `test/ejn-model-test.el` (before the `provide` line):
         (ejn-notebook-set-cell-source nb cell-id "new source"))
       (ejn-undo nb)
       (should (string= (ejn-cell-source (ejn-notebook-cell-by-id nb cell-id))
-                       ""))))))
+                       "")))))
 
 (ert-deftest ejn-model-test/redo-reapplies-undone-change ()
   "Redo should reapply an undone change."
@@ -1037,7 +1037,7 @@ Add to `test/ejn-model-test.el` (before the `provide` line):
       (ejn-undo nb)
       (ejn-redo nb)
       (should (string= (ejn-cell-source (ejn-notebook-cell-by-id nb cell-id))
-                       "new source"))))))
+                       "new source")))))
 ```
 
 - [ ] **Step 2: Run tests to verify they fail**
@@ -1143,7 +1143,7 @@ Reapplies the post-operation snapshot from the undone entry."
       (ejn--notebook-apply-snapshot notebook (plist-get entry :after))
       (push entry (ejn-notebook-undo-history notebook))
       (setf (ejn-notebook-dirty notebook) t)))
-    redo-entry))
+    redo-entry)
 ```
 
 - [ ] **Step 4: Run tests to verify they pass**
@@ -1514,7 +1514,7 @@ Signals `ejn-unsupported-format' for unsupported nbformat versions."
      :nbformat nbformat
      :nbformat-minor (cdr (assq :nbformat_minor json-data))
      :dirty-cells (make-hash-table :test 'equal)
-     :undo-history nil)))
+     :undo-history nil))
 ```
 
 Note: `json-read-object` returns keys as keywords (e.g. `:cells`, `:id`), so `assq` with keyword arguments is the correct lookup method.
@@ -1769,7 +1769,7 @@ Add to `test/ejn-persistence-test.el` (before the `provide` line):
         (progn
           (ejn-model-to-file nb tmpfile)
           (should (file-exists-p tmpfile)))
-      (delete-file tmpfile)))))
+      (delete-file tmpfile))))
 
 (ert-deftest ejn-persistence-test/unsupported-format-signals-error ()
   "Notebooks with unsupported nbformat should signal ejn-unsupported-format."
