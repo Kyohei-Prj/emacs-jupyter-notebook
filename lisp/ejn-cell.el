@@ -43,5 +43,45 @@ TYPE must be one of `ejn-valid-output-types'."
            type ejn-valid-output-types))
   (apply #'make-ejn-output :type type args))
 
+(defconst ejn-valid-cell-types
+  '(code markdown raw)
+  "List of valid cell type keywords.")
+
+(cl-defstruct ejn-cell
+  id
+  type
+  source
+  outputs
+  metadata
+  execution-count
+  execution-state
+  execution-version)
+
+(defun ejn-generate-uuid ()
+  "Generate a simple UUID-like string for cell identification."
+  (format "%08x-%04x-%04x-%04x-%012x"
+          (random most-positive-fixnum)
+          (random #x10000)
+          (random #x10000)
+          (random #x10000)
+          (random (expt 2 48))))
+
+(defun ejn-make-cell (type &optional source)
+  "Create a cell of TYPE with optional SOURCE string.
+TYPE must be one of `ejn-valid-cell-types'.
+SOURCE defaults to an empty string."
+  (unless (memq type ejn-valid-cell-types)
+    (error "Invalid cell type: %s. Must be one of %s"
+           type ejn-valid-cell-types))
+  (make-ejn-cell
+   :id (ejn-generate-uuid)
+   :type type
+   :source (or source "")
+   :outputs nil
+   :metadata nil
+   :execution-count nil
+   :execution-state 'idle
+   :execution-version 0))
+
 (provide 'ejn-cell)
 ;;; ejn-cell.el ends here
