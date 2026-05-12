@@ -32,15 +32,15 @@
   (make-hash-table :test 'equal)
   "Hash table mapping backend type symbols to backend configurations.")
 
-(cl-defgeneric ejn-persistence-read (backend path)
+(cl-defgeneric ejn-persistence-read (_backend _path)
   "Read a notebook from PATH using BACKEND."
   nil)
 
-(cl-defgeneric ejn-persistence-write (backend notebook path)
+(cl-defgeneric ejn-persistence-write (_backend _notebook _path)
   "Write NOTEBOOK to PATH using BACKEND."
   nil)
 
-(cl-defgeneric ejn-persistence-can-handle-p (backend path)
+(cl-defgeneric ejn-persistence-can-handle-p (_backend _path)
   "Return non-nil if BACKEND can handle PATH."
   nil)
 
@@ -76,7 +76,7 @@ SOURCE can be a string or a list of strings (line segments)."
    (t "")))
 
 (defun ejn-ipynb-parse-output (json-alist)
-  "Parse a JSON output ALIST into an `ejn-output' struct."
+  "Parse a JSON output JSON-ALIST into an `ejn-output' struct."
   (let ((output-type (intern (replace-regexp-in-string "_" "-" (cdr (assq :output_type json-alist))))))
     (make-ejn-output
      :type output-type
@@ -85,7 +85,7 @@ SOURCE can be a string or a list of strings (line segments)."
      :request-id nil)))
 
 (defun ejn-ipynb-parse-cell (json-alist)
-  "Parse a JSON cell ALIST into an `ejn-cell' struct."
+  "Parse a JSON cell JSON-ALIST into an `ejn-cell' struct."
   (let ((cell-type (intern (replace-regexp-in-string "_" "-" (cdr (assq :cell_type json-alist))))))
     (make-ejn-cell
      :id (cdr (assq :id json-alist))
@@ -135,7 +135,7 @@ Signals `ejn-unsupported-format' for unsupported nbformat versions."
        :undo-history nil))))
 
 (defun ejn-ipynb-serialize-output (output)
-  "Serialize an `ejn-output' struct to a JSON-compatible plist."
+  "Serialize an OUTPUT `ejn-output' struct to a JSON-compatible plist."
   (let ((result (list :output_type (symbol-name (ejn-output-type output)))))
     (when (ejn-output-mime-data output)
       (plist-put result :data (ejn-output-mime-data output)))
@@ -144,7 +144,7 @@ Signals `ejn-unsupported-format' for unsupported nbformat versions."
     result))
 
 (defun ejn-ipynb-serialize-cell (cell)
-  "Serialize an `ejn-cell' struct to a JSON-compatible plist."
+  "Serialize an CELL `ejn-cell' struct to a JSON-compatible plist."
   (list :id (ejn-cell-id cell)
         :cell_type (symbol-name (ejn-cell-type cell))
         :source (ejn-cell-source cell)
@@ -155,7 +155,7 @@ Signals `ejn-unsupported-format' for unsupported nbformat versions."
 
 (defun ejn-ipynb-serialize-notebook (notebook &optional path)
   "Serialize NOTEBOOK to nbformat v4 JSON.
-If PATH is given, write to that file. Otherwise return the JSON string."
+If PATH is given, write to that file.  Otherwise return the JSON string."
   (let ((data (list :nbformat (ejn-notebook-nbformat notebook)
                     :nbformat_minor (ejn-notebook-nbformat-minor notebook)
                     :metadata (or (ejn-notebook-metadata notebook) nil)
@@ -171,16 +171,16 @@ If PATH is given, write to that file. Otherwise return the JSON string."
             (write-region (point-min) (point-max) path nil 'nomessage))
         json-string))))
 
-(cl-defmethod ejn-persistence-read ((backend ejn-ipynb-backend) path)
-  "Read an .ipynb notebook from PATH."
+(cl-defmethod ejn-persistence-read ((_backend ejn-ipynb-backend) path)
+  "Read an .ipynb notebook from PATH using BACKEND."
   (ejn-ipynb-parse-notebook path))
 
-(cl-defmethod ejn-persistence-write ((backend ejn-ipynb-backend) notebook path)
-  "Write NOTEBOOK to PATH as .ipynb."
+(cl-defmethod ejn-persistence-write ((_backend ejn-ipynb-backend) notebook path)
+  "Write NOTEBOOK to PATH as .ipynb using BACKEND."
   (ejn-ipynb-serialize-notebook notebook path))
 
-(cl-defmethod ejn-persistence-can-handle-p ((backend ejn-ipynb-backend) path)
-  "Return t if PATH ends with .ipynb."
+(cl-defmethod ejn-persistence-can-handle-p ((_backend ejn-ipynb-backend) path)
+  "Return t if BACKEND can handle PATH (ends with .ipynb)."
   (string-suffix-p ".ipynb" path))
 
 (defun ejn-model-from-file (path)
