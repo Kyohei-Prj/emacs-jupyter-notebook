@@ -160,7 +160,7 @@ If PATH is given, write to that file. Otherwise return the JSON string."
                     :nbformat_minor (ejn-notebook-nbformat-minor notebook)
                     :metadata (or (ejn-notebook-metadata notebook) nil)
                     :cells (vconcat (mapcar #'ejn-ipynb-serialize-cell
-                                           (ejn-notebook-cells notebook))))))
+                                            (ejn-notebook-cells notebook))))))
     (when (ejn-notebook-id notebook)
       (plist-put data :id (ejn-notebook-id notebook)))
     (let ((json-string (json-encode data)))
@@ -170,6 +170,39 @@ If PATH is given, write to that file. Otherwise return the JSON string."
             (json-pretty-print (point-min) (point-max))
             (write-region (point-min) (point-max) path nil 'nomessage))
         json-string))))
+
+(cl-defmethod ejn-persistence-read ((backend ejn-ipynb-backend) path)
+  "Read an .ipynb notebook from PATH."
+  (ejn-ipynb-parse-notebook path))
+
+(cl-defmethod ejn-persistence-write ((backend ejn-ipynb-backend) notebook path)
+  "Write NOTEBOOK to PATH as .ipynb."
+  (ejn-ipynb-serialize-notebook notebook path))
+
+(cl-defmethod ejn-persistence-can-handle-p ((backend ejn-ipynb-backend) path)
+  "Return t if PATH ends with .ipynb."
+  (string-suffix-p ".ipynb" path))
+
+(defun ejn-model-from-file (path)
+  "Load a notebook from PATH using the appropriate backend.
+Signals an error if no backend can handle PATH or loading fails."
+  (let ((backend (ejn-persistence-backend-for path)))
+    (unless backend
+      (error "No persistence backend for: %s" path))
+    (ejn-persistence-read backend path)))
+
+(defun ejn-model-to-file (notebook path)
+  "Save NOTEBOOK to PATH using the appropriate backend.
+Signals an error if no backend can handle PATH or saving fails."
+  (let ((backend (ejn-persistence-backend-for path)))
+    (unless backend
+      (error "No persistence backend for: %s" path))
+    (ejn-persistence-write backend notebook path)))
+
+;; Auto-register the .ipynb backend
+(ejn-register-persistence-backend 'ipynb #'make-ejn-ipynb-backend
+                                  :predicate (lambda (path)
+                                               (string-suffix-p ".ipynb" path)))
 
 (provide 'ejn-persistence)
 ;;; ejn-persistence.el ends here

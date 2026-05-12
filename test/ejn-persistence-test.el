@@ -161,7 +161,7 @@
                 (let ((cells (cdr (assq :cells data))))
                   (should (string= (cdr (assq :id (car cells)))
                                    "test-cell-1"))))))
-      (delete-file tmpfile)))))
+	  (delete-file tmpfile)))))
 
 (ert-deftest ejn-persistence-test/serialize-outputs-source-as-string ()
   "Serialization should output source as a string."
@@ -183,7 +183,81 @@
               (let ((data (json-read-object)))
                 (let ((cell (car (cdr (assq :cells data)))))
                   (should (stringp (cdr (assq :source cell))))))))
-      (delete-file tmpfile)))))
+	  (delete-file tmpfile)))))
+
+(ert-deftest ejn-persistence-test/roundtrip-sample-notebook ()
+  "Loading and saving a notebook should preserve all data."
+  (require 'ejn-persistence)
+  (require 'ejn-test-util)
+  (let ((original (ejn-ipynb-parse-notebook
+                   (f-join ejn-test-fixtures-directory "sample.ipynb")))
+        (tmpfile (make-temp-file "ejn-test" nil ".ipynb")))
+    (unwind-protect
+        (progn
+          (ejn-ipynb-serialize-notebook original tmpfile)
+          (let ((reloaded (ejn-ipynb-parse-notebook tmpfile)))
+            (should (= (length (ejn-notebook-cells original))
+                       (length (ejn-notebook-cells reloaded))))
+            (dotimes (i (length (ejn-notebook-cells original)))
+              (let ((orig-cell (ejn-notebook-cell-at-index original i))
+                    (reload-cell (ejn-notebook-cell-at-index reloaded i)))
+                (should (string= (ejn-cell-id orig-cell)
+                                 (ejn-cell-id reload-cell)))
+                (should (eq (ejn-cell-type orig-cell)
+                            (ejn-cell-type reload-cell)))
+                (should (string= (ejn-cell-source orig-cell)
+                                 (ejn-cell-source reload-cell))))))
+	  (delete-file tmpfile)))))
+
+(ert-deftest ejn-persistence-test/roundtrip-with-modification ()
+  "Saving a modified notebook and reloading should preserve changes."
+  (require 'ejn-persistence)
+  (require 'ejn-test-util)
+  (let ((nb (ejn-ipynb-parse-notebook
+             (f-join ejn-test-fixtures-directory "sample.ipynb")))
+        (tmpfile (make-temp-file "ejn-test" nil ".ipynb")))
+    (unwind-protect
+        (progn
+          (ejn-notebook-insert-cell nb 'markdown :at 0)
+          (ejn-ipynb-serialize-notebook nb tmpfile)
+          (let ((reloaded (ejn-ipynb-parse-notebook tmpfile)))
+            (should (= (length (ejn-notebook-cells reloaded)) 4))
+            (should (eq (ejn-cell-type (ejn-notebook-cell-at-index reloaded 0))
+                        'markdown)))
+	  (delete-file tmpfile)))))
+
+(ert-deftest ejn-persistence-test/model-from-file-dispatches ()
+  "`ejn-model-from-file' should dispatch to the correct backend."
+  (require 'ejn-persistence)
+  (require 'ejn-test-util)
+  (let ((nb (ejn-model-from-file
+             (f-join ejn-test-fixtures-directory "sample.ipynb"))))
+    (should (ejn-notebook-p nb))
+    (should (> (length (ejn-notebook-cells nb)) 0))))
+
+(ert-deftest ejn-persistence-test/model-to-file-dispatches ()
+  "`ejn-model-to-file' should dispatch to the correct backend."
+  (require 'ejn-persistence)
+  (let ((nb (ejn-make-notebook))
+        (tmpfile (make-temp-file "ejn-test" nil ".ipynb")))
+    (ejn-notebook-insert-cell nb 'code :at 0)
+    (unwind-protect
+        (progn
+          (ejn-model-to-file nb tmpfile)
+          (should (file-exists-p tmpfile)))
+      (delete-file tmpfile))))
+
+(ert-deftest ejn-persistence-test/unsupported-format-signals-error ()
+  "Notebooks with unsupported nbformat should signal ejn-unsupported-format."
+  (require 'ejn-persistence)
+  (with-temp-buffer
+    (insert (json-encode '(:nbformat 5 :nbformat_minor 0 :cells [] :metadata nil)))
+    (let ((tmpfile (make-temp-file "ejn-test" nil ".ipynb")))
+      (write-region (point-min) (point-max) tmpfile nil 'nomessage)
+      (unwind-protect
+          (should-error (ejn-ipynb-parse-notebook tmpfile)
+                        :type 'ejn-unsupported-format)
+        (delete-file tmpfile)))))
 
 (provide 'ejn-persistence-test)
 ;;; ejn-persistence-test.el ends here
