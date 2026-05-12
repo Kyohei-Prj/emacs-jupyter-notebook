@@ -31,6 +31,8 @@
 
 (require 'ejn-core)
 (require 'ejn-log)
+(require 'ejn-model)
+(require 'ejn-persistence)
 
 (provide 'ejn)
 ;;; ejn.el ends here
