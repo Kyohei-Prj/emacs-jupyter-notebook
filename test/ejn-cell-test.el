@@ -456,7 +456,7 @@
 (ert-deftest ejn-cell-test-p3-t1--goto-next-master-uses-re-search-forward ()
   "goto-next in master-view uses search-forward for chunk header."
   (with-temp-buffer
-    (insert "# %%<ejn-cell:0:>\ncell 0\n\n# %%<ejn-cell:1:>\ncell 1\n\n# %%<ejn-cell:2:>\ncell 2\n")
+    (insert "# %%<ejn-cell:0:code>\ncell 0\n\n# %%<ejn-cell:1:code>\ncell 1\n\n# %%<ejn-cell:2:code>\ncell 2\n")
     (goto-char (point-min))
     (kill-local-variable 'ejn--cell)
     ;; Set up mock notebook so ejn-notebook-of-buffer returns it
@@ -486,7 +486,7 @@
 (ert-deftest ejn-cell-test-p3-t1--goto-next-master-error-no-more-cells ()
   "goto-next in master-view signals user-error when no more cells below."
   (with-temp-buffer
-    (insert "# %%<ejn-cell:0:>\ncell 0\n")
+    (insert "# %%<ejn-cell:0:code>\ncell 0\n")
     (goto-char (point-max))
     (kill-local-variable 'ejn--cell)
     (should-error
@@ -499,7 +499,7 @@
 (ert-deftest ejn-cell-test-p3-t1--goto-prev-master-uses-re-search-backward ()
   "goto-prev in master-view uses search-forward for chunk header."
   (with-temp-buffer
-    (insert "# %%<ejn-cell:0:>\ncell 0\n\n# %%<ejn-cell:1:>\ncell 1\n\n# %%<ejn-cell:2:>\ncell 2\n")
+    (insert "# %%<ejn-cell:0:code>\ncell 0\n\n# %%<ejn-cell:1:code>\ncell 1\n\n# %%<ejn-cell:2:code>\ncell 2\n")
     (goto-char (point-max))
     (kill-local-variable 'ejn--cell)
     (let* ((mock-cell-0 (make-instance 'ejn-cell :type 'code :source "cell 0"))
@@ -528,7 +528,7 @@
 (ert-deftest ejn-cell-test-p3-t1--goto-prev-master-error-no-more-cells ()
   "goto-prev in master-view signals user-error when no more cells above."
   (with-temp-buffer
-    (insert "# %%<ejn-cell:0:>\ncell 0\n")
+    (insert "# %%<ejn-cell:0:code>\ncell 0\n")
     (goto-char (point-min))
     (kill-local-variable 'ejn--cell)
     (should-error

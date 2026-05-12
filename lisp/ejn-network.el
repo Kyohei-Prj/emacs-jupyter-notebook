@@ -198,9 +198,15 @@ no kernel is started for NOTEBOOK."
 (defun ejn--cell-notebook (cell)
   "Return the notebook object for CELL.
 
-Reads the buffer-local `ejn--notebook' variable from the cell's buffer."  (let ((buf (slot-value cell 'buffer)))
-									    (when (buffer-live-p buf)
-									      (buffer-local-value 'ejn--notebook buf))))
+First tries to read the buffer-local `ejn--notebook' variable from
+the cell's buffer.  If that fails (e.g., the cell has no buffer or
+the buffer doesn't have the variable set), falls back to searching
+`ejn--live-notebooks' for a notebook whose `:cells' list contains CELL."  (let ((buf (slot-value cell 'buffer)))
+    (or (and (buffer-live-p buf)
+             (buffer-local-value 'ejn--notebook buf))
+        (cl-find-if (lambda (nb)
+                      (memq cell (slot-value nb 'cells)))
+                    ejn--live-notebooks))))
 
 (defun ejn--iopub-handler (client msg)
   "Dispatch IOPUB message MSG received on CLIENT.
@@ -283,10 +289,11 @@ Returns the monadic result from `jupyter-with-client'."
           (user-error "No kernel started for this notebook"))
       (jupyter-with-client client
         (jupyter-mlet* ((req (jupyter-sent (jupyter-execute-request :code code))))
-          (with-current-buffer buf
-            (make-local-variable 'ejn--pending-request-id)
-            (setq ejn--pending-request-id
-                  (jupyter-request-id req))))))))
+          (when (buffer-live-p buf)
+            (with-current-buffer buf
+              (make-local-variable 'ejn--pending-request-id)
+              (setq ejn--pending-request-id
+                    (jupyter-request-id req)))))))))
 
 (defun ejn--output-overlay (cell)
   "Return (or create) the output overlay for CELL.

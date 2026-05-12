@@ -431,21 +431,35 @@ cell (the line after its chunk head delimiter)."
             (let ((next-cell (nth next-index cells)))
               (switch-to-buffer (ejn-cell-open-buffer next-cell notebook)))
           (user-error "No more cells below")))
-    ;; Master view path: find next cell body after point
+    ;; Master view path: find next cell head delimiter after point
     (let* ((notebook (ejn-notebook-of-buffer))
            (cells (and notebook (slot-value notebook 'cells)))
            (num-cells (length cells))
            (prefix "# %%<ejn-cell:")
            (orig-point (point)))
       (unless notebook (user-error "No notebook associated with this buffer"))
-      (catch 'found
+      (let ((best-pos nil))
         (cl-loop for idx from 0 below num-cells
-                 for delim = (format "%s%d:" prefix idx)
-                 do (when (search-forward delim nil t)
-                      (forward-line 1)
-                      (when (> (point) orig-point)
-                        (throw 'found t))))
-        (user-error "No more cells below")))))
+                 do (let ((head-code (format "%s%d:code>" prefix idx))
+                          (head-md (format "%s%d:markdown>" prefix idx))
+                          (pos nil))
+                      (save-excursion
+                        (goto-char orig-point)
+                        (when (search-forward head-code nil t)
+                          (setq pos (match-beginning 0))))
+                      (unless pos
+                        (save-excursion
+                          (goto-char orig-point)
+                          (when (search-forward head-md nil t)
+                            (setq pos (match-beginning 0)))))
+                      (when pos
+                        (if (or (null best-pos) (< pos best-pos))
+                            (setq best-pos pos)))))
+        (if best-pos
+            (progn
+              (goto-char best-pos)
+              (forward-line 1))
+          (user-error "No more cells below"))))))
 
 (defun ejn:worksheet-goto-prev-input ()
   "Navigate to the previous cell.

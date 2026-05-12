@@ -239,8 +239,11 @@ warning message about limited position translation, and set
 CELL is an `ejn-cell' instance. NOTEBOOK is an `ejn-notebook' instance.
 Returns nil."
   (let ((composite-path (ejn-lsp-generate-composite notebook)))
-    (lsp composite-path)
-    (message "Warning: LSP attached via composite file (limited position translation)"))
+    (if (fboundp 'lsp)
+        (progn
+          (lsp composite-path)
+          (message "Warning: LSP attached via composite file (limited position translation)"))
+      (message "Warning: LSP not available (lsp function not found)")))
   (when (slot-value cell 'buffer)
     (with-current-buffer (slot-value cell 'buffer)
       (set (make-local-variable 'ejn--cell-lsp-attached-p) t))))
