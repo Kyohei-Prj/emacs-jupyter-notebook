@@ -54,5 +54,29 @@ The buffer is killed after BODY completes."
              ,@body))
        (kill-buffer buf))))
 
+(defmacro ejn-test-with-notebook-buffer (notebook &rest body)
+  "Execute BODY in a temporary buffer with NOTEBOOK rendered in ejn-mode.
+The buffer is killed after BODY completes."
+  (declare (indent 1))
+  `(let ((buf (generate-new-buffer " *ejn-test*")))
+     (unwind-protect
+         (with-current-buffer buf
+           (ejn-mode)
+           (set (make-local-variable 'ejn--notebook) ,notebook)
+           (ejn-render-notebook ,notebook)
+           ,@body)
+       (kill-buffer buf))))
+
+(defmacro ejn-test-wait-for-sync ()
+  "Force an immediate sync for testing.
+Cancels any pending timer and runs sync now."
+  (declare (indent 0))
+  `(progn
+     (when (and (boundp 'ejn--sync-timer) ejn--sync-timer)
+       (cancel-timer ejn--sync-timer)
+       (setq ejn--sync-timer nil))
+     (when (fboundp 'ejn--perform-sync)
+       (funcall (symbol-function 'ejn--perform-sync)))))
+
 (provide 'ejn-test-util)
 ;;; ejn-test-util.el ends here
