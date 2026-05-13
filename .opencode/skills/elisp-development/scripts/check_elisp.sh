@@ -2,6 +2,8 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+
 FILE="${1:-}"
 
 if [[ -z "$FILE" ]]; then
@@ -47,7 +49,7 @@ echo "[2/7] structural traversal"
 
 if emacs -Q --batch \
     "$FILE" \
-    -l "$(dirname "$0")/structural_scan.el"
+    -l "$SCRIPT_DIR/structural_scan.el"
 then
     echo "PASS :: structural traversal"
 else
@@ -105,7 +107,7 @@ echo "[5/7] normalization"
 
 if emacs -Q --batch \
     "$FILE" \
-    -l "$(dirname "$0")/normalize_elisp.el"
+    -l "$SCRIPT_DIR/normalize_elisp.el"
 then
     echo "PASS :: normalization"
 else
