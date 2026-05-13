@@ -830,7 +830,7 @@ Add to `test/ejn-render-test.el`:
       (search-forward "42\n" nil t)
       (forward-char 1)
       (should (get-text-property (point) 'ejn-output-zone))
-      (should (get-text-property (point) 'read-only)))))
+      (should (get-text-property (point) 'read-only))))
 
 (ert-deftest ejn-render-test/render-outputs-displays-text ()
   "Rendering outputs should display text/plain content."
@@ -848,7 +848,7 @@ Add to `test/ejn-render-test.el`:
     (ejn-test-with-temp-buffer " *test*"
       (ejn-render-cell cell)
       (ejn-render-outputs cell)
-      (should (search-forward "2" nil t)))))
+      (should (search-forward "2" nil t))))
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -892,7 +892,7 @@ Inserts output content in a read-only zone after the cell's source."
           (search-forward "\n" nil t)
           (let ((output-start (point))
                 (output-end (progn (dolist (_ outputs) nil) (point))))
-            )))))
+            )))))))
 ```
 
 Wait — that implementation is getting complex. Let me simplify it:
@@ -935,7 +935,7 @@ Inserts output content in a read-only zone after the cell's source."
                                  (insert rendered "\n")))))))))))
           (put-text-property zone-start (point) 'ejn-output-zone t)
           (put-text-property zone-start (point) 'read-only t)
-          (put-text-property zone-start (point) 'rear-nonsticky t)))))
+          (put-text-property zone-start (point) 'rear-nonsticky t))))))))
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
@@ -1057,7 +1057,7 @@ Add to `test/ejn-render-test.el`:
         (ejn-render-dirty-cells nb)
         (should (search-forward "modified" nil t))
         (should (search-forward "second" nil t))
-        (should-not (ejn-notebook-dirty nb)))))
+        (should-not (ejn-notebook-dirty nb))))))
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -1108,7 +1108,7 @@ Reads the notebook's dirty set, re-renders affected regions, and clears the dirt
               (ejn-render-cell cell)
               (ejn-render-outputs cell))))
       (ejn-notebook-clean-all notebook)
-      (setq ejn--rendering-p nil))))
+      (setq ejn--rendering-p nil)))))
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
@@ -1160,7 +1160,7 @@ Add to `test/ejn-render-test.el`:
       (ejn-render-outputs cell)
       (ejn-toggle-output)
       (search-forward "\n42" nil t)
-      (should (get-text-property (point) 'invisible)))))
+      (should (get-text-property (point) 'invisible))))
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -1384,7 +1384,7 @@ Excludes the output zone."
                 (setq end (point))
                 (cl-return (cons start end))))
             (forward-char))))
-        (cons start end)))))
+        (cons start end))))
 
 (defun ejn-cell-full-region ()
   "Return (START . END) of the current cell including output zone."
@@ -1518,7 +1518,7 @@ Add to `lisp/ejn-navigation.el` before `(provide 'ejn-navigation)`:
         (forward-char))))
     (if next-id
         (ejn--goto-cell-by-id next-id)
-      (user-error "Already at last cell"))))
+      (user-error "Already at last cell")))
 
 (defun ejn-goto-prev-cell ()
   "Move point to the start of the previous cell's source region."
@@ -1644,7 +1644,7 @@ Create `test/ejn-sync-test.el`:
         (insert "changed output")
         (ejn-test-wait-for-sync)
         (should (string= (ejn-cell-source (ejn-notebook-cell-at-index nb 0))
-                         original-source)))))
+                         original-source))))))
 
 (ert-deftest ejn-sync-test/render-guard-prevents-sync ()
   "Sync should not process changes during rendering."
@@ -1795,7 +1795,7 @@ Schedules a debounced sync if the change is in a cell source region."
                          (ejn-notebook-set-cell-source notebook cell-id new-source)))))
                ejn--pending-sync-set)
       (run-hooks 'ejn-after-sync-hook)))
-  (setq ejn--pending-sync-set (make-hash-table :test 'equal)))
+  (setq ejn--pending-sync-set (make-hash-table :test 'equal))))
 
 (defun ejn--find-cell-region (cell-id)
   "Find the source region for CELL-ID.  Returns (START . END) or nil."
@@ -2041,7 +2041,7 @@ Create `lisp/ejn-cell-engine.el`:
         (ejn-with-undo-boundary "Insert cell above"
           (ejn-notebook-insert-cell notebook 'code :at idx)
           (ejn-render-notebook notebook)
-          (ejn--goto-cell-by-id (ejn-cell-id (ejn-notebook-cell-at-index notebook idx)))))))
+          (ejn--goto-cell-by-id (ejn-cell-id (ejn-notebook-cell-at-index notebook idx))))))))
 
 (defun ejn-insert-cell-below ()
   "Insert a new code cell below the current cell."
@@ -2055,7 +2055,7 @@ Create `lisp/ejn-cell-engine.el`:
         (ejn-with-undo-boundary "Insert cell below"
           (let ((new-cell (ejn-notebook-insert-cell notebook 'code :at (1+ idx))))
             (ejn-render-notebook notebook)
-            (ejn--goto-cell-by-id (ejn-cell-id new-cell)))))))
+            (ejn--goto-cell-by-id (ejn-cell-id new-cell))))))))
 
 (provide 'ejn-cell-engine)
 ;;; ejn-cell-engine.el ends here
@@ -2160,7 +2160,7 @@ Add to `test/ejn-cell-engine-test.el`:
       (search-forward "\n")
       (ejn-split-cell)
       (should (= (length (ejn-notebook-cells nb)) 2))
-      (should (string= (ejn-cell-source (ejn-notebook-cell-at-index nb 0)) "line1\n"))))
+      (should (string= (ejn-cell-source (ejn-notebook-cell-at-index nb 0)) "line1\n")))))
 
 (ert-deftest ejn-cell-engine-test/merge-cell ()
   "Merging cells should concatenate current and next cell source."
@@ -2176,7 +2176,7 @@ Add to `test/ejn-cell-engine-test.el`:
       (ejn-merge-cell)
       (should (= (length (ejn-notebook-cells nb)) 1))
       (let ((source (ejn-cell-source (ejn-notebook-cell-at-index nb 0))))
-        (should (string= source "first\nsecond\n")))))
+        (should (string= source "first\nsecond\n"))))))
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -2275,7 +2275,7 @@ Add to `test/ejn-cell-engine-test.el`:
       (ejn-render-notebook nb)
       (search-forward "B")
       (ejn-move-cell-up)
-      (should (string= (ejn-cell-source (ejn-notebook-cell-at-index nb 0)) "B\n"))))
+      (should (string= (ejn-cell-source (ejn-notebook-cell-at-index nb 0)) "B\n")))))
 
 (ert-deftest ejn-cell-engine-test/move-cell-down ()
   "Moving a cell down should swap it with the next cell."
@@ -2323,7 +2323,7 @@ Add to `lisp/ejn-cell-engine.el` before `(provide 'ejn-cell-engine)`:
                            (vector curr-cell prev-cell)
                            (seq-drop cells (+ idx 2))))
             (ejn-render-notebook notebook)
-            (ejn--goto-cell-by-id (ejn-cell-id curr-cell)))))))
+            (ejn--goto-cell-by-id (ejn-cell-id curr-cell))))))))
 
 (defun ejn-move-cell-down ()
   "Move the current cell down by swapping with the next cell."
@@ -2346,7 +2346,7 @@ Add to `lisp/ejn-cell-engine.el` before `(provide 'ejn-cell-engine)`:
                            (vector next-cell curr-cell)
                            (seq-drop cells (+ idx 3))))
             (ejn-render-notebook notebook)
-            (ejn--goto-cell-by-id (ejn-cell-id curr-cell)))))))
+            (ejn--goto-cell-by-id (ejn-cell-id curr-cell))))))))
 ```
 
 - [ ] **Step 4: Run test, validate, commit**
@@ -2552,7 +2552,7 @@ Add to `lisp/ejn-cell-engine.el` before `(provide 'ejn-cell-engine)`:
                                                      :at (1+ idx))))
             (setf (ejn-cell-source new-cell) (plist-get entry :source))
             (ejn-render-notebook notebook)
-            (ejn--goto-cell-by-id (ejn-cell-id new-cell)))))))
+            (ejn--goto-cell-by-id (ejn-cell-id new-cell))))))))
 ```
 
 - [ ] **Step 4: Run test, validate, commit**
