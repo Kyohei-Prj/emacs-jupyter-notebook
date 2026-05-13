@@ -40,6 +40,7 @@ emacs-jupyter-notebook/
 - **ALWAYS** activate the `elisp-development` skill before generating, editing, or reviewing any `.el` file.
 - After writing or modifying Elisp code, validate it by running `.opencode/skills/elisp-development/scripts/check_elisp.sh <file.el>`. If validation fails, read the output, identify the smallest failing region, repair only that region, and re-run validation until it passes.
 - When errors occur, suspect unbalanced parentheses first. Use the skill's structural scan and byte compiler output to locate the issue. It will direct you to the exact line number of where the error occurred.
+- Error message such as `Invalid read syntax: ")", 110, 45` indicates that there is a parentheses error in **line 110**, **position 45**.
 
 #### Coding Style and Incremental Work
 - Use `elisp-dev` as the language identifier for Emacs Lisp documents.
