@@ -83,5 +83,55 @@
 						   (ejn-render-notebook notebook)
 						   (goto-char (point-min)))))))
 
+(defun ejn-split-cell ()
+  "Split the current cell at point into two cells."
+  (interactive)
+  (let ((notebook (buffer-local-value 'ejn--notebook (current-buffer)))
+        (current-cell (ejn-cell-at-point)))
+    (unless notebook
+      (user-error "Not in an EJN buffer"))
+    (let* ((cell-id (ejn-cell-id current-cell))
+           (source (ejn-cell-source current-cell))
+           (region (ejn-cell-region))
+           (split-pos (- (point) (car region))))
+      (when (>= split-pos (length source))
+        (setq split-pos (1- (length source))))
+      (when (<= split-pos 0)
+        (setq split-pos 1))
+      (let ((part1 (substring source 0 split-pos))
+            (part2 (substring source split-pos)))
+        (ejn-with-undo-group "Split cell" notebook
+          (ejn-with-undo-boundary "Split cell"
+            (ejn-notebook-set-cell-source notebook cell-id part1)
+            (let* ((idx (ejn-notebook-cell-index notebook cell-id))
+                   (new-cell (ejn-notebook-insert-cell notebook (ejn-cell-type current-cell) :at (1+ idx))))
+              (setf (ejn-cell-source new-cell) part2)
+              (ejn-render-notebook notebook)
+              (ejn--goto-cell-start-by-id (ejn-cell-id new-cell)))))))))
+
+(defun ejn-merge-cell ()
+  "Merge the current cell with the next cell."
+  (interactive)
+  (let ((notebook (buffer-local-value 'ejn--notebook (current-buffer)))
+        (current-cell (ejn-cell-at-point)))
+    (unless notebook
+      (user-error "Not in an EJN buffer"))
+    (let* ((current-id (ejn-cell-id current-cell))
+           (idx (ejn-notebook-cell-index notebook current-id))
+           (next-cell (ejn-notebook-cell-at-index notebook (1+ idx))))
+      (unless next-cell
+        (user-error "No next cell to merge"))
+      (let ((merged-source (concat (ejn-cell-source current-cell)
+                                    "\n"
+                                    (ejn-cell-source next-cell)
+                                    "\n"))
+            (next-id (ejn-cell-id next-cell)))
+        (ejn-with-undo-group "Merge cell" notebook
+          (ejn-with-undo-boundary "Merge cell"
+            (ejn-notebook-set-cell-source notebook current-id merged-source)
+            (ejn-notebook-delete-cell notebook next-id)
+            (ejn-render-notebook notebook)
+            (ejn--goto-cell-start-by-id current-id)))))))
+
 (provide 'ejn-cell-engine)
 ;;; ejn-cell-engine.el ends here

@@ -89,5 +89,34 @@
   (ejn-test-with-temp-buffer " *test*"
 			     (should-error (ejn-delete-cell))))
 
+(ert-deftest ejn-cell-engine-test/split-cell ()
+  "Splitting a cell should divide the source at point into two cells."
+  (let ((nb (ejn-make-notebook)))
+    (ejn-notebook-insert-cell nb 'code :at 0)
+    (ejn-notebook-set-cell-source nb (ejn-cell-id (ejn-notebook-cell-at-index nb 0)) "line1\nline2")
+    (ejn-test-with-temp-buffer " *test*"
+      (set (make-local-variable 'ejn--notebook) nb)
+      (ejn-render-notebook nb)
+      (search-forward "\n")
+      (ejn-split-cell)
+      (should (= (length (ejn-notebook-cells nb)) 2))
+      (should (string= (ejn-cell-source (ejn-notebook-cell-at-index nb 0)) "line1\n")))))
+
+(ert-deftest ejn-cell-engine-test/merge-cell ()
+  "Merging cells should concatenate current and next cell source."
+  (let ((nb (ejn-make-notebook)))
+    (ejn-notebook-insert-cell nb 'code :at 0)
+    (ejn-notebook-set-cell-source nb (ejn-cell-id (ejn-notebook-cell-at-index nb 0)) "first")
+    (ejn-notebook-insert-cell nb 'code :at 1)
+    (ejn-notebook-set-cell-source nb (ejn-cell-id (ejn-notebook-cell-at-index nb 1)) "second")
+    (ejn-test-with-temp-buffer " *test*"
+      (set (make-local-variable 'ejn--notebook) nb)
+      (ejn-render-notebook nb)
+      (goto-char (point-min))
+      (ejn-merge-cell)
+      (should (= (length (ejn-notebook-cells nb)) 1))
+      (let ((source (ejn-cell-source (ejn-notebook-cell-at-index nb 0))))
+        (should (string= source "first\nsecond\n"))))))
+
 (provide 'ejn-cell-engine-test)
 ;;; ejn-cell-engine-test.el ends here
