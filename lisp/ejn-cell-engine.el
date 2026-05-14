@@ -147,13 +147,13 @@
       (let ((prev-cell (aref cells (1- idx)))
             (curr-cell (aref cells idx)))
         (ejn-with-undo-group "Move cell up" notebook
-          (ejn-with-undo-boundary "Move cell up"
-            (setf (ejn-notebook-cells notebook)
-                  (vconcat (seq-take cells (1- idx))
-                           (vector curr-cell prev-cell)
-                           (seq-drop cells (+ idx 2))))
-            (ejn-render-notebook notebook)
-            (ejn--goto-cell-start-by-id (ejn-cell-id curr-cell))))))))
+			     (ejn-with-undo-boundary "Move cell up"
+						     (setf (ejn-notebook-cells notebook)
+							   (vconcat (seq-take cells (1- idx))
+								    (vector curr-cell prev-cell)
+								    (seq-drop cells (+ idx 2))))
+						     (ejn-render-notebook notebook)
+						     (ejn--goto-cell-start-by-id (ejn-cell-id curr-cell))))))))
 
 (defun ejn-move-cell-down ()
   "Move the current cell down by swapping with the next cell."
@@ -170,13 +170,13 @@
       (let ((curr-cell (aref cells idx))
             (next-cell (aref cells (1+ idx))))
         (ejn-with-undo-group "Move cell down" notebook
-          (ejn-with-undo-boundary "Move cell down"
-            (setf (ejn-notebook-cells notebook)
-                  (vconcat (seq-take cells idx)
-                           (vector next-cell curr-cell)
-                           (seq-drop cells (+ idx 3))))
-            (ejn-render-notebook notebook)
-            (ejn--goto-cell-start-by-id (ejn-cell-id curr-cell))))))))
+			     (ejn-with-undo-boundary "Move cell down"
+						     (setf (ejn-notebook-cells notebook)
+							   (vconcat (seq-take cells idx)
+								    (vector next-cell curr-cell)
+								    (seq-drop cells (+ idx 3))))
+						     (ejn-render-notebook notebook)
+						     (ejn--goto-cell-start-by-id (ejn-cell-id curr-cell))))))))
 
 (defun ejn-toggle-cell-type ()
   "Cycle the current cell's type: code -> markdown -> raw -> code."
@@ -191,10 +191,10 @@
                       ('raw 'code)
                       (_ 'code))))
       (ejn-with-undo-group "Toggle cell type" notebook
-        (setf (ejn-cell-type current-cell) new-type)
-        (ejn-notebook-mark-dirty notebook (ejn-cell-id current-cell))
-        (ejn-with-undo-boundary "Toggle cell type"
-          (ejn-render-dirty-cells notebook))))))
+			   (setf (ejn-cell-type current-cell) new-type)
+			   (ejn-notebook-mark-dirty notebook (ejn-cell-id current-cell))
+			   (ejn-with-undo-boundary "Toggle cell type"
+						   (ejn-render-dirty-cells notebook))))))
 
 (defun ejn-change-cell-type ()
   "Prompt for a cell type and set the current cell's type."
@@ -204,14 +204,14 @@
     (unless notebook
       (user-error "Not in an EJN buffer"))
     (let ((type-str (completing-read "Cell type: "
-                                      '("code" "markdown" "raw")
-                                      nil t)))
+                                     '("code" "markdown" "raw")
+                                     nil t)))
       (let ((new-type (intern type-str)))
         (ejn-with-undo-group "Change cell type" notebook
-          (setf (ejn-cell-type current-cell) new-type)
-          (ejn-notebook-mark-dirty notebook (ejn-cell-id current-cell))
-          (ejn-with-undo-boundary "Change cell type"
-            (ejn-render-dirty-cells notebook)))))))
+			     (setf (ejn-cell-type current-cell) new-type)
+			     (ejn-notebook-mark-dirty notebook (ejn-cell-id current-cell))
+			     (ejn-with-undo-boundary "Change cell type"
+						     (ejn-render-dirty-cells notebook)))))))
 
 (defun ejn-clear-output ()
   "Clear the output of the current cell."
@@ -221,10 +221,10 @@
     (unless notebook
       (user-error "Not in an EJN buffer"))
     (ejn-with-undo-group "Clear output" notebook
-      (setf (ejn-cell-outputs current-cell) nil)
-      (ejn-notebook-mark-dirty notebook (ejn-cell-id current-cell))
-      (ejn-with-undo-boundary "Clear output"
-        (ejn-render-dirty-cells notebook)))))
+			 (setf (ejn-cell-outputs current-cell) nil)
+			 (ejn-notebook-mark-dirty notebook (ejn-cell-id current-cell))
+			 (ejn-with-undo-boundary "Clear output"
+						 (ejn-render-dirty-cells notebook)))))
 
 (defun ejn-clear-all-outputs ()
   "Clear outputs of all cells."
@@ -233,11 +233,11 @@
     (unless notebook
       (user-error "Not in an EJN buffer"))
     (ejn-with-undo-group "Clear all outputs" notebook
-      (cl-loop for cell across (ejn-notebook-cells notebook) do
-               (setf (ejn-cell-outputs cell) nil)
-               (ejn-notebook-mark-dirty notebook (ejn-cell-id cell)))
-      (ejn-with-undo-boundary "Clear all outputs"
-        (ejn-render-notebook notebook)))))
+			 (cl-loop for cell across (ejn-notebook-cells notebook) do
+				  (setf (ejn-cell-outputs cell) nil)
+				  (ejn-notebook-mark-dirty notebook (ejn-cell-id cell)))
+			 (ejn-with-undo-boundary "Clear all outputs"
+						 (ejn-render-notebook notebook)))))
 
 (defun ejn-copy-cell ()
   "Copy the current cell to the cell kill ring."
@@ -263,13 +263,37 @@
     (let* ((entry (car ejn--cell-kill-ring))
            (idx (ejn-notebook-cell-index notebook (ejn-cell-id current-cell))))
       (ejn-with-undo-group "Yank cell" notebook
-        (ejn-with-undo-boundary "Yank cell"
-          (let ((new-cell (ejn-notebook-insert-cell notebook
-                                                     (plist-get entry :type)
-                                                     :at (1+ idx))))
-            (setf (ejn-cell-source new-cell) (plist-get entry :source))
-            (ejn-render-notebook notebook)
-            (ejn--goto-cell-start-by-id (ejn-cell-id new-cell))))))))
+			   (ejn-with-undo-boundary "Yank cell"
+						   (let ((new-cell (ejn-notebook-insert-cell notebook
+											     (plist-get entry :type)
+											     :at (1+ idx))))
+						     (setf (ejn-cell-source new-cell) (plist-get entry :source))
+						     (ejn-render-notebook notebook)
+						     (ejn--goto-cell-start-by-id (ejn-cell-id new-cell))))))))
+
+(defun ejn-execute-cell ()
+  "Execute the current cell.
+Not yet implemented — kernel integration is Phase 4."
+  (interactive)
+  (user-error "Kernel not connected. Execute is available in Phase 4."))
+
+(defun ejn-execute-all-cells ()
+  "Execute all cells.
+Not yet implemented — kernel integration is Phase 4."
+  (interactive)
+  (user-error "Kernel not connected. Execute is available in Phase 4."))
+
+(defun ejn-execute-cell-and-goto-next ()
+  "Execute the current cell and move to the next.
+Not yet implemented — kernel integration is Phase 4."
+  (interactive)
+  (user-error "Kernel not connected. Execute is available in Phase 4."))
+
+(defun ejn-execute-cell-and-insert-below ()
+  "Execute the current cell and insert a new cell below.
+Not yet implemented — kernel integration is Phase 4."
+  (interactive)
+  (user-error "Kernel not connected. Execute is available in Phase 4."))
 
 (provide 'ejn-cell-engine)
 ;;; ejn-cell-engine.el ends here
