@@ -29,15 +29,15 @@ echo "========================================"
 echo
 echo "[1/7] check-parens"
 
-if emacs -Q --batch \
-    --eval "(progn
-        (find-file \"$FILE\")
-        (check-parens))"
-then
-    echo "PASS :: parentheses balanced"
-else
-    echo "FAIL :: unbalanced parentheses"
+PARENS_OUTPUT=$(emacs -Q --batch \
+    --eval "(setq ejn-check-parens-file \"$FILE\")" \
+    -l "$SCRIPT_DIR/check_parens.el" 2>&1) || true
+
+if [[ -n "$PARENS_OUTPUT" ]]; then
+    echo "FAIL :: $PARENS_OUTPUT"
     FAIL=1
+else
+    echo "PASS :: parentheses balanced"
 fi
 
 ########################################
