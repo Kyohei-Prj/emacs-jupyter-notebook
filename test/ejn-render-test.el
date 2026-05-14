@@ -2,6 +2,7 @@
 
 (require 'ert)
 (require 'ejn-render)
+(require 'ejn-test-util)
 
 ;;; Code:
 

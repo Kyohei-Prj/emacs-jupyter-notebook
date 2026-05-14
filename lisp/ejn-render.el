@@ -184,7 +184,7 @@ Returns (START . END) or nil."
 
 (defun ejn-render-dirty-cells (notebook &optional buffer)
   "Re-render only dirty cells in NOTEBOOK within BUFFER.
-Reads the notebook's dirty set, re-renders affected regions, and clears the dirty set."
+Reads dirty set, re-renders affected regions, clears dirty set."
   (with-current-buffer (or buffer (current-buffer))
     (let ((ejn--rendering-p t)
           (dirty-ids (ejn-notebook-dirty-cells notebook)))
