@@ -33,6 +33,7 @@
 (require 'ejn-log)
 (require 'ejn-model)
 (require 'ejn-persistence)
+(require 'ejn-mode)
 
 (provide 'ejn)
 ;;; ejn.el ends here

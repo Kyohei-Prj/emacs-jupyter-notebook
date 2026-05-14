@@ -31,6 +31,13 @@
 (require 's)
 (require 'f)
 
+(require 'ejn-mime)
+(require 'ejn-render)
+(require 'ejn-navigation)
+(require 'ejn-sync)
+(require 'ejn-undo)
+(require 'ejn-cell-engine)
+
 (defconst ejn-version "0.1.0"
   "Current version of emacs-jupyter-notebook.")
 
