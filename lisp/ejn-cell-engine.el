@@ -50,10 +50,10 @@
       (user-error "Not in an EJN buffer"))
     (let ((idx (ejn-notebook-cell-index notebook (ejn-cell-id current-cell))))
       (ejn-with-undo-group "Insert cell above" notebook
-        (ejn-with-undo-boundary "Insert cell above"
-          (let ((new-cell (ejn-notebook-insert-cell notebook 'code :at idx)))
-            (ejn-render-notebook notebook)
-            (ejn--goto-cell-start-by-id (ejn-cell-id new-cell))))))))
+			   (ejn-with-undo-boundary "Insert cell above"
+						   (let ((new-cell (ejn-notebook-insert-cell notebook 'code :at idx)))
+						     (ejn-render-notebook notebook)
+						     (ejn--goto-cell-start-by-id (ejn-cell-id new-cell))))))))
 
 (defun ejn-insert-cell-below ()
   "Insert a new code cell below the current cell."
@@ -64,10 +64,24 @@
       (user-error "Not in an EJN buffer"))
     (let ((idx (ejn-notebook-cell-index notebook (ejn-cell-id current-cell))))
       (ejn-with-undo-group "Insert cell below" notebook
-        (ejn-with-undo-boundary "Insert cell below"
-          (let ((new-cell (ejn-notebook-insert-cell notebook 'code :at (1+ idx))))
-            (ejn-render-notebook notebook)
-            (ejn--goto-cell-start-by-id (ejn-cell-id new-cell))))))))
+			   (ejn-with-undo-boundary "Insert cell below"
+						   (let ((new-cell (ejn-notebook-insert-cell notebook 'code :at (1+ idx))))
+						     (ejn-render-notebook notebook)
+						     (ejn--goto-cell-start-by-id (ejn-cell-id new-cell))))))))
+
+(defun ejn-delete-cell ()
+  "Delete the current cell."
+  (interactive)
+  (let ((notebook (buffer-local-value 'ejn--notebook (current-buffer)))
+        (current-cell (ejn-cell-at-point)))
+    (unless notebook
+      (user-error "Not in an EJN buffer"))
+    (let ((cell-id (ejn-cell-id current-cell)))
+      (ejn-with-undo-group "Delete cell" notebook
+			   (ejn-with-undo-boundary "Delete cell"
+						   (ejn-notebook-delete-cell notebook cell-id)
+						   (ejn-render-notebook notebook)
+						   (goto-char (point-min)))))))
 
 (provide 'ejn-cell-engine)
 ;;; ejn-cell-engine.el ends here

@@ -72,5 +72,22 @@
   (ejn-test-with-temp-buffer " *test*"
 			     (should-error (ejn-insert-cell-below))))
 
+(ert-deftest ejn-cell-engine-test/delete-cell ()
+  "Deleting a cell should remove it from the model and re-render."
+  (let ((nb (ejn-make-notebook)))
+    (ejn-notebook-insert-cell nb 'code :at 0)
+    (ejn-notebook-insert-cell nb 'code :at 1)
+    (ejn-test-with-temp-buffer " *test*"
+			       (set (make-local-variable 'ejn--notebook) nb)
+			       (ejn-render-notebook nb)
+			       (goto-char (point-min))
+			       (ejn-delete-cell)
+			       (should (= (length (ejn-notebook-cells nb)) 1)))))
+
+(ert-deftest ejn-cell-engine-test/delete-cell-error-not-in-ejn-buffer ()
+  "Deleting a cell should error if not in an EJN buffer."
+  (ejn-test-with-temp-buffer " *test*"
+			     (should-error (ejn-delete-cell))))
+
 (provide 'ejn-cell-engine-test)
 ;;; ejn-cell-engine-test.el ends here
