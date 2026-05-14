@@ -178,5 +178,40 @@
             (ejn-render-notebook notebook)
             (ejn--goto-cell-start-by-id (ejn-cell-id curr-cell))))))))
 
+(defun ejn-toggle-cell-type ()
+  "Cycle the current cell's type: code -> markdown -> raw -> code."
+  (interactive)
+  (let ((notebook (buffer-local-value 'ejn--notebook (current-buffer)))
+        (current-cell (ejn-cell-at-point)))
+    (unless notebook
+      (user-error "Not in an EJN buffer"))
+    (let ((new-type (pcase (ejn-cell-type current-cell)
+                      ('code 'markdown)
+                      ('markdown 'raw)
+                      ('raw 'code)
+                      (_ 'code))))
+      (ejn-with-undo-group "Toggle cell type" notebook
+        (setf (ejn-cell-type current-cell) new-type)
+        (ejn-notebook-mark-dirty notebook (ejn-cell-id current-cell))
+        (ejn-with-undo-boundary "Toggle cell type"
+          (ejn-render-dirty-cells notebook))))))
+
+(defun ejn-change-cell-type ()
+  "Prompt for a cell type and set the current cell's type."
+  (interactive)
+  (let ((notebook (buffer-local-value 'ejn--notebook (current-buffer)))
+        (current-cell (ejn-cell-at-point)))
+    (unless notebook
+      (user-error "Not in an EJN buffer"))
+    (let ((type-str (completing-read "Cell type: "
+                                      '("code" "markdown" "raw")
+                                      nil t)))
+      (let ((new-type (intern type-str)))
+        (ejn-with-undo-group "Change cell type" notebook
+          (setf (ejn-cell-type current-cell) new-type)
+          (ejn-notebook-mark-dirty notebook (ejn-cell-id current-cell))
+          (ejn-with-undo-boundary "Change cell type"
+            (ejn-render-dirty-cells notebook)))))))
+
 (provide 'ejn-cell-engine)
 ;;; ejn-cell-engine.el ends here

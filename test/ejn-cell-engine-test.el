@@ -146,5 +146,24 @@
       (ejn-move-cell-down)
       (should (string= (ejn-cell-source (ejn-notebook-cell-at-index nb 1)) "A")))))
 
+(ert-deftest ejn-cell-engine-test/toggle-cell-type ()
+  "Toggling cell type should cycle code -> markdown -> raw -> code."
+  (let ((nb (ejn-make-notebook)))
+    (ejn-notebook-insert-cell nb 'code :at 0)
+    (ejn-test-with-temp-buffer " *test*"
+      (set (make-local-variable 'ejn--notebook) nb)
+      (ejn-render-notebook nb)
+      (ejn-toggle-cell-type)
+      (should (eq 'markdown (ejn-cell-type (ejn-notebook-cell-at-index nb 0))))
+      (ejn-toggle-cell-type)
+      (should (eq 'raw (ejn-cell-type (ejn-notebook-cell-at-index nb 0))))
+      (ejn-toggle-cell-type)
+      (should (eq 'code (ejn-cell-type (ejn-notebook-cell-at-index nb 0)))))))
+
+(ert-deftest ejn-cell-engine-test/toggle-cell-type-error-not-in-ejn-buffer ()
+  "Toggling cell type should error if not in an EJN buffer."
+  (ejn-test-with-temp-buffer " *test*"
+    (should-error (ejn-toggle-cell-type))))
+
 (provide 'ejn-cell-engine-test)
 ;;; ejn-cell-engine-test.el ends here
