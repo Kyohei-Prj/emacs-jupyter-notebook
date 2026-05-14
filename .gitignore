@@ -3,6 +3,7 @@
 site-lisp/
 *-autoloads.el
 *-pkg.el
+*.normalized
 
 # --- Eask Specific ---
 # Eask's local workspace and dependency folder
