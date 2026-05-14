@@ -213,5 +213,63 @@
           (ejn-with-undo-boundary "Change cell type"
             (ejn-render-dirty-cells notebook)))))))
 
+(defun ejn-clear-output ()
+  "Clear the output of the current cell."
+  (interactive)
+  (let ((notebook (buffer-local-value 'ejn--notebook (current-buffer)))
+        (current-cell (ejn-cell-at-point)))
+    (unless notebook
+      (user-error "Not in an EJN buffer"))
+    (ejn-with-undo-group "Clear output" notebook
+      (setf (ejn-cell-outputs current-cell) nil)
+      (ejn-notebook-mark-dirty notebook (ejn-cell-id current-cell))
+      (ejn-with-undo-boundary "Clear output"
+        (ejn-render-dirty-cells notebook)))))
+
+(defun ejn-clear-all-outputs ()
+  "Clear outputs of all cells."
+  (interactive)
+  (let ((notebook (buffer-local-value 'ejn--notebook (current-buffer))))
+    (unless notebook
+      (user-error "Not in an EJN buffer"))
+    (ejn-with-undo-group "Clear all outputs" notebook
+      (cl-loop for cell across (ejn-notebook-cells notebook) do
+               (setf (ejn-cell-outputs cell) nil)
+               (ejn-notebook-mark-dirty notebook (ejn-cell-id cell)))
+      (ejn-with-undo-boundary "Clear all outputs"
+        (ejn-render-notebook notebook)))))
+
+(defun ejn-copy-cell ()
+  "Copy the current cell to the cell kill ring."
+  (interactive)
+  (let ((current-cell (ejn-cell-at-point)))
+    (push (list :id (ejn-cell-id current-cell)
+                :type (ejn-cell-type current-cell)
+                :source (ejn-cell-source current-cell)
+                :outputs (ejn-cell-outputs current-cell)
+                :metadata (ejn-cell-metadata current-cell))
+          ejn--cell-kill-ring)
+    (message "Cell copied to kill ring")))
+
+(defun ejn-yank-cell ()
+  "Insert a copied cell below the current cell."
+  (interactive)
+  (let ((notebook (buffer-local-value 'ejn--notebook (current-buffer)))
+        (current-cell (ejn-cell-at-point)))
+    (unless notebook
+      (user-error "Not in an EJN buffer"))
+    (unless ejn--cell-kill-ring
+      (user-error "No cell in kill ring"))
+    (let* ((entry (car ejn--cell-kill-ring))
+           (idx (ejn-notebook-cell-index notebook (ejn-cell-id current-cell))))
+      (ejn-with-undo-group "Yank cell" notebook
+        (ejn-with-undo-boundary "Yank cell"
+          (let ((new-cell (ejn-notebook-insert-cell notebook
+                                                     (plist-get entry :type)
+                                                     :at (1+ idx))))
+            (setf (ejn-cell-source new-cell) (plist-get entry :source))
+            (ejn-render-notebook notebook)
+            (ejn--goto-cell-start-by-id (ejn-cell-id new-cell))))))))
+
 (provide 'ejn-cell-engine)
 ;;; ejn-cell-engine.el ends here

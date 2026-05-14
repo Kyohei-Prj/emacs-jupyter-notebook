@@ -165,5 +165,83 @@
   (ejn-test-with-temp-buffer " *test*"
     (should-error (ejn-toggle-cell-type))))
 
+(ert-deftest ejn-cell-engine-test/clear-output ()
+  "Clearing output should remove outputs from the cell."
+  (require 'ejn-cell)
+  (let ((nb (ejn-make-notebook)))
+    (ejn-notebook-insert-cell nb 'code :at 0)
+    (let ((cell (ejn-notebook-cell-at-index nb 0)))
+      (setf (ejn-cell-outputs cell)
+            (list (make-ejn-output
+                   :type 'execute-result
+                   :mime-data (list :data (list (cons 'text/plain (list "42"))))
+                   :metadata nil
+                   :request-id nil))))
+    (ejn-test-with-temp-buffer " *test*"
+      (set (make-local-variable 'ejn--notebook) nb)
+      (ejn-render-notebook nb)
+      (ejn-clear-output)
+      (should-not (ejn-cell-outputs (ejn-notebook-cell-at-index nb 0))))))
+
+(ert-deftest ejn-cell-engine-test/clear-output-error-not-in-ejn-buffer ()
+  "Clearing output should error if not in an EJN buffer."
+  (ejn-test-with-temp-buffer " *test*"
+    (should-error (ejn-clear-output))))
+
+(ert-deftest ejn-cell-engine-test/clear-all-outputs ()
+  "Clearing all outputs should remove outputs from all cells."
+  (require 'ejn-cell)
+  (let ((nb (ejn-make-notebook)))
+    (ejn-notebook-insert-cell nb 'code :at 0)
+    (ejn-notebook-insert-cell nb 'code :at 1)
+    (setf (ejn-cell-outputs (ejn-notebook-cell-at-index nb 0))
+          (list (make-ejn-output :type 'execute-result
+                                 :mime-data (list :data (list (cons 'text/plain (list "1"))))
+                                 :metadata nil :request-id nil)))
+    (setf (ejn-cell-outputs (ejn-notebook-cell-at-index nb 1))
+          (list (make-ejn-output :type 'execute-result
+                                 :mime-data (list :data (list (cons 'text/plain (list "2"))))
+                                 :metadata nil :request-id nil)))
+    (ejn-test-with-temp-buffer " *test*"
+      (set (make-local-variable 'ejn--notebook) nb)
+      (ejn-render-notebook nb)
+      (ejn-clear-all-outputs)
+      (should-not (ejn-cell-outputs (ejn-notebook-cell-at-index nb 0)))
+      (should-not (ejn-cell-outputs (ejn-notebook-cell-at-index nb 1))))))
+
+(ert-deftest ejn-cell-engine-test/clear-all-outputs-error-not-in-ejn-buffer ()
+  "Clearing all outputs should error if not in an EJN buffer."
+  (ejn-test-with-temp-buffer " *test*"
+    (should-error (ejn-clear-all-outputs))))
+
+(ert-deftest ejn-cell-engine-test/copy-and-yank-cell ()
+  "Copying and yanking a cell should round-trip cell content."
+  (let ((nb (ejn-make-notebook)))
+    (ejn-notebook-insert-cell nb 'code :at 0)
+    (ejn-notebook-set-cell-source nb (ejn-cell-id (ejn-notebook-cell-at-index nb 0)) "copied code")
+    (ejn-test-with-temp-buffer " *test*"
+      (set (make-local-variable 'ejn--notebook) nb)
+      (ejn-render-notebook nb)
+      (ejn-copy-cell)
+      (ejn-yank-cell)
+      (should (= (length (ejn-notebook-cells nb)) 2))
+      (should (string= (ejn-cell-source (ejn-notebook-cell-at-index nb 1))
+                        "copied code")))))
+
+(ert-deftest ejn-cell-engine-test/yank-cell-error-no-kill-ring ()
+  "Yanking a cell should error if kill ring is empty."
+  (let ((nb (ejn-make-notebook)))
+    (ejn-notebook-insert-cell nb 'code :at 0)
+    (ejn-test-with-temp-buffer " *test*"
+      (set (make-local-variable 'ejn--notebook) nb)
+      (ejn-render-notebook nb)
+      (should-error (ejn-yank-cell)))))
+
+(ert-deftest ejn-cell-engine-test/yank-cell-error-not-in-ejn-buffer ()
+  "Yanking a cell should error if not in an EJN buffer."
+  (ejn-test-with-temp-buffer " *test*"
+    (setq ejn--cell-kill-ring (list (list :id "dummy" :type 'code :source "test")))
+    (should-error (ejn-yank-cell))))
+
 (provide 'ejn-cell-engine-test)
 ;;; ejn-cell-engine-test.el ends here
