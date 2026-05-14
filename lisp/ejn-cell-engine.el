@@ -101,13 +101,13 @@
       (let ((part1 (substring source 0 split-pos))
             (part2 (substring source split-pos)))
         (ejn-with-undo-group "Split cell" notebook
-          (ejn-with-undo-boundary "Split cell"
-            (ejn-notebook-set-cell-source notebook cell-id part1)
-            (let* ((idx (ejn-notebook-cell-index notebook cell-id))
-                   (new-cell (ejn-notebook-insert-cell notebook (ejn-cell-type current-cell) :at (1+ idx))))
-              (setf (ejn-cell-source new-cell) part2)
-              (ejn-render-notebook notebook)
-              (ejn--goto-cell-start-by-id (ejn-cell-id new-cell)))))))))
+			     (ejn-with-undo-boundary "Split cell"
+						     (ejn-notebook-set-cell-source notebook cell-id part1)
+						     (let* ((idx (ejn-notebook-cell-index notebook cell-id))
+							    (new-cell (ejn-notebook-insert-cell notebook (ejn-cell-type current-cell) :at (1+ idx))))
+						       (setf (ejn-cell-source new-cell) part2)
+						       (ejn-render-notebook notebook)
+						       (ejn--goto-cell-start-by-id (ejn-cell-id new-cell)))))))))
 
 (defun ejn-merge-cell ()
   "Merge the current cell with the next cell."
@@ -122,16 +122,61 @@
       (unless next-cell
         (user-error "No next cell to merge"))
       (let ((merged-source (concat (ejn-cell-source current-cell)
-                                    "\n"
-                                    (ejn-cell-source next-cell)
-                                    "\n"))
+                                   "\n"
+                                   (ejn-cell-source next-cell)
+                                   "\n"))
             (next-id (ejn-cell-id next-cell)))
         (ejn-with-undo-group "Merge cell" notebook
-          (ejn-with-undo-boundary "Merge cell"
-            (ejn-notebook-set-cell-source notebook current-id merged-source)
-            (ejn-notebook-delete-cell notebook next-id)
+			     (ejn-with-undo-boundary "Merge cell"
+						     (ejn-notebook-set-cell-source notebook current-id merged-source)
+						     (ejn-notebook-delete-cell notebook next-id)
+						     (ejn-render-notebook notebook)
+						     (ejn--goto-cell-start-by-id current-id)))))))
+
+(defun ejn-move-cell-up ()
+  "Move the current cell up by swapping with the previous cell."
+  (interactive)
+  (let ((notebook (buffer-local-value 'ejn--notebook (current-buffer)))
+        (current-cell (ejn-cell-at-point)))
+    (unless notebook
+      (user-error "Not in an EJN buffer"))
+    (let* ((idx (ejn-notebook-cell-index notebook (ejn-cell-id current-cell)))
+           (cells (ejn-notebook-cells notebook)))
+      (unless idx
+        (user-error "Already at first cell"))
+      (let ((prev-cell (aref cells (1- idx)))
+            (curr-cell (aref cells idx)))
+        (ejn-with-undo-group "Move cell up" notebook
+          (ejn-with-undo-boundary "Move cell up"
+            (setf (ejn-notebook-cells notebook)
+                  (vconcat (seq-take cells (1- idx))
+                           (vector curr-cell prev-cell)
+                           (seq-drop cells (+ idx 2))))
             (ejn-render-notebook notebook)
-            (ejn--goto-cell-start-by-id current-id)))))))
+            (ejn--goto-cell-start-by-id (ejn-cell-id curr-cell))))))))
+
+(defun ejn-move-cell-down ()
+  "Move the current cell down by swapping with the next cell."
+  (interactive)
+  (let ((notebook (buffer-local-value 'ejn--notebook (current-buffer)))
+        (current-cell (ejn-cell-at-point)))
+    (unless notebook
+      (user-error "Not in an EJN buffer"))
+    (let* ((idx (ejn-notebook-cell-index notebook (ejn-cell-id current-cell)))
+           (total (length (ejn-notebook-cells notebook)))
+           (cells (ejn-notebook-cells notebook)))
+      (when (>= idx (1- total))
+        (user-error "Already at last cell"))
+      (let ((curr-cell (aref cells idx))
+            (next-cell (aref cells (1+ idx))))
+        (ejn-with-undo-group "Move cell down" notebook
+          (ejn-with-undo-boundary "Move cell down"
+            (setf (ejn-notebook-cells notebook)
+                  (vconcat (seq-take cells idx)
+                           (vector next-cell curr-cell)
+                           (seq-drop cells (+ idx 3))))
+            (ejn-render-notebook notebook)
+            (ejn--goto-cell-start-by-id (ejn-cell-id curr-cell))))))))
 
 (provide 'ejn-cell-engine)
 ;;; ejn-cell-engine.el ends here

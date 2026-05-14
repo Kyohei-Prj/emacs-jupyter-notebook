@@ -118,5 +118,33 @@
       (let ((source (ejn-cell-source (ejn-notebook-cell-at-index nb 0))))
         (should (string= source "first\nsecond\n"))))))
 
+(ert-deftest ejn-cell-engine-test/move-cell-up ()
+  "Moving a cell up should swap it with the previous cell."
+  (let ((nb (ejn-make-notebook)))
+    (ejn-notebook-insert-cell nb 'code :at 0)
+    (ejn-notebook-set-cell-source nb (ejn-cell-id (ejn-notebook-cell-at-index nb 0)) "A")
+    (ejn-notebook-insert-cell nb 'code :at 1)
+    (ejn-notebook-set-cell-source nb (ejn-cell-id (ejn-notebook-cell-at-index nb 1)) "B")
+    (ejn-test-with-temp-buffer " *test*"
+      (set (make-local-variable 'ejn--notebook) nb)
+      (ejn-render-notebook nb)
+      (search-forward "B")
+      (ejn-move-cell-up)
+      (should (string= (ejn-cell-source (ejn-notebook-cell-at-index nb 0)) "B")))))
+
+(ert-deftest ejn-cell-engine-test/move-cell-down ()
+  "Moving a cell down should swap it with the next cell."
+  (let ((nb (ejn-make-notebook)))
+    (ejn-notebook-insert-cell nb 'code :at 0)
+    (ejn-notebook-set-cell-source nb (ejn-cell-id (ejn-notebook-cell-at-index nb 0)) "A")
+    (ejn-notebook-insert-cell nb 'code :at 1)
+    (ejn-notebook-set-cell-source nb (ejn-cell-id (ejn-notebook-cell-at-index nb 1)) "B")
+    (ejn-test-with-temp-buffer " *test*"
+      (set (make-local-variable 'ejn--notebook) nb)
+      (ejn-render-notebook nb)
+      (goto-char (point-min))
+      (ejn-move-cell-down)
+      (should (string= (ejn-cell-source (ejn-notebook-cell-at-index nb 1)) "A")))))
+
 (provide 'ejn-cell-engine-test)
 ;;; ejn-cell-engine-test.el ends here
