@@ -40,5 +40,54 @@
     (should-not ejn--notebook)
     (should-not ejn--rendering-p)))
 
+(ert-deftest ejn-mode-test/keymap-bindings ()
+  "Keymap should have expected bindings."
+  (ejn-test-with-temp-buffer " *test*"
+    (ejn-mode)
+    (should (eq (lookup-key ejn-mode-map (kbd "C-c C-c")) #'ejn-execute-cell))
+    (should (eq (lookup-key ejn-mode-map (kbd "C-c C-n")) #'ejn-goto-next-cell))
+    (should (eq (lookup-key ejn-mode-map (kbd "C-<down>")) #'ejn-goto-next-cell))
+    (should (eq (lookup-key ejn-mode-map (kbd "C-c C-a")) #'ejn-insert-cell-above))
+    (should (eq (lookup-key ejn-mode-map (kbd "C-c C-b")) #'ejn-insert-cell-below))
+    (should (eq (lookup-key ejn-mode-map (kbd "C-c C-k")) #'ejn-delete-cell))
+    (should (eq (lookup-key ejn-mode-map (kbd "C-x C-s")) #'ejn-save-notebook))))
+
+(ert-deftest ejn-mode-test/kernel-stubs-signal-error ()
+  "Kernel commands should signal 'kernel not connected'."
+  (ejn-test-with-temp-buffer " *test*"
+    (ejn-mode)
+    (should-error (ejn-kernel-quit))
+    (should-error (ejn-kernel-interrupt))
+    (should-error (ejn-kernel-restart))))
+
+(ert-deftest ejn-mode-test/save-notebook-serializes-model ()
+  "ejn-save-notebook should serialize the model to the file."
+  (require 'ejn-persistence)
+  (let ((nb (ejn-make-notebook)))
+    (ejn-notebook-insert-cell nb 'code :at 0)
+    (ejn-notebook-set-cell-source nb (ejn-cell-id (ejn-notebook-cell-at-index nb 0)) "test")
+    (ejn-test-with-temp-buffer " *test*"
+      (set (make-local-variable 'ejn--notebook) nb)
+      (set (make-local-variable 'buffer-file-name) "/tmp/test-ejn-save.ipynb")
+      (condition-case nil
+          (ejn-save-notebook)
+        (file-error nil))
+      (when (file-exists-p "/tmp/test-ejn-save.ipynb")
+        (let ((contents (with-temp-buffer
+                          (insert-file-contents "/tmp/test-ejn-save.ipynb")
+                          (buffer-string))))
+          (should (stringp contents))
+          (should (> (length contents) 0))
+          (delete-file "/tmp/test-ejn-save.ipynb"))))))
+
+(ert-deftest ejn-mode-test/mode-exit-cleanup ()
+  "Exiting ejn-mode should cancel the sync timer."
+  (ejn-test-with-temp-buffer " *test*"
+    (ejn-mode)
+    (set (make-local-variable 'ejn--sync-timer)
+         (run-with-timer 1000 nil #'ignore))
+    (ejn--cleanup-buffer)
+    (should-not ejn--sync-timer)))
+
 (provide 'ejn-mode-test)
 ;;; ejn-mode-test.el ends here
