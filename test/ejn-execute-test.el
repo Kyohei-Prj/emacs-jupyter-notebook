@@ -50,5 +50,27 @@
     (ejn-execute--set-cell-state cell 'error)
     (should (eq 'error (ejn-cell-execution-state cell)))))
 
+(ert-deftest ejn-execute-test/stream-callback-appends-output ()
+  "Stream callback should append a stream output to the cell."
+  (let ((cell (ejn-make-cell 'code "print(1)")))
+    (setf (ejn-cell-outputs cell) nil)
+    (let ((callbacks (ejn-execute--make-callbacks cell)))
+      (funcall (plist-get callbacks :on-stream)
+               (ejn-cell-id cell) "hello " "stdout"))
+      (should (= 1 (length (ejn-cell-outputs cell))))
+      (should (eq 'stream (ejn-output-type (car (ejn-cell-outputs cell)))))))
+
+(ert-deftest ejn-execute-test/error-callback-appends-error-output ()
+  "Error callback should append an error output to the cell."
+  (let ((cell (ejn-make-cell 'code "raise")))
+    (setf (ejn-cell-outputs cell) nil)
+    (let ((callbacks (ejn-execute--make-callbacks cell)))
+      (funcall (plist-get callbacks :on-error)
+               (ejn-cell-id cell)
+               "ValueError" "something went wrong"
+               '("traceback line 1" "traceback line 2")))
+      (should (= 1 (length (ejn-cell-outputs cell))))
+      (should (eq 'error (ejn-output-type (car (ejn-cell-outputs cell)))))))
+
 (provide 'ejn-execute-test)
 ;;; ejn-execute-test.el ends here
