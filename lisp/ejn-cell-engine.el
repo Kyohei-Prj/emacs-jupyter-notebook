@@ -30,6 +30,7 @@
 (require 'ejn-render)
 (require 'ejn-navigation)
 (require 'ejn-undo)
+(require 'ejn-execute)
 
 (defvar-local ejn--cell-kill-ring nil
   "Kill ring for copied cells.  Each entry is a serialized cell plist.")
@@ -270,30 +271,6 @@
 						     (setf (ejn-cell-source new-cell) (plist-get entry :source))
 						     (ejn-render-notebook notebook)
 						     (ejn--goto-cell-start-by-id (ejn-cell-id new-cell))))))))
-
-(defun ejn-execute-cell ()
-  "Execute the current cell.
-Not yet implemented — kernel integration is Phase 4."
-  (interactive)
-  (user-error "Kernel not connected. Execute is available in Phase 4."))
-
-(defun ejn-execute-all-cells ()
-  "Execute all cells.
-Not yet implemented — kernel integration is Phase 4."
-  (interactive)
-  (user-error "Kernel not connected. Execute is available in Phase 4."))
-
-(defun ejn-execute-cell-and-goto-next ()
-  "Execute the current cell and move to the next.
-Not yet implemented — kernel integration is Phase 4."
-  (interactive)
-  (user-error "Kernel not connected. Execute is available in Phase 4."))
-
-(defun ejn-execute-cell-and-insert-below ()
-  "Execute the current cell and insert a new cell below.
-Not yet implemented — kernel integration is Phase 4."
-  (interactive)
-  (user-error "Kernel not connected. Execute is available in Phase 4."))
 
 (provide 'ejn-cell-engine)
 ;;; ejn-cell-engine.el ends here
