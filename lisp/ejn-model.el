@@ -177,7 +177,7 @@ Records before/after snapshots for undo and redo."
   `(let ((ejn--undo-notebook ,notebook)
          (ejn--undo-before (ejn--notebook-snapshot ,notebook)))
      (ejn-with-transaction ejn--undo-notebook
-       ,@body)
+			   ,@body)
      (let ((ejn--undo-after (ejn--notebook-snapshot ejn--undo-notebook)))
        (push (list :label ,label
                    :before ejn--undo-before
