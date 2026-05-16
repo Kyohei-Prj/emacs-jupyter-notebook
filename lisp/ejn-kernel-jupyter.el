@@ -26,6 +26,7 @@
 
 (require 'cl-lib)
 (require 'ejn-kernel)
+(require 'ejn-log)
 
 (eval-when-compile
   (condition-case nil
@@ -111,6 +112,37 @@
                (when handler
                  (funcall handler "" "ok"))
                (remhash request-id ejn--request-registry)))))))))
+
+(cl-defmethod ejn-kernel-interrupt ((kernel ejn-kernel))
+  "Interrupt the running Jupyter kernel."
+  (let ((client (ejn-kernel-client kernel)))
+    (when client
+      (condition-case err
+          (jupyter-interrupt-kernel client)
+        (error
+         (ejn-log-message "warn" "Interrupt failed: %s" (error-message-string err))))
+      (ejn-kernel-transition kernel 'interrupted))))
+
+(cl-defmethod ejn-kernel-restart ((kernel ejn-kernel))
+  "Restart the Jupyter kernel."
+  (let ((client (ejn-kernel-client kernel)))
+    (when client
+      (condition-case err
+          (jupyter-restart-kernel client)
+        (error
+         (ejn-log-message "warn" "Restart failed: %s" (error-message-string err))))
+      (ejn-kernel-transition kernel 'connected))))
+
+(cl-defmethod ejn-kernel-shutdown ((kernel ejn-kernel))
+  "Shutdown the Jupyter kernel."
+  (let ((client (ejn-kernel-client kernel)))
+    (when client
+      (condition-case err
+          (jupyter-shutdown-kernel client)
+        (error
+         (ejn-log-message "warn" "Shutdown failed: %s" (error-message-string err))))
+      (setf (ejn-kernel-client kernel) nil)
+      (ejn-kernel-transition kernel 'dead))))
 
 (provide 'ejn-kernel-jupyter)
 ;;; ejn-kernel-jupyter.el ends here
