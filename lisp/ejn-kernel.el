@@ -25,6 +25,7 @@
 ;;; Code:
 
 (require 'cl-lib)
+(require 'cl-generic)
 (require 'ejn-cell)
 
 (cl-defstruct ejn-kernel
@@ -45,6 +46,25 @@ Returns an `ejn-kernel' struct in `startup' state."
 (defun ejn-kernel-transition (kernel new-state)
   "Transition KERNEL to NEW-STATE."
   (setf (ejn-kernel-state kernel) new-state))
+
+(cl-defgeneric ejn-kernel-start (kernel kernelspec)
+  "Start a new kernel with KERNELSPEC.")
+
+(cl-defgeneric ejn-kernel-execute (kernel code request-id callbacks)
+  "Execute CODE on KERNEL with REQUEST-ID and CALLBACKS plist.
+CALLBACKS contains :on-stream, :on-result, :on-display, :on-error, :on-complete.")
+
+(cl-defgeneric ejn-kernel-interrupt (kernel)
+  "Interrupt the running computation on KERNEL.")
+
+(cl-defgeneric ejn-kernel-restart (kernel)
+  "Restart KERNEL.")
+
+(cl-defgeneric ejn-kernel-shutdown (kernel)
+  "Shutdown KERNEL.")
+
+(cl-defgeneric ejn-kernel-alive-p (kernel)
+  "Return non-nil if KERNEL is responsive.")
 
 (provide 'ejn-kernel)
 ;;; ejn-kernel.el ends here

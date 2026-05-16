@@ -1,5 +1,6 @@
 ;;; ejn-kernel-test.el --- Tests for ejn-kernel  -*- lexical-binding: t; -*-
 
+(require 'cl-generic)
 (require 'ert)
 
 ;;; Code:
@@ -21,6 +22,16 @@
   (require 'ejn-kernel)
   (let ((kernel (ejn-make-kernel "python3")))
     (should-not (ejn-kernel-client kernel))))
+
+(ert-deftest ejn-kernel-test/generics-are-defined ()
+  "All kernel generics should be defined."
+  (require 'ejn-kernel)
+  (should (cl-generic-p #'ejn-kernel-start))
+  (should (cl-generic-p #'ejn-kernel-execute))
+  (should (cl-generic-p #'ejn-kernel-interrupt))
+  (should (cl-generic-p #'ejn-kernel-restart))
+  (should (cl-generic-p #'ejn-kernel-shutdown))
+  (should (cl-generic-p #'ejn-kernel-alive-p)))
 
 (provide 'ejn-kernel-test)
 ;;; ejn-kernel-test.el ends here
