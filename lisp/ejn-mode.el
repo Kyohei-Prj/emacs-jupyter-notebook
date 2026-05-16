@@ -103,7 +103,7 @@ inserted, deleted, split, merged, and moved.
   "Quit the kernel session."
   (interactive)
   (when (buffer-local-value 'ejn--kernel (current-buffer))
-    (ejn-kernel-shutdown (buffer-local-value 'ejn--kernel (current-buffer)))
+    (ejn--kernel-shutdown (buffer-local-value 'ejn--kernel (current-buffer)))
     (set (make-local-variable 'ejn--kernel) nil)
     (message "Kernel shut down")))
 
@@ -113,7 +113,7 @@ inserted, deleted, split, merged, and moved.
   (let ((kernel (buffer-local-value 'ejn--kernel (current-buffer))))
     (unless kernel
       (user-error "No kernel connected"))
-    (ejn-kernel-interrupt kernel)
+    (ejn--kernel-interrupt kernel)
     (message "Kernel interrupted")))
 
 (defun ejn-kernel-restart ()
@@ -122,7 +122,7 @@ inserted, deleted, split, merged, and moved.
   (let ((kernel (buffer-local-value 'ejn--kernel (current-buffer))))
     (unless kernel
       (user-error "No kernel connected"))
-    (ejn-kernel-restart kernel)
+    (ejn--kernel-restart kernel)
     (message "Kernel restarting")))
 
 (defun ejn-open (file-path)
@@ -166,7 +166,7 @@ Loads the notebook, creates a buffer in ejn-mode, and renders it."
   (let ((kernel (buffer-local-value 'ejn--kernel (current-buffer))))
     (when kernel
       (condition-case nil
-          (ejn-kernel-shutdown kernel)
+          (ejn--kernel-shutdown kernel)
         (error nil))
       (set (make-local-variable 'ejn--kernel) nil))))
 

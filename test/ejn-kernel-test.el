@@ -28,9 +28,9 @@
   (require 'ejn-kernel)
   (should (cl-generic-p #'ejn-kernel-start))
   (should (cl-generic-p #'ejn-kernel-execute))
-  (should (cl-generic-p #'ejn-kernel-interrupt))
-  (should (cl-generic-p #'ejn-kernel-restart))
-  (should (cl-generic-p #'ejn-kernel-shutdown))
+  (should (cl-generic-p #'ejn--kernel-interrupt))
+  (should (cl-generic-p #'ejn--kernel-restart))
+  (should (cl-generic-p #'ejn--kernel-shutdown))
   (should (cl-generic-p #'ejn-kernel-alive-p)))
 
 (provide 'ejn-kernel-test)

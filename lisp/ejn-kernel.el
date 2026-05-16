@@ -54,13 +54,13 @@ Returns an `ejn-kernel' struct in `startup' state."
   "Execute CODE on KERNEL with REQUEST-ID and CALLBACKS plist.
 CALLBACKS contains :on-stream, :on-result, :on-display, :on-error, :on-complete.")
 
-(cl-defgeneric ejn-kernel-interrupt (kernel)
+(cl-defgeneric ejn--kernel-interrupt (kernel)
   "Interrupt the running computation on KERNEL.")
 
-(cl-defgeneric ejn-kernel-restart (kernel)
+(cl-defgeneric ejn--kernel-restart (kernel)
   "Restart KERNEL.")
 
-(cl-defgeneric ejn-kernel-shutdown (kernel)
+(cl-defgeneric ejn--kernel-shutdown (kernel)
   "Shutdown KERNEL.")
 
 (cl-defgeneric ejn-kernel-alive-p (kernel)

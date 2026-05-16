@@ -113,7 +113,7 @@
                  (funcall handler "" "ok"))
                (remhash request-id ejn--request-registry)))))))))
 
-(cl-defmethod ejn-kernel-interrupt ((kernel ejn-kernel))
+(cl-defmethod ejn--kernel-interrupt ((kernel ejn-kernel))
   "Interrupt the running Jupyter kernel."
   (let ((client (ejn-kernel-client kernel)))
     (when client
@@ -123,7 +123,7 @@
          (ejn-log-message "warn" "Interrupt failed: %s" (error-message-string err))))
       (ejn-kernel-transition kernel 'interrupted))))
 
-(cl-defmethod ejn-kernel-restart ((kernel ejn-kernel))
+(cl-defmethod ejn--kernel-restart ((kernel ejn-kernel))
   "Restart the Jupyter kernel."
   (let ((client (ejn-kernel-client kernel)))
     (when client
@@ -133,7 +133,7 @@
          (ejn-log-message "warn" "Restart failed: %s" (error-message-string err))))
       (ejn-kernel-transition kernel 'connected))))
 
-(cl-defmethod ejn-kernel-shutdown ((kernel ejn-kernel))
+(cl-defmethod ejn--kernel-shutdown ((kernel ejn-kernel))
   "Shutdown the Jupyter kernel."
   (let ((client (ejn-kernel-client kernel)))
     (when client
