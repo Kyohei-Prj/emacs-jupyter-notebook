@@ -426,7 +426,7 @@ Add to `lisp/ejn-kernel-jupyter.el` before `(provide 'ejn-kernel-jupyter)`:
              (let ((handler (plist-get callbacks :on-complete)))
                (when handler
                  (funcall handler "" "ok"))
-               (remhash request-id ejn--request-registry))))))))))
+               (remhash request-id ejn--request-registry)))))))))
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
@@ -911,7 +911,7 @@ Add to `test/ejn-execute-test.el`:
           (set (make-local-variable 'ejn--kernel) kernel)
           (set (make-local-variable 'ejn--execution-queue) ejn--execution-queue)
           (ejn-execute--dispatch-next))
-      (should dispatched))))
+      (should dispatched)))))
 
 (ert-deftest ejn-execute-test/dispatch-next-skips-empty-queue ()
   "dispatch-next should do nothing when queue is empty."
@@ -955,7 +955,7 @@ Add to `lisp/ejn-execute.el` before `(provide 'ejn-execute)`:
                (ejn-execute--make-callbacks
                 (ejn-execute--find-cell cell-id))))
           (ejn-kernel-transition kernel 'connected)))))
-    (ejn-render-dirty-cells (buffer-local-value 'ejn--notebook (current-buffer)))))
+    (ejn-render-dirty-cells (buffer-local-value 'ejn--notebook (current-buffer))))
 
 (defun ejn-execute--enqueue-and-maybe-run (cell-id source request-id version)
   "Enqueue an execution request and dispatch if kernel is idle."
@@ -1229,7 +1229,7 @@ Loads the notebook, creates a buffer in ejn-mode, and renders it."
          (message "Failed to start kernel (%s). Connect manually with M-x ejn-connect-to-kernel."
                   (error-message-string err)))
         (setq ejn--kernel nil))))
-  (add-hook 'kill-buffer-hook #'ejn--shutdown-kernel-on-kill nil t)))
+  (add-hook 'kill-buffer-hook #'ejn--shutdown-kernel-on-kill nil t))
 
 (defun ejn--extract-kernelspec (notebook)
   "Extract the kernelspec name from NOTEBOOK's metadata."
