@@ -67,8 +67,47 @@
         (error nil)))))
 
 (defun ejn-execute--dispatch-next ()
-  "Dispatch the next request from the execution queue."
-  nil)
+  "Dispatch the next queued request if kernel is connected."
+  (let ((kernel (buffer-local-value 'ejn--kernel (current-buffer))))
+    (when (and kernel (eq 'connected (ejn-kernel-state kernel)))
+      (let ((request (ejn-execute--dequeue)))
+        (if request
+            (progn
+              (ejn-kernel-transition kernel 'busy)
+              (let ((cell (ejn-execute--find-cell (plist-get request :cell-id))))
+                (when cell
+                  (ejn-execute--set-cell-state cell 'executing))
+                (ejn-kernel-execute
+                 kernel
+                 (plist-get request :source)
+                 (plist-get request :request-id)
+		 (if cell
+                     (ejn-execute--make-callbacks cell)
+                   nil))))
+          (ejn-kernel-transition kernel 'connected)))))
+  (let ((notebook (buffer-local-value 'ejn--notebook (current-buffer))))
+    (when notebook
+      (ejn-render-dirty-cells notebook))))
+
+(defun ejn-execute--enqueue-and-maybe-run (cell-id source request-id version)
+  "Enqueue an execution request and dispatch if kernel is idle."
+  (let ((kernel (buffer-local-value 'ejn--kernel (current-buffer)))
+        (cell (ejn-execute--find-cell cell-id)))
+    (unless kernel
+      (user-error "Kernel not connected"))
+    (when cell
+      (if (eq 'connected (ejn-kernel-state kernel))
+          (progn
+            (ejn-kernel-transition kernel 'busy)
+            (ejn-execute--set-cell-state cell 'executing)
+            (ejn-kernel-execute
+             kernel source request-id
+             (ejn-execute--make-callbacks cell)))
+        (ejn-execute--set-cell-state cell 'queued)
+        (ejn-execute--enqueue (list :cell-id cell-id
+                                    :source source
+                                    :request-id request-id
+                                    :execution-version version))))))
 
 (defun ejn-execute--make-callbacks (cell)
   "Build a callbacks plist for CELL's execution."

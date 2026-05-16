@@ -57,8 +57,8 @@
     (let ((callbacks (ejn-execute--make-callbacks cell)))
       (funcall (plist-get callbacks :on-stream)
                (ejn-cell-id cell) "hello " "stdout"))
-      (should (= 1 (length (ejn-cell-outputs cell))))
-      (should (eq 'stream (ejn-output-type (car (ejn-cell-outputs cell)))))))
+    (should (= 1 (length (ejn-cell-outputs cell))))
+    (should (eq 'stream (ejn-output-type (car (ejn-cell-outputs cell)))))))
 
 (ert-deftest ejn-execute-test/error-callback-appends-error-output ()
   "Error callback should append an error output to the cell."
@@ -69,8 +69,34 @@
                (ejn-cell-id cell)
                "ValueError" "something went wrong"
                '("traceback line 1" "traceback line 2")))
-      (should (= 1 (length (ejn-cell-outputs cell))))
-      (should (eq 'error (ejn-output-type (car (ejn-cell-outputs cell)))))))
+    (should (= 1 (length (ejn-cell-outputs cell))))
+    (should (eq 'error (ejn-output-type (car (ejn-cell-outputs cell)))))))
+
+(ert-deftest ejn-execute-test/dispatch-next-executes-queued-request ()
+  "dispatch-next should execute the next queued request when kernel is connected."
+  (let ((kernel (ejn-make-kernel "python3"))
+        (ejn--execution-queue nil))
+    (ejn-kernel-transition kernel 'connected)
+    (ejn-execute--enqueue (list :cell-id "c1" :source "x=1" :request-id "r1" :execution-version 1))
+    (let ((dispatched nil))
+      (cl-letf (((symbol-function 'ejn-kernel-execute)
+                 (lambda (&rest _)
+                   (setq dispatched t))))
+        (with-temp-buffer
+          (set (make-local-variable 'ejn--kernel) kernel)
+          (set (make-local-variable 'ejn--execution-queue) ejn--execution-queue)
+          (ejn-execute--dispatch-next)))
+      (should dispatched))))
+
+(ert-deftest ejn-execute-test/dispatch-next-skips-empty-queue ()
+  "dispatch-next should do nothing when queue is empty."
+  (let ((kernel (ejn-make-kernel "python3")))
+    (ejn-kernel-transition kernel 'connected)
+    (with-temp-buffer
+      (set (make-local-variable 'ejn--kernel) kernel)
+      (set (make-local-variable 'ejn--execution-queue) nil)
+      (ejn-execute--dispatch-next)
+      (should (eq 'connected (ejn-kernel-state kernel))))))
 
 (provide 'ejn-execute-test)
 ;;; ejn-execute-test.el ends here
