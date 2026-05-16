@@ -175,5 +175,72 @@
                    (1+ (or (ejn-cell-execution-count current-cell) 0))))))
        (ejn-execute--dispatch-next)))))
 
+(defun ejn-execute--validate-cell (cell)
+  "Signal an error if CELL cannot be executed."
+  (unless (eq (ejn-cell-type cell) 'code)
+    (user-error "Cannot execute %s cells" (ejn-cell-type cell))))
+
+(defun ejn-execute-cell ()
+  "Execute the current cell."
+  (interactive)
+  (let ((cell (ejn-cell-at-point)))
+    (ejn-execute--validate-cell cell)
+    (let ((cell-id (ejn-cell-id cell))
+          (source (buffer-substring-no-properties
+                   (car (ejn-cell-region)) (cdr (ejn-cell-region)))))
+      (setf (ejn-cell-execution-version cell) (1+ (ejn-cell-execution-version cell)))
+      (ejn-execute--enqueue-and-maybe-run
+       cell-id source (ejn-generate-uuid) (ejn-cell-execution-version cell)))))
+
+(defun ejn-execute-cell-and-goto-next ()
+  "Execute the current cell and move to the next cell."
+  (interactive)
+  (ejn-execute-cell)
+  (condition-case nil
+      (ejn-goto-next-cell)
+    (error nil)))
+
+(defun ejn-execute-cell-and-insert-below ()
+  "Execute the current cell and insert a new cell below."
+  (interactive)
+  (ejn-execute-cell)
+  (require 'ejn-cell-engine)
+  (ejn-insert-cell-below))
+
+(defun ejn-execute-all-above ()
+  "Execute all cells above the current cell."
+  (interactive)
+  (let ((current-id (ejn-cell-id (ejn-cell-at-point)))
+        (notebook ejn--notebook))
+    (cl-loop for cell across (ejn-notebook-cells notebook)
+             until (string= (ejn-cell-id cell) current-id)
+             when (eq (ejn-cell-type cell) 'code)
+             do (let ((cell-id (ejn-cell-id cell))
+                      (source (ejn-cell-source cell)))
+                  (setf (ejn-cell-execution-version cell)
+                        (1+ (ejn-cell-execution-version cell)))
+                  (ejn-execute--enqueue-and-maybe-run
+                   cell-id source (ejn-generate-uuid)
+                   (ejn-cell-execution-version cell))))))
+
+(defun ejn-execute-all-below ()
+  "Execute all cells below the current cell."
+  (interactive)
+  (let ((current-id (ejn-cell-id (ejn-cell-at-point)))
+        (notebook ejn--notebook)
+        (started nil))
+    (cl-loop for cell across (ejn-notebook-cells notebook)
+             do (progn
+                  (when (string= (ejn-cell-id cell) current-id)
+                    (setq started t))
+                  (when (and started (eq (ejn-cell-type cell) 'code))
+                    (let ((cell-id (ejn-cell-id cell))
+                          (source (ejn-cell-source cell)))
+                      (setf (ejn-cell-execution-version cell)
+                            (1+ (ejn-cell-execution-version cell)))
+                      (ejn-execute--enqueue-and-maybe-run
+                       cell-id source (ejn-generate-uuid)
+                       (ejn-cell-execution-version cell))))))))
+
 (provide 'ejn-execute)
 ;;; ejn-execute.el ends here

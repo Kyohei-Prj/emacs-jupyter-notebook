@@ -98,5 +98,25 @@
       (ejn-execute--dispatch-next)
       (should (eq 'connected (ejn-kernel-state kernel))))))
 
+(ert-deftest ejn-execute-test/execute-cell-is-interactive ()
+  "ejn-execute-cell should be an interactive function."
+  (should (commandp #'ejn-execute-cell)))
+
+(ert-deftest ejn-execute-test/execute-cell-and-goto-next-is-interactive ()
+  "ejn-execute-cell-and-goto-next should be interactive."
+  (should (commandp #'ejn-execute-cell-and-goto-next)))
+
+(ert-deftest ejn-execute-test/execute-non-code-cell-signals-message ()
+  "Executing a markdown cell should signal an informative message."
+  (let ((cell (ejn-make-cell 'markdown "# Hello")))
+    (should-error (ejn-execute--validate-cell cell))))
+
+(ert-deftest ejn-execute-test/execute-code-cell-passes-validation ()
+  "Executing a code cell should pass validation."
+  (let ((cell (ejn-make-cell 'code "print(1)")))
+    (should-not (condition-case nil
+                    (progn (ejn-execute--validate-cell cell) nil)
+                  (error t)))))
+
 (provide 'ejn-execute-test)
 ;;; ejn-execute-test.el ends here
