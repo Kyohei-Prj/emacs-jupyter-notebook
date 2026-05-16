@@ -33,9 +33,15 @@
 (require 'ejn-sync)
 (require 'ejn-undo)
 (require 'ejn-persistence)
+(require 'ejn-kernel)
+(require 'ejn-kernel-jupyter)
+(require 'ejn-execute)
 
 (defvar-local ejn--notebook nil
   "Current notebook model for this buffer.")
+
+(defvar-local ejn--kernel nil
+  "Current kernel instance for this buffer.")
 
 (defvar ejn-mode-map
   (let ((map (make-sparse-keymap)))
@@ -94,19 +100,30 @@ inserted, deleted, split, merged, and moved.
     (setq ejn--sync-timer nil)))
 
 (defun ejn-kernel-quit ()
-  "Quit the kernel session.  Not yet implemented."
+  "Quit the kernel session."
   (interactive)
-  (user-error "Kernel not connected. Available in Phase 4."))
+  (when (buffer-local-value 'ejn--kernel (current-buffer))
+    (ejn-kernel-shutdown (buffer-local-value 'ejn--kernel (current-buffer)))
+    (set (make-local-variable 'ejn--kernel) nil)
+    (message "Kernel shut down")))
 
 (defun ejn-kernel-interrupt ()
-  "Interrupt the kernel.  Not yet implemented."
+  "Interrupt the running kernel."
   (interactive)
-  (user-error "Kernel not connected. Available in Phase 4."))
+  (let ((kernel (buffer-local-value 'ejn--kernel (current-buffer))))
+    (unless kernel
+      (user-error "No kernel connected"))
+    (ejn-kernel-interrupt kernel)
+    (message "Kernel interrupted")))
 
 (defun ejn-kernel-restart ()
-  "Restart the kernel.  Not yet implemented."
+  "Restart the kernel."
   (interactive)
-  (user-error "Kernel not connected. Available in Phase 4."))
+  (let ((kernel (buffer-local-value 'ejn--kernel (current-buffer))))
+    (unless kernel
+      (user-error "No kernel connected"))
+    (ejn-kernel-restart kernel)
+    (message "Kernel restarting")))
 
 (defun ejn-open (file-path)
   "Open a Jupyter notebook file at FILE-PATH.
@@ -120,7 +137,38 @@ Loads the notebook, creates a buffer in ejn-mode, and renders it."
       (set (make-local-variable 'ejn--notebook) notebook)
       (set (make-local-variable 'buffer-file-name) file-path)
       (ejn-render-notebook notebook)
+      (ejn--start-kernel notebook)
       (display-buffer (current-buffer)))))
+
+(defun ejn--start-kernel (notebook)
+  "Start a kernel for NOTEBOOK based on its kernelspec metadata."
+  (let ((kernelspec (ejn--extract-kernelspec notebook)))
+    (when kernelspec
+      (set (make-local-variable 'ejn--kernel) (ejn-make-kernel kernelspec))
+      (condition-case err
+          (ejn-kernel-start (buffer-local-value 'ejn--kernel (current-buffer)) kernelspec)
+        (error
+         (message "Failed to start kernel (%s). Connect manually with M-x ejn-connect-to-kernel."
+                  (error-message-string err)))
+        (set (make-local-variable 'ejn--kernel) nil))))
+  (add-hook 'kill-buffer-hook #'ejn--shutdown-kernel-on-kill nil t))
+
+(defun ejn--extract-kernelspec (notebook)
+  "Extract the kernelspec name from NOTEBOOK's metadata."
+  (let ((metadata (ejn-notebook-metadata notebook)))
+    (when metadata
+      (let ((kernelspec (cdr (assq :kernelspec metadata))))
+        (when kernelspec
+          (cdr (assq :name kernelspec)))))))
+
+(defun ejn--shutdown-kernel-on-kill ()
+  "Shutdown kernel when buffer is killed."
+  (let ((kernel (buffer-local-value 'ejn--kernel (current-buffer))))
+    (when kernel
+      (condition-case nil
+          (ejn-kernel-shutdown kernel)
+        (error nil))
+      (set (make-local-variable 'ejn--kernel) nil))))
 
 (defun ejn-save-notebook ()
   "Save the current notebook to its file."

@@ -52,13 +52,17 @@
     (should (eq (lookup-key ejn-mode-map (kbd "C-c C-k")) #'ejn-delete-cell))
     (should (eq (lookup-key ejn-mode-map (kbd "C-x C-s")) #'ejn-save-notebook))))
 
-(ert-deftest ejn-mode-test/kernel-stubs-signal-error ()
-  "Kernel commands should signal 'kernel not connected'."
-  (ejn-test-with-temp-buffer " *test*"
-    (ejn-mode)
-    (should-error (ejn-kernel-quit))
-    (should-error (ejn-kernel-interrupt))
-    (should-error (ejn-kernel-restart))))
+(ert-deftest ejn-mode-test/kernel-interrupt-is-interactive ()
+  "ejn-kernel-interrupt should be an interactive command."
+  (should (commandp #'ejn-kernel-interrupt)))
+
+(ert-deftest ejn-mode-test/kernel-restart-is-interactive ()
+  "ejn-kernel-restart should be an interactive command."
+  (should (commandp #'ejn-kernel-restart)))
+
+(ert-deftest ejn-mode-test/kernel-quit-is-interactive ()
+  "ejn-kernel-quit should be an interactive command."
+  (should (commandp #'ejn-kernel-quit)))
 
 (ert-deftest ejn-mode-test/save-notebook-serializes-model ()
   "ejn-save-notebook should serialize the model to the file."
