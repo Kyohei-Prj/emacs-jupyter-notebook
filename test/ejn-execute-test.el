@@ -26,5 +26,29 @@
     (should (string= "req-1" (plist-get first :request-id)))
     (should (string= "req-2" (plist-get second :request-id)))))
 
+(ert-deftest ejn-execute-test/cell-state-transition-queued ()
+  "Transitioning a cell to queued should update execution-state."
+  (let ((cell (ejn-make-cell 'code "print(1)")))
+    (ejn-execute--set-cell-state cell 'queued)
+    (should (eq 'queued (ejn-cell-execution-state cell)))))
+
+(ert-deftest ejn-execute-test/cell-state-transition-executing ()
+  "Transitioning a cell to executing should update execution-state."
+  (let ((cell (ejn-make-cell 'code "print(1)")))
+    (ejn-execute--set-cell-state cell 'executing)
+    (should (eq 'executing (ejn-cell-execution-state cell)))))
+
+(ert-deftest ejn-execute-test/cell-state-transition-completed ()
+  "Transitioning a cell to completed should update execution-state."
+  (let ((cell (ejn-make-cell 'code "print(1)")))
+    (ejn-execute--set-cell-state cell 'completed)
+    (should (eq 'completed (ejn-cell-execution-state cell)))))
+
+(ert-deftest ejn-execute-test/cell-state-transition-error ()
+  "Transitioning a cell to error should update execution-state."
+  (let ((cell (ejn-make-cell 'code "raise")))
+    (ejn-execute--set-cell-state cell 'error)
+    (should (eq 'error (ejn-cell-execution-state cell)))))
+
 (provide 'ejn-execute-test)
 ;;; ejn-execute-test.el ends here

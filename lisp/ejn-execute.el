@@ -50,5 +50,13 @@
         (setq ejn--execution-queue (cdr ejn--execution-queue)))
     nil))
 
+(defun ejn-execute--set-cell-state (cell state)
+  "Set CELL's execution-state to STATE and mark dirty."
+  (setf (ejn-cell-execution-state cell) state)
+  (let ((notebook (buffer-local-value 'ejn--notebook (current-buffer))))
+    (when notebook
+      (ejn-notebook-mark-dirty notebook (ejn-cell-id cell))
+      (ejn-render-dirty-cells notebook))))
+
 (provide 'ejn-execute)
 ;;; ejn-execute.el ends here
