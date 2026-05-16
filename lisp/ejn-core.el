@@ -37,6 +37,9 @@
 (require 'ejn-sync)
 (require 'ejn-undo)
 (require 'ejn-cell-engine)
+(require 'ejn-kernel)
+(require 'ejn-kernel-jupyter)
+(require 'ejn-execute)
 
 (defconst ejn-version "0.1.0"
   "Current version of emacs-jupyter-notebook.")
