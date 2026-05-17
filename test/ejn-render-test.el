@@ -195,5 +195,6 @@
       (search-forward "\n42" nil t)
       (should (get-text-property (point) 'invisible)))))
 
+
 (provide 'ejn-render-test)
 ;;; ejn-render-test.el ends here

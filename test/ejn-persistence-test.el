@@ -344,5 +344,33 @@
                   (should (string= (plist-get mime-data :name) "stdout")))))))
       (delete-file tmpfile))))
 
+(ert-deftest ejn-persistence-test/parse-output-wraps-mime-data-with-data-key ()
+  "Parser-created execute_result outputs should wrap mime-data in :data plist."
+  (require 'ejn-persistence)
+  (let ((output (ejn-ipynb-parse-output
+                 '((:output_type . "execute_result")
+                   (:data . ((:text/plain . ("42")) (:text/html . ("<b>42</b>"))))
+                   (:metadata . nil)
+                   (:execution_count . 1)))))
+    (should (ejn-output-p output))
+    (should (eq (ejn-output-type output) 'execute-result))
+    (let ((inner (plist-get (ejn-output-mime-data output) :data)))
+      (should inner)
+      (should (equal (alist-get 'text/plain inner) '("42")))
+      (should (equal (alist-get 'text/html inner) '("<b>42</b>"))))))
+
+(ert-deftest ejn-persistence-test/parse-output-converts-keyword-keys-to-symbols ()
+  "Parser should convert keyword keys to symbol keys for renderer compatibility."
+  (require 'ejn-persistence)
+  (require 'ejn-test-util)
+  (let ((nb (ejn-ipynb-parse-notebook
+             (f-join ejn-test-fixtures-directory "with-outputs.ipynb"))))
+    (let ((cell (ejn-notebook-cell-at-index nb 1)))
+      (let ((output (car (ejn-cell-outputs cell))))
+        (should (eq (ejn-output-type output) 'execute-result))
+        (let ((inner (plist-get (ejn-output-mime-data output) :data)))
+          (should inner)
+          (should (equal (alist-get 'text/plain inner) '("42"))))))))
+
 (provide 'ejn-persistence-test)
 ;;; ejn-persistence-test.el ends here
