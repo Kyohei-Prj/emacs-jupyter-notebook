@@ -52,16 +52,5 @@
           (random #x10000)
           (random (expt 2 48))))
 
-(eval-when-compile
-  (require 'ejn-mime)
-  (require 'ejn-render)
-  (require 'ejn-navigation)
-  (require 'ejn-sync)
-  (require 'ejn-undo)
-  (require 'ejn-cell-engine)
-  (require 'ejn-kernel)
-  (require 'ejn-kernel-jupyter)
-  (require 'ejn-execute))
-
 (provide 'ejn-core)
 ;;; ejn-core.el ends here
