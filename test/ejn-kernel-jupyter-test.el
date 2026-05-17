@@ -36,7 +36,7 @@
     (condition-case err
         (progn
           (ejn-kernel-start kernel "python3")
-          (ejn-kernel-interrupt kernel))
+          (ejn--kernel-interrupt kernel))
       (error nil))
     (should (memq (ejn-kernel-state kernel) '(interrupted connected dead)))))
 
@@ -47,7 +47,7 @@
     (condition-case err
         (progn
           (ejn-kernel-start kernel "python3")
-          (ejn-kernel-restart kernel))
+          (ejn--kernel-restart kernel))
       (error nil))))
 
 (ert-deftest ejn-kernel-jupyter-test/shutdown-calls-jupyter ()
@@ -57,7 +57,7 @@
     (condition-case err
         (progn
           (ejn-kernel-start kernel "python3")
-          (ejn-kernel-shutdown kernel))
+          (ejn--kernel-shutdown kernel))
       (error nil))
     (should (eq 'dead (ejn-kernel-state kernel)))))
 

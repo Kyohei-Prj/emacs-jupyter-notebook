@@ -32,6 +32,9 @@
 (require 'ejn-render)
 (require 'ejn-navigation)
 
+(defvar-local ejn--notebook nil
+  "Current notebook model for this buffer. (Defined in ejn-mode.el)")
+
 (defvar-local ejn--kernel nil
   "Current kernel instance for this buffer.")
 
@@ -114,65 +117,59 @@
   (let ((cell-id (ejn-cell-id cell)))
     (list
      :on-stream
-     (lambda (cid text name)
-       (when (string= cid cell-id)
-         (let ((current-cell (or (ejn-execute--find-cell cell-id) cell)))
-           (when current-cell
-             (ejn-execute--set-cell-state current-cell 'streaming)
-             (push (make-ejn-output
-                    :type 'stream
-                    :mime-data (list :name name :text text)
-                    :metadata nil
-                    :request-id nil)
-                   (ejn-cell-outputs current-cell)))))
-       nil)
+     (lambda (_cid text name)
+       (let ((current-cell (or (ejn-execute--find-cell cell-id) cell)))
+         (when current-cell
+           (ejn-execute--set-cell-state current-cell 'streaming)
+           (push (make-ejn-output
+                  :type 'stream
+                  :mime-data (list :name name :text text)
+                  :metadata nil
+                  :request-id nil)
+                 (ejn-cell-outputs current-cell)))))
      :on-result
-     (lambda (cid mime-data)
-       (when (string= cid cell-id)
-         (let ((current-cell (or (ejn-execute--find-cell cell-id) cell)))
-           (when current-cell
-             (ejn-execute--set-cell-state current-cell 'streaming)
-             (push (make-ejn-output
-                    :type 'execute-result
-                    :mime-data (list :data mime-data)
-                    :metadata nil
-                    :request-id nil)
-                   (ejn-cell-outputs current-cell))))))
+     (lambda (_cid mime-data)
+       (let ((current-cell (or (ejn-execute--find-cell cell-id) cell)))
+         (when current-cell
+           (ejn-execute--set-cell-state current-cell 'streaming)
+           (push (make-ejn-output
+                  :type 'execute-result
+                  :mime-data (list :data mime-data)
+                  :metadata nil
+                  :request-id nil)
+                 (ejn-cell-outputs current-cell)))))
      :on-display
-     (lambda (cid mime-data)
-       (when (string= cid cell-id)
-         (let ((current-cell (or (ejn-execute--find-cell cell-id) cell)))
-           (when current-cell
-             (ejn-execute--set-cell-state current-cell 'streaming)
-             (push (make-ejn-output
-                    :type 'display-data
-                    :mime-data (list :data mime-data)
-                    :metadata nil
-                    :request-id nil)
-                   (ejn-cell-outputs current-cell))))))
+     (lambda (_cid mime-data)
+       (let ((current-cell (or (ejn-execute--find-cell cell-id) cell)))
+         (when current-cell
+           (ejn-execute--set-cell-state current-cell 'streaming)
+           (push (make-ejn-output
+                  :type 'display-data
+                  :mime-data (list :data mime-data)
+                  :metadata nil
+                  :request-id nil)
+                 (ejn-cell-outputs current-cell)))))
      :on-error
-     (lambda (cid ename evalue traceback)
-       (when (string= cid cell-id)
-         (let ((current-cell (or (ejn-execute--find-cell cell-id) cell)))
-           (when current-cell
-             (ejn-execute--set-cell-state current-cell 'error)
-             (push (make-ejn-output
-                    :type 'error
-                    :mime-data (list :ename ename
-                                     :evalue evalue
-                                     :traceback traceback)
-                    :metadata nil
-                    :request-id nil)
-                   (ejn-cell-outputs current-cell))))))
+     (lambda (_cid ename evalue traceback)
+       (let ((current-cell (or (ejn-execute--find-cell cell-id) cell)))
+         (when current-cell
+           (ejn-execute--set-cell-state current-cell 'error)
+           (push (make-ejn-output
+                  :type 'error
+                  :mime-data (list :ename ename
+                                   :evalue evalue
+                                   :traceback traceback)
+                  :metadata nil
+                  :request-id nil)
+                 (ejn-cell-outputs current-cell)))))
      :on-complete
-     (lambda (cid status)
-       (when (string= cid cell-id)
-         (let ((current-cell (or (ejn-execute--find-cell cell-id) cell)))
-           (when current-cell
-             (ejn-execute--set-cell-state current-cell
-                                          (if (string= status "ok") 'completed 'error))
-             (setf (ejn-cell-execution-count current-cell)
-                   (1+ (or (ejn-cell-execution-count current-cell) 0))))))
+     (lambda (_cid status)
+       (let ((current-cell (or (ejn-execute--find-cell cell-id) cell)))
+         (when current-cell
+           (ejn-execute--set-cell-state current-cell
+                                        (if (string= status "ok") 'completed 'error))
+           (setf (ejn-cell-execution-count current-cell)
+                 (1+ (or (ejn-cell-execution-count current-cell) 0)))))
        (ejn-execute--dispatch-next)))))
 
 (defun ejn-execute--validate-cell (cell)
