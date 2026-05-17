@@ -35,5 +35,7 @@
 (require 'ejn-persistence)
 (require 'ejn-mode)
 
+(add-to-list 'auto-mode-alist '("\\.ipynb\\'" . ejn-mode))
+
 (provide 'ejn)
 ;;; ejn.el ends here

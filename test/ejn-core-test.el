@@ -20,5 +20,13 @@
   (require 'ejn-core)
   (should (get 'ejn 'custom-prefix)))
 
+(ert-deftest ejn-core-test/auto-mode-opens-ipynb-files-in-ejn-mode ()
+  "Files ending in .ipynb should open in ejn-mode."
+  (require 'ejn)
+  (should (cl-some (lambda (entry)
+                     (and (eq (cdr entry) 'ejn-mode)
+                          (string-match "\\.ipynb" (car entry))))
+                   auto-mode-alist)))
+
 (provide 'ejn-core-test)
 ;;; ejn-core-test.el ends here
