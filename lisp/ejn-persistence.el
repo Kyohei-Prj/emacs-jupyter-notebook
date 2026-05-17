@@ -75,6 +75,15 @@ SOURCE can be a string or a list of strings (line segments)."
    ((listp source) (mapconcat #'identity source ""))
    (t "")))
 
+(defun ejn--keyword-keys-to-symbols (alist)
+  "Convert keyword keys in ALIST to symbol keys.
+JSON parsing with `json-key-type' set to `keyword' produces
+keyword keys, but the renderer expects symbol keys."
+  (mapcar (lambda (pair)
+            (cons (intern (substring (symbol-name (car pair)) 1))
+                  (cdr pair)))
+          alist))
+
 (defun ejn-ipynb-parse-output (json-alist)
   "Parse a JSON output JSON-ALIST into an `ejn-output' struct."
   (let ((output-type (intern (replace-regexp-in-string "_" "-" (cdr (assq :output_type json-alist)))))
@@ -88,7 +97,8 @@ SOURCE can be a string or a list of strings (line segments)."
        (setq mime-data (list :name (cdr (assq :name json-alist))
                              :text (cdr (assq :text json-alist)))))
       (_
-       (setq mime-data (cdr (assq :data json-alist)))))
+       (setq mime-data (list :data (ejn--keyword-keys-to-symbols
+                                    (cdr (assq :data json-alist)))))))
     (make-ejn-output
      :type output-type
      :mime-data mime-data
@@ -103,7 +113,7 @@ SOURCE can be a string or a list of strings (line segments)."
      :type cell-type
      :source (ejn-ipynb-parse-source (cdr (assq :source json-alist)))
      :outputs (mapcar #'ejn-ipynb-parse-output
-                      (cdr (assq :outputs json-alist)))
+		      (cdr (assq :outputs json-alist)))
      :metadata (cdr (assq :metadata json-alist))
      :execution-count (cdr (assq :execution_count json-alist))
      :execution-state 'idle
@@ -124,21 +134,21 @@ Signals `ejn-unsupported-format' for unsupported nbformat versions."
           (setq json-data (json-read-object)))
       (error
        (signal 'ejn-invalid-notebook
-               (list (format "Failed to parse %s: %s" path (error-message-string err))))))
+	       (list (format "Failed to parse %s: %s" path (error-message-string err))))))
     (let ((nbformat (cdr (assq :nbformat json-data)))
           (nbformat-minor (cdr (assq :nbformat_minor json-data))))
       (unless (= nbformat 4)
         (signal 'ejn-unsupported-format
                 (list (format "Unsupported nbformat version: %s (only v4 supported)"
-                              nbformat))))
+			      nbformat))))
       (make-ejn-notebook
        :id (cdr (assq :id json-data))
        :path path
        :metadata (cdr (assq :metadata json-data))
        :cells (cl-loop for cell-json in (cdr (assq :cells json-data))
-                       collect (ejn-ipynb-parse-cell cell-json)
-                       into cells-list
-                       finally return (vconcat cells-list))
+		       collect (ejn-ipynb-parse-cell cell-json)
+		       into cells-list
+		       finally return (vconcat cells-list))
        :dirty nil
        :nbformat nbformat
        :nbformat-minor nbformat-minor
@@ -161,7 +171,7 @@ Signals `ejn-unsupported-format' for unsupported nbformat versions."
          (plist-put result :text (plist-get mime-data :text))))
       (_
        (when mime-data
-         (plist-put result :data mime-data))))
+         (plist-put result :data (or (plist-get mime-data :data) mime-data)))))
     (when (ejn-output-metadata output)
       (plist-put result :metadata (ejn-output-metadata output)))
     result))
@@ -225,7 +235,7 @@ Signals an error if no backend can handle PATH or saving fails."
 ;; Auto-register the .ipynb backend
 (ejn-register-persistence-backend 'ipynb #'make-ejn-ipynb-backend
                                   :predicate (lambda (path)
-                                               (string-suffix-p ".ipynb" path)))
+					       (string-suffix-p ".ipynb" path)))
 
 (provide 'ejn-persistence)
 ;;; ejn-persistence.el ends here
