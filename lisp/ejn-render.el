@@ -259,23 +259,23 @@ If output is visible, fold it.  If folded, unfold it."
         (let ((after-source (cdr region)))
           (when (< after-source (point-max))
             (let ((zone-start (ejn--find-next-output-zone-start after-source)))
-	      (when zone-start
+             (when zone-start
                 (let ((output-region (ejn--find-output-zone-region zone-start)))
                   (when output-region
                     (let ((currently-folded
                            (get-text-property (car output-region) 'invisible)))
-		      (let ((inhibit-read-only t))
+                      (let ((inhibit-read-only t))
                         (if currently-folded
                             (put-text-property (car output-region)
-					       (cdr output-region)
-					       'invisible nil)
+                                               (cdr output-region)
+                                               'invisible nil)
                           (put-text-property (car output-region)
                                              (cdr output-region)
                                              'invisible ejn-folded-output)
                           (add-to-invisibility-spec
                            '(ejn-folded-output))))))))))))
       (unless (memq ejn-folded-output buffer-invisibility-spec)
-	(add-to-invisibility-spec '(ejn-folded-output))))))
+        (add-to-invisibility-spec '(ejn-folded-output))))))
 
 (provide 'ejn-render)
 ;;; ejn-render.el ends here

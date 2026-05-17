@@ -256,5 +256,28 @@ causing duplicated or stale outputs in the buffer."
         (goto-char (point-min))
         (should (search-forward "hello" nil t))))))
 
+(ert-deftest ejn-render-test/render-dirty-cells-clears-outputs ()
+  "Incremental render should remove output zone when outputs are cleared."
+  (require 'ejn-model)
+  (let ((nb (ejn-make-notebook)))
+    (ejn-notebook-insert-cell nb 'code :at 0)
+    (let ((cell (ejn-notebook-cell-at-index nb 0))
+          (cell-id (ejn-cell-id (ejn-notebook-cell-at-index nb 0))))
+      (setf (ejn-cell-source cell) "x = 1")
+      (setf (ejn-cell-outputs cell)
+            (list (make-ejn-output
+                   :type 'execute-result
+                   :mime-data (list :data (list (cons 'text/plain (list "output"))))
+                   :metadata nil
+                   :request-id nil)))
+      (ejn-test-with-temp-buffer " *test*"
+        (ejn-render-notebook nb)
+        (should (search-forward "output" nil t))
+        (setf (ejn-cell-outputs cell) nil)
+        (ejn-notebook-mark-dirty nb cell-id)
+        (ejn-render-dirty-cells nb)
+        (goto-char (point-min))
+        (should-not (search-forward "output" nil t))))))
+
 (provide 'ejn-render-test)
 ;;; ejn-render-test.el ends here
