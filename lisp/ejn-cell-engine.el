@@ -30,7 +30,6 @@
 (require 'ejn-render)
 (require 'ejn-navigation)
 (require 'ejn-undo)
-(require 'ejn-execute)
 
 (defvar-local ejn--cell-kill-ring nil
   "Kill ring for copied cells.  Each entry is a serialized cell plist.")

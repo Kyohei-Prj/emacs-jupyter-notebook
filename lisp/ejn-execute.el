@@ -32,12 +32,6 @@
 (require 'ejn-render)
 (require 'ejn-navigation)
 
-(defvar-local ejn--notebook nil
-  "Current notebook model for this buffer. (Defined in ejn-mode.el)")
-
-(defvar-local ejn--kernel nil
-  "Current kernel instance for this buffer.")
-
 (defvar-local ejn--execution-queue nil
   "FIFO queue of pending execution requests.")
 

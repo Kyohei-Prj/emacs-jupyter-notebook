@@ -72,6 +72,7 @@
     (define-key map (kbd "C-c C-q") #'ejn-kernel-quit)
     (define-key map (kbd "C-c C-z") #'ejn-kernel-interrupt)
     (define-key map (kbd "C-c C-x C-r") #'ejn-kernel-restart)
+    (define-key map (kbd "C-c C-x C-c") #'ejn-kernel-reconnect-command)
     map)
   "Keymap for `ejn-mode'.")
 
@@ -91,7 +92,9 @@ inserted, deleted, split, merged, and moved.
   (set (make-local-variable 'ejn--cell-kill-ring) nil)
   (add-to-invisibility-spec '(ejn-folded-output))
   (add-hook 'kill-buffer-hook #'ejn--cleanup-buffer nil t)
-  (ejn-sync-mode))
+  (ejn-sync-mode)
+  (add-hook 'ejn-kernel-dead-hook #'ejn-update-header-line nil t)
+  (ejn-update-header-line))
 
 (defun ejn--cleanup-buffer ()
   "Clean up buffer-local resources when exiting ejn-mode."
@@ -124,6 +127,17 @@ inserted, deleted, split, merged, and moved.
       (user-error "No kernel connected"))
     (ejn--kernel-restart kernel)
     (message "Kernel restarting")))
+
+(defun ejn-update-header-line ()
+  "Update the header line with kernel state and dirty indicator."
+  (let ((kernel-state "")
+        (dirty-indicator ""))
+    (when ejn--kernel
+      (setq kernel-state (format " [%s]" (ejn-kernel-state ejn--kernel))))
+    (when (and ejn--notebook (ejn-notebook-dirty ejn--notebook))
+      (setq dirty-indicator " *"))
+    (setq header-line-format
+          (format "EJN%s%s" kernel-state dirty-indicator))))
 
 (defun ejn-open (file-path)
   "Open a Jupyter notebook file at FILE-PATH.

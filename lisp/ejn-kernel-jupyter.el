@@ -33,17 +33,14 @@
       (require 'jupyter)
     (error nil)))
 
-(defvar ejn--request-registry
-  (make-hash-table :test 'equal)
-  "Hash table mapping request-IDs to callback plists.")
-
 (cl-defmethod ejn-kernel-start ((kernel ejn-kernel) kernelspec)
   "Start a new Jupyter kernel with KERNELSPEC."
   (condition-case err
       (let ((client (jupyter-client kernelspec)))
         (jupyter-connect client)
         (setf (ejn-kernel-client kernel) client)
-        (ejn-kernel-transition kernel 'connected))
+        (ejn-kernel-transition kernel 'connected)
+        (ejn-kernel-start-heartbeat kernel))
     (error
      (ejn-kernel-transition kernel 'dead)
      (signal 'ejn-kernel-start-error
@@ -51,15 +48,18 @@
                            (error-message-string err)))))))
 
 (cl-defmethod ejn-kernel-alive-p ((kernel ejn-kernel))
-  "Return non-nil if kernel is not in dead state."
-  (not (memq (ejn-kernel-state kernel) '(dead startup))))
+  "Return non-nil if KERNEL is not in dead state and client exists."
+  (let ((client (ejn-kernel-client kernel))
+        (state (ejn-kernel-state kernel)))
+    (and client
+         (not (memq state '(dead startup))))))
 
 (cl-defmethod ejn-kernel-execute ((kernel ejn-kernel) code request-id callbacks)
   "Execute CODE on the Jupyter kernel."
   (let ((client (ejn-kernel-client kernel)))
     (unless client
       (error "Kernel not connected"))
-    (puthash request-id callbacks ejn--request-registry)
+    (puthash request-id callbacks (ejn-kernel-request-registry kernel))
     (jupyter-execute-request
      client
      :code code
@@ -70,11 +70,11 @@
      :callbacks
      (list :iopub
            (lambda (_client req msg)
-             (ejn--handle-iopub request-id req msg))))))
+             (ejn--handle-iopub kernel request-id req msg))))))
 
-(defun ejn--handle-iopub (request-id _req msg)
-  "Handle an ioPub message for REQUEST-ID."
-  (let ((callbacks (gethash request-id ejn--request-registry)))
+(defun ejn--handle-iopub (kernel request-id _req msg)
+  "Handle an ioPub message for KERNEL and REQUEST-ID."
+  (let ((callbacks (gethash request-id (ejn-kernel-request-registry kernel))))
     (when callbacks
       (let ((msg-type (jupyter-message-type msg))
             (content (jupyter-message-content msg)))
@@ -98,20 +98,20 @@
                (funcall handler
                         (or (plist-get content :parent-cell-id) "")
                         (plist-get content :data)))))
-          ('error
-           (let ((handler (plist-get callbacks :on-error)))
-             (when handler
-               (funcall handler
-                        (or (plist-get content :parent-cell-id) "")
-                        (plist-get content :ename)
-                        (plist-get content :evalue)
-                        (plist-get content :traceback)))))
-          ('status
-           (when (string= (plist-get content :execution_state) "idle")
-             (let ((handler (plist-get callbacks :on-complete)))
-               (when handler
-                 (funcall handler "" "ok"))
-               (remhash request-id ejn--request-registry)))))))))
+         ('error
+            (let ((handler (plist-get callbacks :on-error)))
+              (when handler
+                (funcall handler
+                         (or (plist-get content :parent-cell-id) "")
+                         (plist-get content :ename)
+                         (plist-get content :evalue)
+                         (plist-get content :traceback)))))
+           ('status
+            (when (string= (plist-get content :execution_state) "idle")
+              (let ((handler (plist-get callbacks :on-complete)))
+                (when handler
+                  (funcall handler "" "ok"))
+                (remhash request-id (ejn-kernel-request-registry kernel))))))))))
 
 (cl-defmethod ejn--kernel-interrupt ((kernel ejn-kernel))
   "Interrupt the running Jupyter kernel."
@@ -127,14 +127,35 @@
   "Restart the Jupyter kernel."
   (let ((client (ejn-kernel-client kernel)))
     (when client
-      (condition-case err
-          (jupyter-restart-kernel client)
-        (error
-         (ejn-log-message "warn" "Restart failed: %s" (error-message-string err))))
-      (ejn-kernel-transition kernel 'connected))))
+    (condition-case err
+           (jupyter-restart-kernel client)
+         (error
+          (ejn-log-message "warn" "Restart failed: %s" (error-message-string err))))
+       (ejn-kernel-transition kernel 'connected)
+       (ejn-kernel-start-heartbeat kernel))))
+
+(cl-defmethod ejn-kernel-reconnect ((kernel ejn-kernel))
+  "Reconnect the Jupyter kernel using its stored kernelspec."
+  (setf (ejn-kernel-request-registry kernel) (make-hash-table :test 'equal))
+  (ejn-kernel-stop-heartbeat)
+  (let ((kernelspec (ejn-kernel-kernelspec kernel)))
+    (unless kernelspec
+      (error "No kernelspec stored for reconnect"))
+    (condition-case err
+        (let ((client (jupyter-client kernelspec)))
+          (jupyter-connect client)
+          (setf (ejn-kernel-client kernel) client)
+          (ejn-kernel-transition kernel 'connected)
+          (ejn-kernel-start-heartbeat kernel))
+      (error
+       (ejn-kernel-transition kernel 'dead)
+       (signal 'ejn-kernel-reconnect-error
+               (list (format "Failed to reconnect: %s"
+                             (error-message-string err))))))))
 
 (cl-defmethod ejn--kernel-shutdown ((kernel ejn-kernel))
   "Shutdown the Jupyter kernel."
+  (ejn-kernel-stop-heartbeat)
   (let ((client (ejn-kernel-client kernel)))
     (when client
       (condition-case err

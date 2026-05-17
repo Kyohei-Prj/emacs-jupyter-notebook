@@ -26,7 +26,6 @@
 (require 'cl-lib)
 (require 'ejn-cell)
 (require 'ejn-model)
-(require 'ejn-render)
 
 (defun ejn--find-cell-id-at-point ()
   "Return the cell ID text property at point.

@@ -93,5 +93,33 @@
     (ejn--cleanup-buffer)
     (should-not ejn--sync-timer)))
 
+(ert-deftest ejn-mode-test/header-line-shows-kernel-state ()
+  "Header line should display kernel state."
+  (require 'ejn-kernel)
+  (let ((kernel (ejn-make-kernel "python3")))
+    (ejn-kernel-transition kernel 'connected)
+    (ejn-test-with-temp-buffer " *test*"
+      (ejn-mode)
+      (set (make-local-variable 'ejn--notebook) (ejn-make-notebook))
+      (set (make-local-variable 'ejn--kernel) kernel)
+      (ejn-update-header-line)
+      (should (stringp header-line-format))
+      (should (string-match "connected" header-line-format)))))
+
+(ert-deftest ejn-mode-test/header-line-shows-dirty-state ()
+  "Header line should indicate dirty notebook."
+  (require 'ejn-kernel)
+  (require 'ejn-model)
+  (let* ((nb (ejn-make-notebook))
+         (kernel (ejn-make-kernel "python3")))
+    (ejn-kernel-transition kernel 'connected)
+    (ejn-notebook-mark-dirty nb "test-cell-id")
+    (ejn-test-with-temp-buffer " *test*"
+      (ejn-mode)
+      (set (make-local-variable 'ejn--notebook) nb)
+      (set (make-local-variable 'ejn--kernel) kernel)
+      (ejn-update-header-line)
+      (should (string-match "\\*" header-line-format)))))
+
 (provide 'ejn-mode-test)
 ;;; ejn-mode-test.el ends here

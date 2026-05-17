@@ -22,6 +22,7 @@
 ;;; Code:
 
 (require 'cl-lib)
+(require 'ejn-core)
 
 (eval-when-compile (require 'subr-x))
 
@@ -56,15 +57,6 @@ TYPE must be one of `ejn-valid-output-types'."
   execution-count
   execution-state
   execution-version)
-
-(defun ejn-generate-uuid ()
-  "Generate a simple UUID-like string for cell identification."
-  (format "%08x-%04x-%04x-%04x-%012x"
-          (random most-positive-fixnum)
-          (random #x10000)
-          (random #x10000)
-          (random #x10000)
-          (random (expt 2 48))))
 
 (defun ejn-make-cell (type &optional source)
   "Create a cell of TYPE with optional SOURCE string.

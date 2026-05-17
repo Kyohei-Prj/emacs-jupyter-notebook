@@ -27,7 +27,7 @@
           (ejn-kernel-start kernel "python3")
           (ejn-kernel-execute kernel "print(1)" request-id callbacks))
       (error nil))
-    (should (gethash request-id ejn--request-registry))))
+    (should (gethash request-id (ejn-kernel-request-registry kernel)))))
 
 (ert-deftest ejn-kernel-jupyter-test/interrupt-calls-jupyter ()
   "ejn-kernel-interrupt should call jupyter-interrupt-kernel."
