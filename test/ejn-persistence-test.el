@@ -163,8 +163,8 @@
                                    "test-cell-1"))))))
 	  (delete-file tmpfile)))))
 
-(ert-deftest ejn-persistence-test/serialize-outputs-source-as-string ()
-  "Serialization should output source as a string."
+(ert-deftest ejn-persistence-test/serialize-outputs-source-as-array ()
+  "Serialization should output source as an array of strings."
   (require 'ejn-persistence)
   (let ((nb (ejn-make-notebook))
         (tmpfile (make-temp-file "ejn-test" nil ".ipynb")))
@@ -182,7 +182,11 @@
                   (json-key-type 'keyword))
               (let ((data (json-read-object)))
                 (let ((cell (car (cdr (assq :cells data)))))
-                  (should (stringp (cdr (assq :source cell))))))))
+                  (let ((source (cdr (assq :source cell))))
+                  (should (listp source))
+                  (should (= (length source) 2))
+                  (should (string= (nth 0 source) "print(1)"))
+                  (should (string= (nth 1 source) "print(2)")))))))
 	  (delete-file tmpfile)))))
 
 (ert-deftest ejn-persistence-test/roundtrip-sample-notebook ()
@@ -344,33 +348,45 @@
                   (should (string= (plist-get mime-data :name) "stdout")))))))
       (delete-file tmpfile))))
 
-(ert-deftest ejn-persistence-test/parse-output-wraps-mime-data-with-data-key ()
-  "Parser-created execute_result outputs should wrap mime-data in :data plist."
-  (require 'ejn-persistence)
-  (let ((output (ejn-ipynb-parse-output
-                 '((:output_type . "execute_result")
-                   (:data . ((:text/plain . ("42")) (:text/html . ("<b>42</b>"))))
-                   (:metadata . nil)
-                   (:execution_count . 1)))))
-    (should (ejn-output-p output))
-    (should (eq (ejn-output-type output) 'execute-result))
-    (let ((inner (plist-get (ejn-output-mime-data output) :data)))
-      (should inner)
-      (should (equal (alist-get 'text/plain inner) '("42")))
-      (should (equal (alist-get 'text/html inner) '("<b>42</b>"))))))
-
-(ert-deftest ejn-persistence-test/parse-output-converts-keyword-keys-to-symbols ()
-  "Parser should convert keyword keys to symbol keys for renderer compatibility."
+(ert-deftest ejn-persistence-test/execute-result-output-roundtrip ()
+  "Execute_result outputs should round-trip preserving mime-data."
   (require 'ejn-persistence)
   (require 'ejn-test-util)
   (let ((nb (ejn-ipynb-parse-notebook
-             (f-join ejn-test-fixtures-directory "with-outputs.ipynb"))))
-    (let ((cell (ejn-notebook-cell-at-index nb 1)))
-      (let ((output (car (ejn-cell-outputs cell))))
-        (should (eq (ejn-output-type output) 'execute-result))
-        (let ((inner (plist-get (ejn-output-mime-data output) :data)))
-          (should inner)
-          (should (equal (alist-get 'text/plain inner) '("42"))))))))
+             (f-join ejn-test-fixtures-directory "with-outputs.ipynb")))
+        (tmpfile (make-temp-file "ejn-test" nil ".ipynb")))
+    (unwind-protect
+        (progn
+          (ejn-ipynb-serialize-notebook nb tmpfile)
+          (let ((reloaded (ejn-ipynb-parse-notebook tmpfile)))
+            (let ((cell (ejn-notebook-cell-at-index reloaded 1)))
+              (let ((output (car (ejn-cell-outputs cell))))
+                (should (eq (ejn-output-type output) 'execute-result))
+                (let ((mime-data (ejn-output-mime-data output)))
+                  (let ((inner (plist-get mime-data :data)))
+                    (should inner)
+                    (should (equal (alist-get 'text/plain inner) '("42")))
+                    (should (equal (alist-get 'text/html inner) '("<b>42</b>")))))))))
+      (delete-file tmpfile))))
+
+(ert-deftest ejn-persistence-test/roundtrip-preserves-blank-lines-in-source ()
+  "Multi-line source with blank lines must survive parse → serialize → parse."
+  (require 'ejn-persistence)
+  (require 'ejn-test-util)
+  (let ((nb (ejn-ipynb-parse-notebook (f-join ejn-test-fixtures-directory "sample.ipynb")))
+        (temp-path (make-temp-file "ejn-test" nil ".ipynb")))
+    (unwind-protect
+        (progn
+          (let ((cell (ejn-notebook-cell-at-index nb 0)))
+            (ejn-notebook-set-cell-source nb (ejn-cell-id cell) "line1\n\nline3\n\n\nline6")
+            (let ((serialized (ejn-ipynb-serialize-cell cell)))
+              (should (equal (plist-get serialized :source)
+                             '["line1" "" "line3" "" "" "line6"]))))
+          (ejn-ipynb-serialize-notebook nb temp-path)
+          (let ((nb2 (ejn-ipynb-parse-notebook temp-path)))
+            (let ((cell2 (ejn-notebook-cell-at-index nb2 0)))
+              (should (string= (ejn-cell-source cell2) "line1\n\nline3\n\n\nline6")))))
+      (delete-file temp-path))))
 
 (provide 'ejn-persistence-test)
 ;;; ejn-persistence-test.el ends here

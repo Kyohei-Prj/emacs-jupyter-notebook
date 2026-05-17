@@ -72,7 +72,7 @@ the backend can handle it."
 SOURCE can be a string or a list of strings (line segments)."
   (cond
    ((stringp source) source)
-   ((listp source) (mapconcat #'identity source ""))
+   ((listp source) (mapconcat #'identity source "\n"))
    (t "")))
 
 (defun ejn--keyword-keys-to-symbols (alist)
@@ -180,7 +180,7 @@ Signals `ejn-unsupported-format' for unsupported nbformat versions."
   "Serialize an CELL `ejn-cell' struct to a JSON-compatible plist."
   (list :id (ejn-cell-id cell)
         :cell_type (symbol-name (ejn-cell-type cell))
-        :source (ejn-cell-source cell)
+        :source (vconcat (split-string (ejn-cell-source cell) "\n"))
         :outputs (vconcat (mapcar #'ejn-ipynb-serialize-output
                                   (ejn-cell-outputs cell)))
         :metadata (or (ejn-cell-metadata cell) nil)
