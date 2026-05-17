@@ -73,6 +73,8 @@
     (define-key map (kbd "C-c C-z") #'ejn-kernel-interrupt)
     (define-key map (kbd "C-c C-x C-r") #'ejn-kernel-restart)
     (define-key map (kbd "C-c C-x C-c") #'ejn-kernel-reconnect-command)
+    (define-key map (kbd "C-/") #'ejn-undo-command)
+    (define-key map (kbd "C-x _") #'ejn-undo-command)
     map)
   "Keymap for `ejn-mode'.")
 
