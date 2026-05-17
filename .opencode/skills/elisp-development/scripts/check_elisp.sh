@@ -67,6 +67,7 @@ echo "[3/7] byte compilation"
 FILE_DIR="$(cd "$(dirname "$FILE")" && pwd)"
 
 if emacs -Q --batch \
+    --eval "(package-initialize)" \
     --eval "(push \"$FILE_DIR\" load-path)" \
     -f batch-byte-compile "$FILE"
 then
@@ -125,16 +126,49 @@ fi
 echo
 echo "[6/7] package-lint"
 
-if command -v package-lint-batch-and-exit >/dev/null 2>&1
-then
-    if package-lint-batch-and-exit "$FILE"
-    then
-        echo "PASS :: package-lint"
-    else
-        echo "WARN :: package-lint findings"
+# Find the main package file by walking up from the file's parent directory
+FILE_DIR="$(dirname "$FILE")"
+PROJECT_ROOT="$(dirname "$FILE_DIR")"
+while [[ "$PROJECT_ROOT" != "/" ]]; do
+    if [[ -f "$PROJECT_ROOT/Eask" ]]; then
+        break
     fi
+    # Check for .el files but not if we're in a lisp/ or test/ subdir
+    BASENAME="$(basename "$PROJECT_ROOT")"
+    if [[ "$BASENAME" != "lisp" && "$BASENAME" != "test" ]] && \
+       ls "$PROJECT_ROOT"/*.el >/dev/null 2>&1; then
+        break
+    fi
+    PROJECT_ROOT="$(dirname "$PROJECT_ROOT")"
+done
+
+# Look for main .el file in project root
+FILE_MAIN=""
+for candidate in "$PROJECT_ROOT"/*.el; do
+    if [[ -f "$candidate" ]]; then
+        FILE_MAIN="$candidate"
+        break
+    fi
+done
+
+# Fallback: if no main file found, use the file itself
+if [[ -z "$FILE_MAIN" ]]; then
+    FILE_MAIN="$FILE"
+fi
+
+PACKAGE_LINT_OUTPUT=$(emacs -Q --batch \
+    --eval "(package-initialize)" \
+    --eval "(require 'package-lint)" \
+    --eval "(setq package-lint-main-file \"$FILE_MAIN\")" \
+    --eval "(package-lint-batch-and-exit)" \
+    "$FILE" 2>&1) || true
+
+if [[ -z "$PACKAGE_LINT_OUTPUT" ]]
+then
+    echo "PASS :: package-lint"
 else
-    echo "SKIP :: package-lint unavailable"
+    echo "WARN :: package-lint findings"
+    echo "$PACKAGE_LINT_OUTPUT"
 fi
 
 ########################################
