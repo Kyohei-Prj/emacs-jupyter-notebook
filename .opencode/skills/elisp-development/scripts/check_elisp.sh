@@ -64,7 +64,10 @@ fi
 echo
 echo "[3/7] byte compilation"
 
+FILE_DIR="$(cd "$(dirname "$FILE")" && pwd)"
+
 if emacs -Q --batch \
+    --eval "(push \"$FILE_DIR\" load-path)" \
     -f batch-byte-compile "$FILE"
 then
     echo "PASS :: byte compilation"
@@ -141,12 +144,21 @@ fi
 echo
 echo "[7/7] checkdoc"
 
-if emacs -Q --batch "$FILE" \
-    --eval "(with-current-buffer (find-file-noselect \"$FILE\") (checkdoc-current-buffer))"
+CHECKDOC_OUTPUT=$(emacs -Q --batch \
+    --eval "(progn
+        (setq checkdoc-interactive nil)
+        (defun y-or-n-p (_prompt) nil))" \
+    --eval "(with-current-buffer (find-file-noselect \"$FILE\")
+        (condition-case e
+            (checkdoc-current-buffer)
+          (error (princ (error-message-string e)))))" 2>&1) || true
+
+if [[ -z "$CHECKDOC_OUTPUT" ]]
 then
     echo "PASS :: checkdoc"
 else
     echo "WARN :: checkdoc findings"
+    echo "$CHECKDOC_OUTPUT"
 fi
 
 ########################################
