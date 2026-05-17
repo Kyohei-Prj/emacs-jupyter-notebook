@@ -35,7 +35,7 @@ Each entry is a plist with :handler (function) and :priority (integer).")
 (cl-defun ejn-register-mime-handler (mime-type handler &key (priority 10))
   "Register HANDLER function for MIME-TYPE.
 PRIORITY determines precedence when multiple handlers exist for the same type.
-Higher priority wins. Default priority is 10."
+Higher priority wins.  Default priority is 10."
   (puthash mime-type (list :handler handler :priority priority)
            ejn-mime-registry))
 

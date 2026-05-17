@@ -259,5 +259,90 @@
                         :type 'ejn-unsupported-format)
         (delete-file tmpfile)))))
 
+(ert-deftest ejn-persistence-test/serialize-error-output-fields ()
+  "Error outputs should serialize ename, evalue, traceback (not data)."
+  (require 'ejn-persistence)
+  (let ((output (make-ejn-output
+                 :type 'error
+                 :mime-data (list :ename "ValueError"
+                                  :evalue "something went wrong"
+                                  :traceback '["trace1" "trace2"])
+                 :metadata nil
+                 :request-id nil)))
+    (let ((result (ejn-ipynb-serialize-output output)))
+      (should (string= (plist-get result :output_type) "error"))
+      (should (string= (plist-get result :ename) "ValueError"))
+      (should (string= (plist-get result :evalue) "something went wrong"))
+      (should (equal (plist-get result :traceback)
+                     '["trace1" "trace2"]))
+      (should-not (plist-get result :data)))))
+
+(ert-deftest ejn-persistence-test/serialize-stream-output-fields ()
+  "Stream outputs should serialize name and text (not data)."
+  (require 'ejn-persistence)
+  (let ((output (make-ejn-output
+                 :type 'stream
+                 :mime-data (list :name "stdout"
+                                  :text "hello\n")
+                 :metadata nil
+                 :request-id nil)))
+    (let ((result (ejn-ipynb-serialize-output output)))
+      (should (string= (plist-get result :output_type) "stream"))
+      (should (string= (plist-get result :name) "stdout"))
+      (should (string= (plist-get result :text) "hello\n"))
+      (should-not (plist-get result :data)))))
+
+(ert-deftest ejn-persistence-test/serialize-display-data-uses-data ()
+  "Display-data outputs should continue to use :data."
+  (require 'ejn-persistence)
+  (let ((output (make-ejn-output
+                 :type 'display-data
+                 :mime-data (list :text/plain "42" :text/html "<b>42</b>")
+                 :metadata (list :custom "value")
+                 :request-id nil)))
+    (let ((result (ejn-ipynb-serialize-output output)))
+      (should (string= (plist-get result :output_type) "display_data"))
+      (should (plist-get result :data))
+      (should (equal (plist-get result :data)
+                     (list :text/plain "42" :text/html "<b>42</b>"))))))
+
+(ert-deftest ejn-persistence-test/error-output-roundtrip ()
+  "Error outputs should round-trip preserving ename, evalue, traceback."
+  (require 'ejn-persistence)
+  (require 'ejn-test-util)
+  (let ((nb (ejn-ipynb-parse-notebook
+             (f-join ejn-test-fixtures-directory "with-outputs.ipynb")))
+        (tmpfile (make-temp-file "ejn-test" nil ".ipynb")))
+    (unwind-protect
+        (progn
+          (ejn-ipynb-serialize-notebook nb tmpfile)
+          (let ((reloaded (ejn-ipynb-parse-notebook tmpfile)))
+            (let ((error-cell (ejn-notebook-cell-at-index reloaded 2)))
+              (let ((error-output (car (ejn-cell-outputs error-cell))))
+                (let ((mime-data (ejn-output-mime-data error-output)))
+                  (should (eq (ejn-output-type error-output) 'error))
+                  (should (string= (plist-get mime-data :ename) "ValueError"))
+                  (should (string= (plist-get mime-data :evalue)
+                                   "something went wrong")))))))
+      (delete-file tmpfile))))
+
+(ert-deftest ejn-persistence-test/stream-output-roundtrip ()
+  "Stream outputs should round-trip preserving name and text."
+  (require 'ejn-persistence)
+  (require 'ejn-test-util)
+  (let ((nb (ejn-ipynb-parse-notebook
+             (f-join ejn-test-fixtures-directory "with-outputs.ipynb")))
+        (tmpfile (make-temp-file "ejn-test" nil ".ipynb")))
+    (unwind-protect
+        (progn
+          (ejn-ipynb-serialize-notebook nb tmpfile)
+          (let ((reloaded (ejn-ipynb-parse-notebook tmpfile)))
+            (let ((stream-cell (ejn-notebook-cell-at-index reloaded 0)))
+              (let ((stream-output (car (ejn-cell-outputs stream-cell))))
+                (let ((mime-data (ejn-output-mime-data stream-output)))
+                  (should (eq (ejn-output-type stream-output) 'stream))
+                  (should (string= (plist-get mime-data :name) "stdout")))))))
+      (delete-file tmpfile))))
+
 (provide 'ejn-persistence-test)
 ;;; ejn-persistence-test.el ends here

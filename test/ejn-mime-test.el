@@ -3,6 +3,8 @@
 (require 'ert)
 (require 'ejn-mime)
 
+;;; Code:
+
 (ert-deftest ejn-mime-test/registry-is-hash-table ()
   "Registry should be a hash table."
   (should (hash-table-p ejn-mime-registry)))
@@ -33,7 +35,7 @@
     (should (string= "hello world" (funcall handler data)))))
 
 (ert-deftest ejn-mime-test/markdown-handler-registered ()
-  "text/markdown handler should be auto-registered."
+  "Text/markdown handler should be auto-registered."
   (should (functionp (ejn-mime-handler-for "text/markdown"))))
 
 (ert-deftest ejn-mime-test/markdown-handler-returns-string ()
@@ -43,7 +45,7 @@
     (should (string= "# Heading\nBody" (funcall handler data)))))
 
 (ert-deftest ejn-mime-test/png-handler-registered ()
-  "image/png handler should be auto-registered."
+  "Image/png handler should be auto-registered."
   (should (functionp (ejn-mime-handler-for "image/png"))))
 
 (ert-deftest ejn-mime-test/png-handler-returns-image ()
@@ -54,7 +56,7 @@
     (should (imagep result))))
 
 (ert-deftest ejn-mime-test/svg-handler-registered ()
-  "image/svg+xml handler should be auto-registered."
+  "Image/svg+xml handler should be auto-registered."
   (should (functionp (ejn-mime-handler-for "image/svg+xml"))))
 
 (ert-deftest ejn-mime-test/svg-handler-returns-image ()

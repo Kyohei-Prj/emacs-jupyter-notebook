@@ -15,11 +15,11 @@
     (should (consp data))))
 
 (ert-deftest ejn-test-util-test/with-notebook-buffer-is-defined ()
-  "ejn-test-with-notebook-buffer macro should be defined."
+  "Ejn-test-with-notebook-buffer macro should be defined."
   (should (fboundp 'ejn-test-with-notebook-buffer)))
 
 (ert-deftest ejn-test-util-test/wait-for-sync-is-defined ()
-  "ejn-test-wait-for-sync macro should be defined."
+  "Ejn-test-wait-for-sync macro should be defined."
   (should (fboundp 'ejn-test-wait-for-sync)))
 
 (provide 'ejn-test-util-test)

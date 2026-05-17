@@ -48,7 +48,7 @@
     (should-not ejn--kernel-heartbeat-timer)))
 
 (ert-deftest ejn-kernel-test/alive-p-returns-nil-without-client ()
-  "alive-p should return nil when kernel has no client."
+  "Alive-p should return nil when kernel has no client."
   (require 'ejn-kernel)
   (require 'ejn-kernel-jupyter)
   (let ((kernel (ejn-make-kernel "python3")))
@@ -56,12 +56,12 @@
     (should-not (ejn-kernel-alive-p kernel))))
 
 (ert-deftest ejn-kernel-test/reconnect-is-generic ()
-  "ejn-kernel-reconnect should be a CLOS generic."
+  "Ejn-kernel-reconnect should be a CLOS generic."
   (require 'ejn-kernel)
   (should (cl-generic-p #'ejn-kernel-reconnect)))
 
 (ert-deftest ejn-kernel-test/reconnect-command-is-interactive ()
-  "ejn-kernel-reconnect-command should be an interactive command."
+  "Ejn-kernel-reconnect-command should be an interactive command."
   (require 'ejn-kernel)
   (should (commandp #'ejn-kernel-reconnect-command)))
 

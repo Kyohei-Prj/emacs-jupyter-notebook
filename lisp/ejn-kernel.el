@@ -65,7 +65,7 @@ Returns an `ejn-kernel' struct in `startup' state."
   "Hook run when the kernel is detected as dead.")
 
 (defun ejn-kernel-start-heartbeat (kernel)
-  "Start periodic heartbeat checks for KERNEL."
+  "Start periodic heartbeat check for KERNEL."
   (ejn-kernel-stop-heartbeat)
   (setq ejn--kernel-heartbeat-timer
         (run-with-timer ejn-kernel-heartbeat-interval
@@ -87,7 +87,7 @@ Returns an `ejn-kernel' struct in `startup' state."
         (run-hooks 'ejn-kernel-dead-hook)))))
 
 (cl-defgeneric ejn-kernel-start (kernel kernelspec)
-  "Start a new kernel with KERNELSPEC.")
+  "Start a new KERNEL with KERNELSPEC.")
 
 (cl-defgeneric ejn-kernel-execute (kernel code request-id callbacks)
   "Execute CODE on KERNEL with REQUEST-ID and CALLBACKS plist.
@@ -109,7 +109,7 @@ CALLBACKS contains :on-stream, :on-result, :on-display, :on-error, :on-complete.
   "Return non-nil if KERNEL is responsive.")
 
 (cl-defmethod ejn-kernel-alive-p ((_kernel ejn-kernel))
-  "Base implementation: return nil.  Override in adapter."
+  "Base implementation: return nil.  Override in KERNEL adapter."
   nil)
 
 (defun ejn-kernel-reconnect-command ()
@@ -120,7 +120,7 @@ Signals an error if the kernel is not in a dead state."
     (unless kernel
       (user-error "No kernel connected"))
     (unless (eq 'dead (ejn-kernel-state kernel))
-      (user-error "Kernel is not dead (state: %s). Use restart instead"
+      (user-error "Kernel is not dead (state: %s).  Use restart instead"
                   (ejn-kernel-state kernel)))
     (condition-case err
         (progn

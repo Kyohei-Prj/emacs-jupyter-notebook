@@ -3,6 +3,8 @@
 (require 'ert)
 (require 'ejn-execute)
 
+;;; Code:
+
 (ert-deftest ejn-execute-test/queue-is-empty-initially ()
   "The execution queue should be empty initially."
   (should (null ejn--execution-queue)))
@@ -73,7 +75,7 @@
     (should (eq 'error (ejn-output-type (car (ejn-cell-outputs cell)))))))
 
 (ert-deftest ejn-execute-test/dispatch-next-executes-queued-request ()
-  "dispatch-next should execute the next queued request when kernel is connected."
+  "Dispatch-next should execute the next queued request when kernel is connected."
   (let ((kernel (ejn-make-kernel "python3"))
         (ejn--execution-queue nil))
     (ejn-kernel-transition kernel 'connected)
@@ -89,7 +91,7 @@
       (should dispatched))))
 
 (ert-deftest ejn-execute-test/dispatch-next-skips-empty-queue ()
-  "dispatch-next should do nothing when queue is empty."
+  "Dispatch-next should do nothing when queue is empty."
   (let ((kernel (ejn-make-kernel "python3")))
     (ejn-kernel-transition kernel 'connected)
     (with-temp-buffer
@@ -99,11 +101,11 @@
       (should (eq 'connected (ejn-kernel-state kernel))))))
 
 (ert-deftest ejn-execute-test/execute-cell-is-interactive ()
-  "ejn-execute-cell should be an interactive function."
+  "Ejn-execute-cell should be an interactive function."
   (should (commandp #'ejn-execute-cell)))
 
 (ert-deftest ejn-execute-test/execute-cell-and-goto-next-is-interactive ()
-  "ejn-execute-cell-and-goto-next should be interactive."
+  "Ejn-execute-cell-and-goto-next should be interactive."
   (should (commandp #'ejn-execute-cell-and-goto-next)))
 
 (ert-deftest ejn-execute-test/execute-non-code-cell-signals-message ()
@@ -117,6 +119,97 @@
     (should-not (condition-case nil
                     (progn (ejn-execute--validate-cell cell) nil)
                   (error t)))))
+
+(ert-deftest ejn-execute-test/callback-appends-output-when-version-matches ()
+  "Output callback should append output when execution-version matches."
+  (let ((cell (ejn-make-cell 'code "print(1)")))
+    (setf (ejn-cell-outputs cell) nil
+          (ejn-cell-execution-version cell) 1)
+    (let ((callbacks (ejn-execute--make-callbacks cell 1)))
+      (funcall (plist-get callbacks :on-stream)
+               (ejn-cell-id cell) "hello " "stdout"))
+    (should (= 1 (length (ejn-cell-outputs cell))))
+    (should (eq 'stream (ejn-output-type (car (ejn-cell-outputs cell)))))))
+
+(ert-deftest ejn-execute-test/callback-discards-output-when-version-stale ()
+  "Output callback should discard output when execution-version is stale."
+  (let ((cell (ejn-make-cell 'code "print(1)")))
+    (setf (ejn-cell-outputs cell) nil
+          (ejn-cell-execution-version cell) 2)
+    (let ((callbacks (ejn-execute--make-callbacks cell 1)))
+      (funcall (plist-get callbacks :on-stream)
+               (ejn-cell-id cell) "stale output" "stdout"))
+    (should (= 0 (length (ejn-cell-outputs cell))))))
+
+(ert-deftest ejn-execute-test/error-callback-discards-when-version-stale ()
+  "Error callback should discard output when execution-version is stale."
+  (let ((cell (ejn-make-cell 'code "raise")))
+    (setf (ejn-cell-outputs cell) nil
+          (ejn-cell-execution-version cell) 2)
+    (let ((callbacks (ejn-execute--make-callbacks cell 1)))
+      (funcall (plist-get callbacks :on-error)
+               (ejn-cell-id cell)
+               "ValueError" "something" '("trace")))
+    (should (= 0 (length (ejn-cell-outputs cell))))))
+
+(ert-deftest ejn-execute-test/result-callback-discards-when-version-stale ()
+  "Result callback should discard output when execution-version is stale."
+  (let ((cell (ejn-make-cell 'code "1+1")))
+    (setf (ejn-cell-outputs cell) nil
+          (ejn-cell-execution-version cell) 3)
+    (let ((callbacks (ejn-execute--make-callbacks cell 1)))
+      (funcall (plist-get callbacks :on-result)
+               (ejn-cell-id cell) '(("text/plain" . "2"))))
+    (should (= 0 (length (ejn-cell-outputs cell))))))
+
+(ert-deftest ejn-execute-test/display-callback-discards-when-version-stale ()
+  "Display callback should discard output when execution-version is stale."
+  (let ((cell (ejn-make-cell 'code "%matplotlib inline")))
+    (setf (ejn-cell-outputs cell) nil
+          (ejn-cell-execution-version cell) 2)
+    (let ((callbacks (ejn-execute--make-callbacks cell 1)))
+      (funcall (plist-get callbacks :on-display)
+               (ejn-cell-id cell) '(("text/plain" . "<Figure>"))))
+    (should (= 0 (length (ejn-cell-outputs cell))))))
+
+(ert-deftest ejn-execute-test/on-complete-stale-version-no-update ()
+  "On-complete with stale version should NOT update state or increment count."
+  (let ((cell (ejn-make-cell 'code "print(1)")))
+    (setf (ejn-cell-execution-state cell) 'executing
+          (ejn-cell-execution-count cell) 0
+          (ejn-cell-execution-version cell) 2)
+    (let ((callbacks (ejn-execute--make-callbacks cell 1))
+          (dispatch-called nil))
+      (cl-letf (((symbol-function 'ejn-execute--dispatch-next)
+                 (lambda () (setq dispatch-called t))))
+        (funcall (plist-get callbacks :on-complete)
+                 (ejn-cell-id cell) "ok"))
+      (should (eq 'executing (ejn-cell-execution-state cell)))
+      (should (= 0 (ejn-cell-execution-count cell))))))
+
+(ert-deftest ejn-execute-test/on-complete-stale-version-dispatches-next ()
+  "On-complete with stale version should STILL call dispatch-next."
+  (let ((cell (ejn-make-cell 'code "print(1)")))
+    (setf (ejn-cell-execution-version cell) 2)
+    (let ((callbacks (ejn-execute--make-callbacks cell 1))
+          (dispatch-called nil))
+      (cl-letf (((symbol-function 'ejn-execute--dispatch-next)
+                 (lambda () (setq dispatch-called t))))
+        (funcall (plist-get callbacks :on-complete)
+                 (ejn-cell-id cell) "ok"))
+      (should dispatch-called))))
+
+(ert-deftest ejn-execute-test/on-complete-matching-version-updates ()
+  "On-complete with matching version should update state and count correctly."
+  (let ((cell (ejn-make-cell 'code "print(1)")))
+    (setf (ejn-cell-execution-state cell) 'executing
+          (ejn-cell-execution-count cell) 0
+          (ejn-cell-execution-version cell) 1)
+    (let ((callbacks (ejn-execute--make-callbacks cell 1)))
+      (funcall (plist-get callbacks :on-complete)
+               (ejn-cell-id cell) "ok"))
+    (should (eq 'completed (ejn-cell-execution-state cell)))
+    (should (= 1 (ejn-cell-execution-count cell)))))
 
 (provide 'ejn-execute-test)
 ;;; ejn-execute-test.el ends here

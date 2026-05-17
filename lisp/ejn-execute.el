@@ -31,6 +31,7 @@
 (require 'ejn-cell)
 (require 'ejn-render)
 (require 'ejn-navigation)
+(require 'ejn-sync)
 
 (defvar-local ejn--execution-queue nil
   "FIFO queue of pending execution requests.")
@@ -71,7 +72,8 @@
         (if request
             (progn
               (ejn-kernel-transition kernel 'busy)
-              (let ((cell (ejn-execute--find-cell (plist-get request :cell-id))))
+              (let ((cell (ejn-execute--find-cell (plist-get request :cell-id)))
+                    (version (plist-get request :execution-version)))
                 (when cell
                   (ejn-execute--set-cell-state cell 'executing))
                 (ejn-kernel-execute
@@ -79,7 +81,7 @@
                  (plist-get request :source)
                  (plist-get request :request-id)
 		 (if cell
-                     (ejn-execute--make-callbacks cell)
+                     (ejn-execute--make-callbacks cell version)
                    nil))))
           (ejn-kernel-transition kernel 'connected)))))
   (let ((notebook (buffer-local-value 'ejn--notebook (current-buffer))))
@@ -87,7 +89,7 @@
       (ejn-render-dirty-cells notebook))))
 
 (defun ejn-execute--enqueue-and-maybe-run (cell-id source request-id version)
-  "Enqueue an execution request and dispatch if kernel is idle."
+  "Enqueue an execution request for CELL-ID with SOURCE, REQUEST-ID and VERSION."
   (let ((kernel (buffer-local-value 'ejn--kernel (current-buffer)))
         (cell (ejn-execute--find-cell cell-id)))
     (unless kernel
@@ -99,21 +101,28 @@
             (ejn-execute--set-cell-state cell 'executing)
             (ejn-kernel-execute
              kernel source request-id
-             (ejn-execute--make-callbacks cell)))
+             (ejn-execute--make-callbacks cell version)))
         (ejn-execute--set-cell-state cell 'queued)
         (ejn-execute--enqueue (list :cell-id cell-id
                                     :source source
                                     :request-id request-id
                                     :execution-version version))))))
 
-(defun ejn-execute--make-callbacks (cell)
-  "Build a callbacks plist for CELL's execution."
-  (let ((cell-id (ejn-cell-id cell)))
+(defun ejn-execute--make-callbacks (cell &optional execution-version)
+  "Build a callbacks plist for CELL's execution.
+If EXECUTION-VERSION is non-nil, output callbacks check that
+the cell's current execution-version matches EXECUTION-VERSION
+before appending output.  Stale outputs from a superseded
+execution are silently discarded."
+  (let ((cell-id (ejn-cell-id cell))
+        (expected-version (or execution-version 0)))
     (list
      :on-stream
      (lambda (_cid text name)
        (let ((current-cell (or (ejn-execute--find-cell cell-id) cell)))
-         (when current-cell
+         (when (and current-cell
+                    (= (ejn-cell-execution-version current-cell)
+                       expected-version))
            (ejn-execute--set-cell-state current-cell 'streaming)
            (push (make-ejn-output
                   :type 'stream
@@ -124,7 +133,9 @@
      :on-result
      (lambda (_cid mime-data)
        (let ((current-cell (or (ejn-execute--find-cell cell-id) cell)))
-         (when current-cell
+         (when (and current-cell
+                    (= (ejn-cell-execution-version current-cell)
+                       expected-version))
            (ejn-execute--set-cell-state current-cell 'streaming)
            (push (make-ejn-output
                   :type 'execute-result
@@ -135,7 +146,9 @@
      :on-display
      (lambda (_cid mime-data)
        (let ((current-cell (or (ejn-execute--find-cell cell-id) cell)))
-         (when current-cell
+         (when (and current-cell
+                    (= (ejn-cell-execution-version current-cell)
+                       expected-version))
            (ejn-execute--set-cell-state current-cell 'streaming)
            (push (make-ejn-output
                   :type 'display-data
@@ -146,7 +159,9 @@
      :on-error
      (lambda (_cid ename evalue traceback)
        (let ((current-cell (or (ejn-execute--find-cell cell-id) cell)))
-         (when current-cell
+         (when (and current-cell
+                    (= (ejn-cell-execution-version current-cell)
+                       expected-version))
            (ejn-execute--set-cell-state current-cell 'error)
            (push (make-ejn-output
                   :type 'error
@@ -159,12 +174,15 @@
      :on-complete
      (lambda (_cid status)
        (let ((current-cell (or (ejn-execute--find-cell cell-id) cell)))
-         (when current-cell
+         (when (and current-cell
+                    (= (ejn-cell-execution-version current-cell)
+                       expected-version))
            (ejn-execute--set-cell-state current-cell
                                         (if (string= status "ok") 'completed 'error))
            (setf (ejn-cell-execution-count current-cell)
-                 (1+ (or (ejn-cell-execution-count current-cell) 0)))))
-       (ejn-execute--dispatch-next)))))
+                 (1+ (or (ejn-cell-execution-count current-cell) 0))))
+         (ejn-execute--dispatch-next))))))
+
 
 (defun ejn-execute--validate-cell (cell)
   "Signal an error if CELL cannot be executed."
@@ -176,9 +194,9 @@
   (interactive)
   (let ((cell (ejn-cell-at-point)))
     (ejn-execute--validate-cell cell)
+    (ejn--perform-sync)
     (let ((cell-id (ejn-cell-id cell))
-          (source (buffer-substring-no-properties
-                   (car (ejn-cell-region)) (cdr (ejn-cell-region)))))
+          (source (ejn-cell-source cell)))
       (setf (ejn-cell-execution-version cell) (1+ (ejn-cell-execution-version cell)))
       (ejn-execute--enqueue-and-maybe-run
        cell-id source (ejn-generate-uuid) (ejn-cell-execution-version cell)))))
@@ -203,6 +221,7 @@
   (interactive)
   (let ((current-id (ejn-cell-id (ejn-cell-at-point)))
         (notebook ejn--notebook))
+    (ejn--perform-sync)
     (cl-loop for cell across (ejn-notebook-cells notebook)
              until (string= (ejn-cell-id cell) current-id)
              when (eq (ejn-cell-type cell) 'code)
@@ -220,6 +239,7 @@
   (let ((current-id (ejn-cell-id (ejn-cell-at-point)))
         (notebook ejn--notebook)
         (started nil))
+    (ejn--perform-sync)
     (cl-loop for cell across (ejn-notebook-cells notebook)
              do (progn
                   (when (string= (ejn-cell-id cell) current-id)

@@ -5,8 +5,10 @@
 (require 'ejn-render)
 (require 'ejn-test-util)
 
+;;; Code:
+
 (ert-deftest ejn-sync-test/after-change-handler-exists ()
-  "ejn--after-change-handler should be defined."
+  "Ejn--after-change-handler should be defined."
   (should (fboundp 'ejn--after-change-handler)))
 
 (ert-deftest ejn-sync-test/render-guard-skips-sync ()
@@ -40,11 +42,11 @@
 			     (should (gethash "cell-1" ejn--pending-sync-set))))
 
 (ert-deftest ejn-sync-test/debounce-variable-exists ()
-  "ejn-sync-debounce-seconds should be a number."
+  "Ejn-sync-debounce-seconds should be a number."
   (should (numberp ejn-sync-debounce-seconds)))
 
 (ert-deftest ejn-sync-test/schedule-sync-creates-timer ()
-  "ejn--schedule-sync should create a timer."
+  "Ejn--schedule-sync should create a timer."
   (ejn-test-with-temp-buffer " *ejn-sync-test*"
 			     (ejn--schedule-sync)
 			     (should (timerp ejn--sync-timer))
@@ -52,7 +54,7 @@
 			     (setq ejn--sync-timer nil)))
 
 (ert-deftest ejn-sync-test/schedule-sync-cancels-previous-timer ()
-  "ejn--schedule-sync should cancel any existing timer before creating a new one."
+  "Ejn--schedule-sync should cancel any existing timer before creating a new one."
   (ejn-test-with-temp-buffer " *ejn-sync-test*"
 			     (ejn--schedule-sync)
 			     (let ((first-timer ejn--sync-timer))
@@ -122,7 +124,7 @@
 				 (should hook-called)))))
 
 (ert-deftest ejn-sync-test/sync-mode-enables-hook ()
-  "ejn-sync-mode should add the after-change handler."
+  "Ejn-sync-mode should add the after-change handler."
   (ejn-test-with-temp-buffer " *ejn-sync-test*"
 			     (should-not (memq #'ejn--after-change-handler after-change-functions))
 			     (ejn-sync-mode)

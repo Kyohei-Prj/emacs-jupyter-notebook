@@ -8,6 +8,8 @@
 (require 'ejn-undo)
 (require 'ejn-test-util)
 
+;;; Code:
+
 (ert-deftest ejn-cell-engine-test/insert-cell-above ()
   "Inserting a cell above should place it before the current cell."
   (let ((nb (ejn-make-notebook)))

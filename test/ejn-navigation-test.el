@@ -6,8 +6,10 @@
 (require 'ejn-render)
 (require 'ejn-test-util)
 
+;;; Code:
+
 (ert-deftest ejn-navigation-test/cell-at-point-returns-cell ()
-  "ejn-cell-at-point should return the cell struct at point."
+  "Ejn-cell-at-point should return the cell struct at point."
   (let ((nb (ejn-make-notebook)))
     (ejn-notebook-insert-cell nb 'code :at 0)
     (ejn-notebook-set-cell-source nb (ejn-cell-id (ejn-notebook-cell-at-index nb 0)) "print(1)")
@@ -20,7 +22,7 @@
        (should (string= (ejn-cell-source cell) "print(1)"))))))
 
 (ert-deftest ejn-navigation-test/cell-at-point-in-output-zone ()
-  "ejn-cell-at-point should find parent cell from within output zone."
+  "Ejn-cell-at-point should find parent cell from within output zone."
   (require 'ejn-cell)
   (let ((nb (ejn-make-notebook)))
     (ejn-notebook-insert-cell nb 'code :at 0)
@@ -43,7 +45,7 @@
           (should (string= (ejn-cell-id found-cell) cell-id)))))))
 
 (ert-deftest ejn-navigation-test/cell-region-returns-source-range ()
-  "ejn-cell-region should return the source region boundaries."
+  "Ejn-cell-region should return the source region boundaries."
   (let ((nb (ejn-make-notebook)))
     (ejn-notebook-insert-cell nb 'code :at 0)
     (ejn-notebook-set-cell-source nb (ejn-cell-id (ejn-notebook-cell-at-index nb 0)) "line1\nline2")
@@ -56,7 +58,7 @@
 				 (should (> (cdr region) (car region)))))))
 
 (ert-deftest ejn-navigation-test/cell-full-region-includes-output ()
-  "ejn-cell-full-region should include the output zone."
+  "Ejn-cell-full-region should include the output zone."
   (require 'ejn-cell)
   (let ((nb (ejn-make-notebook)))
     (ejn-notebook-insert-cell nb 'code :at 0)
@@ -78,7 +80,7 @@
 				 (should (> (cdr full-region) (cdr source-region)))))))
 
 (ert-deftest ejn-navigation-test/goto-next-cell-moves-forward ()
-  "ejn-goto-next-cell should move to the next cell's source."
+  "Ejn-goto-next-cell should move to the next cell's source."
   (let ((nb (ejn-make-notebook)))
     (ejn-notebook-insert-cell nb 'code :at 0)
     (ejn-notebook-set-cell-source nb (ejn-cell-id (ejn-notebook-cell-at-index nb 0)) "first")
@@ -92,7 +94,7 @@
       (should (search-backward "second" nil t)))))
 
 (ert-deftest ejn-navigation-test/goto-prev-cell-moves-backward ()
-  "ejn-goto-prev-cell should move to the previous cell's source."
+  "Ejn-goto-prev-cell should move to the previous cell's source."
   (let ((nb (ejn-make-notebook)))
     (ejn-notebook-insert-cell nb 'code :at 0)
     (ejn-notebook-set-cell-source nb (ejn-cell-id (ejn-notebook-cell-at-index nb 0)) "first")
@@ -106,7 +108,7 @@
       (should (search-backward "first" nil t)))))
 
 (ert-deftest ejn-navigation-test/goto-first-cell ()
-  "ejn-goto-first-cell should move to the first cell."
+  "Ejn-goto-first-cell should move to the first cell."
   (let ((nb (ejn-make-notebook)))
     (ejn-notebook-insert-cell nb 'code :at 0)
     (ejn-notebook-set-cell-source nb (ejn-cell-id (ejn-notebook-cell-at-index nb 0)) "first")
@@ -120,7 +122,7 @@
       (should (= (point) (point-min))))))
 
 (ert-deftest ejn-navigation-test/goto-last-cell ()
-  "ejn-goto-last-cell should move to the last cell."
+  "Ejn-goto-last-cell should move to the last cell."
   (let ((nb (ejn-make-notebook)))
     (ejn-notebook-insert-cell nb 'code :at 0)
     (ejn-notebook-set-cell-source nb (ejn-cell-id (ejn-notebook-cell-at-index nb 0)) "first")

@@ -34,7 +34,7 @@
     (error nil)))
 
 (cl-defmethod ejn-kernel-start ((kernel ejn-kernel) kernelspec)
-  "Start a new Jupyter kernel with KERNELSPEC."
+  "Start a new Jupyter KERNEL with KERNELSPEC."
   (condition-case err
       (let ((client (jupyter-client kernelspec)))
         (jupyter-connect client)
@@ -55,7 +55,7 @@
          (not (memq state '(dead startup))))))
 
 (cl-defmethod ejn-kernel-execute ((kernel ejn-kernel) code request-id callbacks)
-  "Execute CODE on the Jupyter kernel."
+  "Execute CODE on the Jupyter KERNEL with REQUEST-ID and CALLBACKS."
   (let ((client (ejn-kernel-client kernel)))
     (unless client
       (error "Kernel not connected"))
@@ -73,7 +73,7 @@
              (ejn--handle-iopub kernel request-id req msg))))))
 
 (defun ejn--handle-iopub (kernel request-id _req msg)
-  "Handle an ioPub message for KERNEL and REQUEST-ID."
+  "Handle an ioPub MSG for KERNEL and REQUEST-ID."
   (let ((callbacks (gethash request-id (ejn-kernel-request-registry kernel))))
     (when callbacks
       (let ((msg-type (jupyter-message-type msg))
@@ -98,23 +98,23 @@
                (funcall handler
                         (or (plist-get content :parent-cell-id) "")
                         (plist-get content :data)))))
-         ('error
-            (let ((handler (plist-get callbacks :on-error)))
-              (when handler
-                (funcall handler
-                         (or (plist-get content :parent-cell-id) "")
-                         (plist-get content :ename)
-                         (plist-get content :evalue)
-                         (plist-get content :traceback)))))
-           ('status
-            (when (string= (plist-get content :execution_state) "idle")
-              (let ((handler (plist-get callbacks :on-complete)))
-                (when handler
-                  (funcall handler "" "ok"))
-                (remhash request-id (ejn-kernel-request-registry kernel))))))))))
+          ('error
+           (let ((handler (plist-get callbacks :on-error)))
+             (when handler
+               (funcall handler
+                        (or (plist-get content :parent-cell-id) "")
+                        (plist-get content :ename)
+                        (plist-get content :evalue)
+                        (plist-get content :traceback)))))
+          ('status
+           (when (string= (plist-get content :execution_state) "idle")
+             (let ((handler (plist-get callbacks :on-complete)))
+               (when handler
+                 (funcall handler "" "ok"))
+               (remhash request-id (ejn-kernel-request-registry kernel))))))))))
 
 (cl-defmethod ejn--kernel-interrupt ((kernel ejn-kernel))
-  "Interrupt the running Jupyter kernel."
+  "Interrupt the running Jupyter KERNEL."
   (let ((client (ejn-kernel-client kernel)))
     (when client
       (condition-case err
@@ -124,18 +124,18 @@
       (ejn-kernel-transition kernel 'interrupted))))
 
 (cl-defmethod ejn--kernel-restart ((kernel ejn-kernel))
-  "Restart the Jupyter kernel."
+  "Restart the Jupyter KERNEL."
   (let ((client (ejn-kernel-client kernel)))
     (when client
-    (condition-case err
-           (jupyter-restart-kernel client)
-         (error
-          (ejn-log-message "warn" "Restart failed: %s" (error-message-string err))))
-       (ejn-kernel-transition kernel 'connected)
-       (ejn-kernel-start-heartbeat kernel))))
+      (condition-case err
+          (jupyter-restart-kernel client)
+        (error
+         (ejn-log-message "warn" "Restart failed: %s" (error-message-string err))))
+      (ejn-kernel-transition kernel 'startup)
+      (ejn-kernel-start-heartbeat kernel))))
 
 (cl-defmethod ejn-kernel-reconnect ((kernel ejn-kernel))
-  "Reconnect the Jupyter kernel using its stored kernelspec."
+  "Reconnect the Jupyter KERNEL using its stored kernelspec."
   (setf (ejn-kernel-request-registry kernel) (make-hash-table :test 'equal))
   (ejn-kernel-stop-heartbeat)
   (let ((kernelspec (ejn-kernel-kernelspec kernel)))
@@ -154,7 +154,7 @@
                              (error-message-string err))))))))
 
 (cl-defmethod ejn--kernel-shutdown ((kernel ejn-kernel))
-  "Shutdown the Jupyter kernel."
+  "Shutdown the Jupyter KERNEL."
   (ejn-kernel-stop-heartbeat)
   (let ((client (ejn-kernel-client kernel)))
     (when client

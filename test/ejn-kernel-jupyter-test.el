@@ -3,8 +3,10 @@
 (require 'ert)
 (require 'ejn-kernel-jupyter)
 
+;;; Code:
+
 (ert-deftest ejn-kernel-jupyter-test/start-creates-client ()
-  "ejn-kernel-start should create a jupyter client."
+  "Ejn-kernel-start should create a jupyter client."
   (skip-unless (require 'jupyter nil t))
   (let ((kernel (ejn-make-kernel "python3")))
     (condition-case err
@@ -13,7 +15,7 @@
     (should-not (eq 'startup (ejn-kernel-state kernel)))))
 
 (ert-deftest ejn-kernel-jupyter-test/execute-sends-request ()
-  "ejn-kernel-execute should send code to the kernel."
+  "Ejn-kernel-execute should send code to the kernel."
   (skip-unless (require 'jupyter nil t))
   (let* ((kernel (ejn-make-kernel "python3"))
          (callbacks (list :on-stream (lambda (&rest _) nil)
@@ -30,7 +32,7 @@
     (should (gethash request-id (ejn-kernel-request-registry kernel)))))
 
 (ert-deftest ejn-kernel-jupyter-test/interrupt-calls-jupyter ()
-  "ejn-kernel-interrupt should call jupyter-interrupt-kernel."
+  "Ejn-kernel-interrupt should call jupyter-interrupt-kernel."
   (skip-unless (require 'jupyter nil t))
   (let ((kernel (ejn-make-kernel "python3")))
     (condition-case err
@@ -41,17 +43,18 @@
     (should (memq (ejn-kernel-state kernel) '(interrupted connected dead)))))
 
 (ert-deftest ejn-kernel-jupyter-test/restart-calls-jupyter ()
-  "ejn-kernel-restart should call jupyter-restart-kernel."
+  "Ejn-kernel-restart should call jupyter-restart-kernel and transition to startup."
   (skip-unless (require 'jupyter nil t))
   (let ((kernel (ejn-make-kernel "python3")))
     (condition-case err
         (progn
           (ejn-kernel-start kernel "python3")
           (ejn--kernel-restart kernel))
-      (error nil))))
+      (error nil))
+    (should (eq 'startup (ejn-kernel-state kernel)))))
 
 (ert-deftest ejn-kernel-jupyter-test/shutdown-calls-jupyter ()
-  "ejn-kernel-shutdown should call jupyter-shutdown-kernel."
+  "Ejn-kernel-shutdown should call jupyter-shutdown-kernel."
   (skip-unless (require 'jupyter nil t))
   (let ((kernel (ejn-make-kernel "python3")))
     (condition-case err

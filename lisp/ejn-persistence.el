@@ -77,10 +77,21 @@ SOURCE can be a string or a list of strings (line segments)."
 
 (defun ejn-ipynb-parse-output (json-alist)
   "Parse a JSON output JSON-ALIST into an `ejn-output' struct."
-  (let ((output-type (intern (replace-regexp-in-string "_" "-" (cdr (assq :output_type json-alist))))))
+  (let ((output-type (intern (replace-regexp-in-string "_" "-" (cdr (assq :output_type json-alist)))))
+        (mime-data))
+    (pcase output-type
+      ('error
+       (setq mime-data (list :ename (cdr (assq :ename json-alist))
+                             :evalue (cdr (assq :evalue json-alist))
+                             :traceback (cdr (assq :traceback json-alist)))))
+      ('stream
+       (setq mime-data (list :name (cdr (assq :name json-alist))
+                             :text (cdr (assq :text json-alist)))))
+      (_
+       (setq mime-data (cdr (assq :data json-alist)))))
     (make-ejn-output
      :type output-type
-     :mime-data (cdr (assq :data json-alist))
+     :mime-data mime-data
      :metadata (cdr (assq :metadata json-alist))
      :request-id nil)))
 
@@ -136,9 +147,21 @@ Signals `ejn-unsupported-format' for unsupported nbformat versions."
 
 (defun ejn-ipynb-serialize-output (output)
   "Serialize an OUTPUT `ejn-output' struct to a JSON-compatible plist."
-  (let ((result (list :output_type (symbol-name (ejn-output-type output)))))
-    (when (ejn-output-mime-data output)
-      (plist-put result :data (ejn-output-mime-data output)))
+  (let ((result (list :output_type (replace-regexp-in-string "-" "_" (symbol-name (ejn-output-type output)))))
+        (mime-data (ejn-output-mime-data output)))
+    (pcase (ejn-output-type output)
+      ('error
+       (when mime-data
+         (plist-put result :ename (plist-get mime-data :ename))
+         (plist-put result :evalue (plist-get mime-data :evalue))
+         (plist-put result :traceback (plist-get mime-data :traceback))))
+      ('stream
+       (when mime-data
+         (plist-put result :name (plist-get mime-data :name))
+         (plist-put result :text (plist-get mime-data :text))))
+      (_
+       (when mime-data
+         (plist-put result :data mime-data))))
     (when (ejn-output-metadata output)
       (plist-put result :metadata (ejn-output-metadata output)))
     result))

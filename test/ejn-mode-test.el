@@ -26,13 +26,13 @@
 (require 'ejn-test-util)
 
 (ert-deftest ejn-mode-test/mode-is-derived-from-text-mode ()
-  "ejn-mode should derive from text-mode."
+  "Ejn-mode should derive from `text-mode'."
   (ejn-test-with-temp-buffer " *test*"
     (ejn-mode)
     (should (derived-mode-p 'text-mode))))
 
 (ert-deftest ejn-mode-test/mode-sets-buffer-local-variables ()
-  "ejn-mode should initialize buffer-local variables."
+  "Ejn-mode should initialize buffer-local variables."
   (ejn-test-with-temp-buffer " *test*"
     (ejn-mode)
     (should (local-variable-p 'ejn--notebook))
@@ -53,19 +53,19 @@
     (should (eq (lookup-key ejn-mode-map (kbd "C-x C-s")) #'ejn-save-notebook))))
 
 (ert-deftest ejn-mode-test/kernel-interrupt-is-interactive ()
-  "ejn-kernel-interrupt should be an interactive command."
+  "Ejn-kernel-interrupt should be an interactive command."
   (should (commandp #'ejn-kernel-interrupt)))
 
 (ert-deftest ejn-mode-test/kernel-restart-is-interactive ()
-  "ejn-kernel-restart should be an interactive command."
+  "Ejn-kernel-restart should be an interactive command."
   (should (commandp #'ejn-kernel-restart)))
 
 (ert-deftest ejn-mode-test/kernel-quit-is-interactive ()
-  "ejn-kernel-quit should be an interactive command."
+  "Ejn-kernel-quit should be an interactive command."
   (should (commandp #'ejn-kernel-quit)))
 
 (ert-deftest ejn-mode-test/save-notebook-serializes-model ()
-  "ejn-save-notebook should serialize the model to the file."
+  "Ejn-save-notebook should serialize the model to the file."
   (require 'ejn-persistence)
   (let ((nb (ejn-make-notebook)))
     (ejn-notebook-insert-cell nb 'code :at 0)

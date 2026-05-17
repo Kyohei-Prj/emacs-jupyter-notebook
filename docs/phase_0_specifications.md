@@ -8,7 +8,11 @@ Version: 0.1
 
 ### Principle
 
-The notebook model is the single authoritative source of truth for all notebook state. The Emacs buffer is a _projection_ — a rendered view — of that model. No subsystem outside the sync layer may mutate the model directly.
+The notebook model is the single authoritative source of truth for all notebook state. The Emacs buffer is a _projection_ — a rendered view — of that model. Model mutations are restricted to three authorized paths:
+
+1. **Sync layer** (`ejn-sync.el`): buffer edits → model updates (debounced, via `ejn--perform-sync`)
+2. **Cell engine** (`ejn-cell-engine.el`): user commands → `ejn-with-undo-group` → model mutations + re-render
+3. **Execution callbacks** (`ejn-execute.el`): kernel messages → model updates (outputs, state)
 
 ### Ownership Table
 
@@ -26,8 +30,18 @@ The notebook model is the single authoritative source of truth for all notebook 
 ### Forbidden Patterns
 
 - Buffer text must never be treated as the notebook source — it is a rendering artifact.
-- UI commands must never call model mutation functions directly; they go through the sync layer.
+- Subsystems outside the three authorized paths (sync layer, cell engine, execution callbacks) must never mutate the model directly.
 - Kernel callbacks must never modify buffer text directly; they deliver results to the output router, which updates the model, which triggers re-rendering.
+
+### Authorized Mutation Paths
+
+| Path | Module | Mechanism | Undo-safe |
+|---|---|---|---|
+| Sync layer | `ejn-sync.el` | `ejn--perform-sync` (debounced) | Yes (transactional) |
+| Cell engine | `ejn-cell-engine.el` | `ejn-with-undo-group` (wraps `ejn-with-transaction`) | Yes |
+| Execution callbacks | `ejn-execute.el` | Direct model-level API calls | No (streaming) |
+
+Execution callbacks bypass the transaction layer for performance reasons — streaming outputs arrive at high frequency and each would be expensive to snapshot. They use model-level setter APIs directly. Because these mutations are append-only (adding outputs, advancing state), undo is not supported for partial execution output.
 
 ---
 
@@ -44,7 +58,7 @@ The sync layer uses `after-change-functions` to detect edits in the notebook buf
 
 ### Transactional Updates
 
-All model mutations are grouped into transactions:
+The sync layer groups model mutations into transactions:
 
 ```elisp
 (ejn-with-transaction notebook
@@ -52,7 +66,14 @@ All model mutations are grouped into transactions:
   (ejn-notebook-mark-dirty notebook cell))
 ```
 
-A transaction records a before/after snapshot for undo purposes. Transactions must be atomic — partial updates are never committed.
+UI commands use `ejn-with-undo-group`, which wraps `ejn-with-transaction` and establishes an undo boundary:
+
+```elisp
+(ejn-with-undo-group "Insert cell"
+  (ejn-cell-engine-insert notebook :after current-cell))
+```
+
+A transaction records a before/after snapshot for undo purposes. Transactions must be atomic — partial updates are never committed. Execution callbacks bypass transactions for performance, mutating the model directly via model-level setter APIs.
 
 ### Undo Semantics
 
@@ -302,7 +323,7 @@ These questions must be answerable without ambiguity before Phase 1 begins:
 | Question | Answer |
 |---|---|
 | Who owns cell source text? | `ejn-notebook` model; buffer is a read projection |
-| Who may mutate the model? | Only the sync layer, via `ejn-with-transaction` |
+| Who may mutate the model? | Sync layer (`ejn--perform-sync`), cell engine (`ejn-with-undo-group`), execution callbacks (direct model APIs) |
 | How are stale outputs prevented? | Execution versioning on each cell; outputs validated by version before insertion |
 | How does undo work? | `ejn-with-undo-group` wraps model transactions; buffer undo suppressed inside transactions |
 | How do renderers know what to redraw? | `ejn-dirty-tracker` accumulates changed cell IDs; renderer consumes and clears the set |

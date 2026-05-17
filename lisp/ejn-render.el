@@ -155,11 +155,11 @@ Preserves point position."
 
 (defvar-local ejn--rendering-p nil
   "Non-nil while a full notebook render is in progress.
-Buffer-local. Used to suppress incremental sync callbacks.")
+Buffer-local.  Used to suppress incremental sync callbacks.")
 
 (defun ejn-render-notebook (notebook &optional buffer)
   "Render all cells of NOTEBOOK into BUFFER (current buffer if nil).
-Clears the buffer first. Sets text properties for cell structure."
+Clears the buffer first.  Sets text properties for cell structure."
   (with-current-buffer (or buffer (current-buffer))
     (let ((ejn--rendering-p t))
       (let ((inhibit-read-only t))
@@ -237,7 +237,7 @@ Returns (START . END) or nil."
 
 (defun ejn-toggle-output ()
   "Toggle visibility of the output zone for the current cell.
-If output is visible, fold it. If folded, unfold it."
+If output is visible, fold it.  If folded, unfold it."
   (interactive)
   (let ((cell-id (get-text-property (point) 'ejn-cell-id))
         (in-output-zone (get-text-property (point) 'ejn-output-zone)))

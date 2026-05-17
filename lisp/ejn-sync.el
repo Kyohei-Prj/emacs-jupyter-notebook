@@ -49,7 +49,7 @@ Useful for LSP integration."
 Keys are cell ID strings, values are t.")
 
 (defun ejn--after-change-handler (start _end _prepended)
-  "Handle buffer changes for syncing to the notebook model.
+  "Handle buffer change for syncing to the notebook model.
 START is the start position of the change.
 _END is the end position of the change (after the change).
 _PREPENDED is the number of characters inserted."
