@@ -348,6 +348,27 @@
                   (should (string= (plist-get mime-data :name) "stdout")))))))
       (delete-file tmpfile))))
 
+(ert-deftest ejn-persistence-test/execute-result-output-roundtrip ()
+  "Execute_result outputs should round-trip preserving mime-data."
+  (require 'ejn-persistence)
+  (require 'ejn-test-util)
+  (let ((nb (ejn-ipynb-parse-notebook
+             (f-join ejn-test-fixtures-directory "with-outputs.ipynb")))
+        (tmpfile (make-temp-file "ejn-test" nil ".ipynb")))
+    (unwind-protect
+        (progn
+          (ejn-ipynb-serialize-notebook nb tmpfile)
+          (let ((reloaded (ejn-ipynb-parse-notebook tmpfile)))
+            (let ((cell (ejn-notebook-cell-at-index reloaded 1)))
+              (let ((output (car (ejn-cell-outputs cell))))
+                (should (eq (ejn-output-type output) 'execute-result))
+                (let ((mime-data (ejn-output-mime-data output)))
+                  (let ((inner (plist-get mime-data :data)))
+                    (should inner)
+                    (should (equal (alist-get 'text/plain inner) '("42")))
+                    (should (equal (alist-get 'text/html inner) '("<b>42</b>")))))))))
+      (delete-file tmpfile))))
+
 (ert-deftest ejn-persistence-test/roundtrip-preserves-blank-lines-in-source ()
   "Multi-line source with blank lines must survive parse → serialize → parse."
   (require 'ejn-persistence)
