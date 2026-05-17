@@ -195,5 +195,66 @@
       (search-forward "\n42" nil t)
       (should (get-text-property (point) 'invisible)))))
 
+(ert-deftest ejn-render-test/render-dirty-cells-updates-outputs ()
+  "Incremental render should update the output zone when outputs change.
+Regresses against the bug where old output zone text was never deleted,
+causing duplicated or stale outputs in the buffer."
+  (require 'ejn-model)
+  (let ((nb (ejn-make-notebook)))
+    (ejn-notebook-insert-cell nb 'code :at 0)
+    (let ((cell (ejn-notebook-cell-at-index nb 0))
+          (cell-id (ejn-cell-id (ejn-notebook-cell-at-index nb 0))))
+      (setf (ejn-cell-source cell) "x = 1")
+      (setf (ejn-cell-outputs cell)
+            (list (make-ejn-output
+                   :type 'execute-result
+                   :mime-data (list :data (list (cons 'text/plain (list "old_output"))))
+                   :metadata nil
+                   :request-id nil)))
+      (setf (ejn-cell-execution-state cell) 'completed)
+      (ejn-test-with-temp-buffer " *test*"
+        (ejn-render-notebook nb)
+        (should (search-forward "old_output" nil t))
+        (goto-char (point-min))
+        (should-not (search-forward "new_output" nil t))
+        (setf (ejn-cell-outputs cell)
+              (list (make-ejn-output
+                     :type 'execute-result
+                     :mime-data (list :data (list (cons 'text/plain (list "new_output"))))
+                     :metadata nil
+                     :request-id nil)))
+        (ejn-notebook-mark-dirty nb cell-id)
+        (ejn-render-dirty-cells nb)
+        (goto-char (point-min))
+        (should-not (search-forward "old_output" nil t))
+        (goto-char (point-min))
+        (should (search-forward "new_output" nil t))))))
+
+(ert-deftest ejn-render-test/render-dirty-cells-adds-outputs-when-none-existed ()
+  "Incremental render should render new outputs when a cell previously had none."
+  (require 'ejn-model)
+  (let ((nb (ejn-make-notebook)))
+    (ejn-notebook-insert-cell nb 'code :at 0)
+    (let ((cell (ejn-notebook-cell-at-index nb 0))
+          (cell-id (ejn-cell-id (ejn-notebook-cell-at-index nb 0))))
+      (setf (ejn-cell-source cell) "print(1)")
+      (setf (ejn-cell-outputs cell) nil)
+      (setf (ejn-cell-execution-state cell) 'idle)
+      (ejn-test-with-temp-buffer " *test*"
+        (ejn-render-notebook nb)
+        (goto-char (point-min))
+        (should-not (search-forward "hello" nil t))
+        (setf (ejn-cell-outputs cell)
+              (list (make-ejn-output
+                     :type 'execute-result
+                     :mime-data (list :data (list (cons 'text/plain (list "hello"))))
+                     :metadata nil
+                     :request-id nil)))
+        (setf (ejn-cell-execution-state cell) 'completed)
+        (ejn-notebook-mark-dirty nb cell-id)
+        (ejn-render-dirty-cells nb)
+        (goto-char (point-min))
+        (should (search-forward "hello" nil t))))))
+
 (provide 'ejn-render-test)
 ;;; ejn-render-test.el ends here

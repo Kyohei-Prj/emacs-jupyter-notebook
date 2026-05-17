@@ -198,7 +198,15 @@ Reads dirty set, re-renders affected regions, clears dirty set."
             (delete-region (car region) (cdr region))
             (goto-char (car region))
             (ejn-render-cell cell)
-            (ejn-render-outputs cell))))
+            (let ((after-source (point)))
+              (when (< after-source (point-max))
+                (let ((zone-start (ejn--find-next-output-zone-start after-source)))
+                  (when zone-start
+                    (let ((output-region (ejn--find-output-zone-region zone-start)))
+                      (when output-region
+                        (let ((inhibit-read-only t))
+                          (delete-region (car output-region) (cdr output-region))))))))
+              (ejn-render-outputs cell)))))
       (ejn-notebook-clean-all notebook)
       (setq ejn--rendering-p nil))))
 
@@ -251,16 +259,16 @@ If output is visible, fold it.  If folded, unfold it."
         (let ((after-source (cdr region)))
           (when (< after-source (point-max))
             (let ((zone-start (ejn--find-next-output-zone-start after-source)))
-              (when zone-start
+	      (when zone-start
                 (let ((output-region (ejn--find-output-zone-region zone-start)))
                   (when output-region
                     (let ((currently-folded
                            (get-text-property (car output-region) 'invisible)))
-                      (let ((inhibit-read-only t))
+		      (let ((inhibit-read-only t))
                         (if currently-folded
                             (put-text-property (car output-region)
-                                               (cdr output-region)
-                                               'invisible nil)
+					       (cdr output-region)
+					       'invisible nil)
                           (put-text-property (car output-region)
                                              (cdr output-region)
                                              'invisible ejn-folded-output)
