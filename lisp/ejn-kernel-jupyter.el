@@ -29,6 +29,9 @@
 (require 'ejn-log)
 (require 'subr-x)
 
+(declare-function make-promise "jupyter")
+(declare-function fulfill-promise "jupyter")
+
 (declare-function jupyter-client "jupyter" (&rest _args))
 (declare-function jupyter-connect "jupyter" (&rest _args))
 (declare-function jupyter-execute-request "jupyter" (&rest _args))
