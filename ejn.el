@@ -5,7 +5,7 @@
 ;; Author: Kyohei
 ;; Keywords: convenience, tools, languages
 ;; Version: 0.1.0
-;; Package-Requires: ((emacs "29") (dash "2.19.1") (s "1.12.0") (f "0.20.0"))
+;; Package-Requires: ((emacs "29") (dash "2.19.1") (s "1.12.0") (f "0.20.0") (compat "29.1.10"))
 ;; Homepage: https://github.com/kyohei/emacs-jupyter-notebook
 ;; License: GPL-3.0-or-later
 

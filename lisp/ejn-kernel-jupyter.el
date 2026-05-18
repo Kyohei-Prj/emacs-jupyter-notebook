@@ -27,6 +27,18 @@
 (require 'cl-lib)
 (require 'ejn-kernel)
 (require 'ejn-log)
+(require 'subr-x)
+
+(declare-function jupyter-client "jupyter" (&rest _args))
+(declare-function jupyter-connect "jupyter" (&rest _args))
+(declare-function jupyter-execute-request "jupyter" (&rest _args))
+(declare-function jupyter-message-content "jupyter" (&rest _args))
+(declare-function jupyter-message-type "jupyter" (&rest _args))
+(declare-function jupyter-interrupt-kernel "jupyter" (&rest _args))
+(declare-function jupyter-restart-kernel "jupyter" (&rest _args))
+(declare-function jupyter-shutdown-kernel "jupyter" (&rest _args))
+(declare-function jupyter-completion-request "jupyter" (&rest _args))
+(declare-function jupyter-inspection-request "jupyter" (&rest _args))
 
 (eval-when-compile
   (condition-case nil
@@ -110,8 +122,67 @@
            (when (string= (plist-get content :execution_state) "idle")
              (let ((handler (plist-get callbacks :on-complete)))
                (when handler
-                 (funcall handler "" "ok"))
-               (remhash request-id (ejn-kernel-request-registry kernel))))))))))
+                 (funcall handler "" "ok")))
+             (remhash request-id (ejn-kernel-request-registry kernel)))))))))
+
+(cl-defmethod ejn-kernel-complete ((kernel ejn-kernel) code position)
+  "Request completions from the Jupyter KERNEL for CODE at POSITION."
+  (let ((client (ejn-kernel-client kernel)))
+    (unless client
+      (error "Kernel not connected"))
+    (let ((promise (make-promise)))
+      (condition-case err
+          (jupyter-completion-request
+           client
+           :code code
+           :cursor-pos position
+           :success (lambda (_client _req msg)
+                      (let ((content (jupyter-message-content msg)))
+                        (fulfill-promise promise
+                                         (list (plist-get content :matches)
+                                               (plist-get content :cursor_start)
+                                               (plist-get content :cursor_end)))))
+           :error (lambda (_client _req _msg)
+                    (fulfill-promise promise
+                                     (list nil nil nil))))
+	(error
+	 (fulfill-promise promise
+                          (list nil nil nil))
+	 (ejn-log-message "warn" "Completion request failed: %s"
+                          (error-message-string err))))
+      promise)))
+
+(cl-defmethod ejn-kernel-inspect ((kernel ejn-kernel) code position detail-level)
+  "Request object inspection from the Jupyter KERNEL for CODE at POSITION.
+DETAIL-LEVEL controls depth of information."
+  (let ((client (ejn-kernel-client kernel)))
+    (unless client
+      (error "Kernel not connected"))
+    (let ((promise (make-promise)))
+      (condition-case err
+          (jupyter-inspection-request
+           client
+           :code code
+           :cursor-pos position
+           :detail-level (or detail-level 0)
+           :success (lambda (_client _req msg)
+                      (let ((content (jupyter-message-content msg)))
+                        (fulfill-promise promise
+                                         (list :status (plist-get content :status)
+                                               :data (plist-get content :data)
+                                               :metadata (plist-get content :metadata)))))
+           :error (lambda (_client _req msg)
+                    (let ((content (jupyter-message-content msg)))
+                      (fulfill-promise promise
+                                       (list :status (plist-get content :status)
+                                             :data (plist-get content :data)
+                                             :metadata (plist-get content :metadata))))))
+        (error
+         (fulfill-promise promise
+                          (list :status "error" :data nil :metadata nil))
+         (ejn-log-message "warn" "Inspect request failed: %s"
+                          (error-message-string err))))
+      promise)))
 
 (cl-defmethod ejn--kernel-interrupt ((kernel ejn-kernel))
   "Interrupt the running Jupyter KERNEL."

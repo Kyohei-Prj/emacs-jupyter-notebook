@@ -243,6 +243,43 @@ Returns (START . END) or nil."
     (let ((end (next-single-property-change start 'ejn-output-zone nil (point-max))))
       (cons start end))))
 
+(defun ejn-render--full-cell-region (cell-id)
+  "Return (START . END) covering both source and output zone for CELL-ID.
+Returns nil if CELL-ID is not found in the buffer."
+  (let ((source-region (ejn--find-cell-region cell-id)))
+    (when source-region
+      (let* ((after-source (cdr source-region))
+             (zone-start (and (< after-source (point-max))
+                              (ejn--find-next-output-zone-start after-source)))
+             (next-cell-start (and (< after-source (point-max))
+                                   (save-excursion
+                                     (goto-char after-source)
+                                     (while (and (< (point) (point-max))
+                                                 (not (get-text-property (point) 'ejn-cell-id)))
+                                       (forward-char))
+                                     (when (< (point) (point-max))
+                                       (point))))))
+        (when (and zone-start
+                   (or (not next-cell-start)
+                       (< zone-start next-cell-start)))
+          (let ((output-region (ejn--find-output-zone-region zone-start)))
+            (when output-region
+              (setq source-region (cons (car source-region)
+                                        (cdr output-region)))))))
+      source-region)))
+
+(defun ejn-render--delete-cell-region (cell-id)
+  "Delete the buffer region for CELL-ID, including source and outputs."
+  (let ((region (ejn-render--full-cell-region cell-id)))
+    (when region
+      (let ((inhibit-read-only t))
+        (delete-region (car region) (cdr region))))))
+
+(defun ejn-render--insert-cell-at-point (cell)
+  "Render CELL's source and outputs at point."
+  (ejn-render-cell cell)
+  (ejn-render-outputs cell))
+
 (defun ejn-toggle-output ()
   "Toggle visibility of the output zone for the current cell.
 If output is visible, fold it.  If folded, unfold it."
@@ -259,7 +296,7 @@ If output is visible, fold it.  If folded, unfold it."
         (let ((after-source (cdr region)))
           (when (< after-source (point-max))
             (let ((zone-start (ejn--find-next-output-zone-start after-source)))
-             (when zone-start
+              (when zone-start
                 (let ((output-region (ejn--find-output-zone-region zone-start)))
                   (when output-region
                     (let ((currently-folded

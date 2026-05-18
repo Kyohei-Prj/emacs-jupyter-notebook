@@ -31,7 +31,18 @@
   (should (cl-generic-p #'ejn--kernel-interrupt))
   (should (cl-generic-p #'ejn--kernel-restart))
   (should (cl-generic-p #'ejn--kernel-shutdown))
-  (should (cl-generic-p #'ejn-kernel-alive-p)))
+  (should (cl-generic-p #'ejn-kernel-alive-p))
+  (should (cl-generic-p #'ejn-kernel-complete))
+  (should (cl-generic-p #'ejn-kernel-inspect))
+  (should (cl-generic-p #'ejn-kernel-status)))
+
+(ert-deftest ejn-kernel-test/status-returns-kernel-state ()
+  "Ejn-kernel-status should return the kernel's current state."
+  (require 'ejn-kernel)
+  (let ((kernel (ejn-make-kernel "python3")))
+    (should (eq 'startup (ejn-kernel-status kernel)))
+    (ejn-kernel-transition kernel 'connected)
+    (should (eq 'connected (ejn-kernel-status kernel)))))
 
 (ert-deftest ejn-kernel-test/heartbeat-default-is-30s ()
   "Heartbeat interval should default to 30 seconds."
@@ -73,10 +84,10 @@
   (let ((kernel (ejn-make-kernel "python3")))
     (ejn-kernel-transition kernel 'connected)
     (ejn-test-with-temp-buffer " *test*"
-      (ejn-mode)
-      (set (make-local-variable 'ejn--notebook) (ejn-make-notebook))
-      (set (make-local-variable 'ejn--kernel) kernel)
-      (should-error (ejn-kernel-reconnect-command)))))
+			       (ejn-mode)
+			       (set (make-local-variable 'ejn--notebook) (ejn-make-notebook))
+			       (set (make-local-variable 'ejn--kernel) kernel)
+			       (should-error (ejn-kernel-reconnect-command)))))
 
 (ert-deftest ejn-kernel-test/heartbeat-transitions-to-dead ()
   "Heartbeat should transition kernel to dead when no client exists."

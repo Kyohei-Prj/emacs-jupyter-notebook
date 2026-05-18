@@ -108,9 +108,25 @@ CALLBACKS contains :on-stream, :on-result, :on-display, :on-error, :on-complete.
 (cl-defgeneric ejn-kernel-alive-p (kernel)
   "Return non-nil if KERNEL is responsive.")
 
+(cl-defgeneric ejn-kernel-complete (kernel code position)
+  "Request async completion for CODE at POSITION on KERNEL.
+Returns a promise resolving to (list matches cursor-start cursor-end).")
+
+(cl-defgeneric ejn-kernel-inspect (kernel code position detail-level)
+  "Request async introspection for CODE at POSITION on KERNEL.
+DETAIL-LEVEL controls depth of information.
+Returns a promise resolving to a plist :status :data :metadata.")
+
+(cl-defgeneric ejn-kernel-status (kernel)
+  "Return status of KERNEL: \='idle | \='busy | \='starting | \='dead.")
+
 (cl-defmethod ejn-kernel-alive-p ((_kernel ejn-kernel))
   "Base implementation: return nil.  Override in KERNEL adapter."
   nil)
+
+(cl-defmethod ejn-kernel-status ((kernel ejn-kernel))
+  "Base implementation: return the state of KERNEL."
+  (ejn-kernel-state kernel))
 
 (defun ejn-kernel-reconnect-command ()
   "Reconnect to the kernel after it has died.

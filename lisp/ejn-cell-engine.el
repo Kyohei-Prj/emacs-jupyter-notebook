@@ -52,7 +52,15 @@
       (ejn-with-undo-group "Insert cell above" notebook
 			   (ejn-with-undo-boundary "Insert cell above"
 						   (let ((new-cell (ejn-notebook-insert-cell notebook 'code :at idx)))
-						     (ejn-render-notebook notebook)
+						     (let ((region (ejn-render--full-cell-region (ejn-cell-id current-cell))))
+						       (when region
+							 (let ((insert-point (car region))
+							       (inhibit-read-only t))
+							   (delete-region (car region) (cdr region))
+							   (goto-char insert-point))))
+						     (let ((ejn--rendering-p t))
+						       (ejn-render--insert-cell-at-point new-cell)
+						       (ejn-render--insert-cell-at-point current-cell))
 						     (ejn--goto-cell-start-by-id (ejn-cell-id new-cell))))))))
 
 (defun ejn-insert-cell-below ()
@@ -66,7 +74,11 @@
       (ejn-with-undo-group "Insert cell below" notebook
 			   (ejn-with-undo-boundary "Insert cell below"
 						   (let ((new-cell (ejn-notebook-insert-cell notebook 'code :at (1+ idx))))
-						     (ejn-render-notebook notebook)
+						     (let ((region (ejn-render--full-cell-region (ejn-cell-id current-cell))))
+						       (when region
+							 (goto-char (cdr region))))
+						     (let ((ejn--rendering-p t))
+						       (ejn-render--insert-cell-at-point new-cell))
 						     (ejn--goto-cell-start-by-id (ejn-cell-id new-cell))))))))
 
 (defun ejn-delete-cell ()
@@ -80,7 +92,8 @@
       (ejn-with-undo-group "Delete cell" notebook
 			   (ejn-with-undo-boundary "Delete cell"
 						   (ejn-notebook-delete-cell notebook cell-id)
-						   (ejn-render-notebook notebook)
+						   (let ((ejn--rendering-p t))
+						     (ejn-render--delete-cell-region cell-id))
 						   (goto-char (point-min)))))))
 
 (defun ejn-split-cell ()
@@ -106,7 +119,15 @@
 						     (let* ((idx (ejn-notebook-cell-index notebook cell-id))
 							    (new-cell (ejn-notebook-insert-cell notebook (ejn-cell-type current-cell) :at (1+ idx))))
 						       (setf (ejn-cell-source new-cell) part2)
-						       (ejn-render-notebook notebook)
+						       (let ((full-region (ejn-render--full-cell-region cell-id)))
+							 (when full-region
+							   (let ((insert-point (car full-region))
+								 (inhibit-read-only t))
+							     (delete-region (car full-region) (cdr full-region))
+							     (goto-char insert-point))))
+						       (let ((ejn--rendering-p t))
+							 (ejn-render--insert-cell-at-point current-cell)
+							 (ejn-render--insert-cell-at-point new-cell))
 						       (ejn--goto-cell-start-by-id (ejn-cell-id new-cell)))))))))
 
 (defun ejn-merge-cell ()
@@ -130,7 +151,14 @@
 			     (ejn-with-undo-boundary "Merge cell"
 						     (ejn-notebook-set-cell-source notebook current-id merged-source)
 						     (ejn-notebook-delete-cell notebook next-id)
-						     (ejn-render-notebook notebook)
+						     (let ((region1 (ejn-render--full-cell-region current-id))
+							   (region2 (ejn-render--full-cell-region next-id)))
+						       (when (and region1 region2)
+							 (let ((inhibit-read-only t))
+							   (delete-region (car region1) (cdr region2))
+							   (goto-char (car region1)))))
+						     (let ((ejn--rendering-p t))
+						       (ejn-render--insert-cell-at-point current-cell))
 						     (ejn--goto-cell-start-by-id current-id)))))))
 
 (defun ejn-move-cell-up ()
@@ -152,7 +180,15 @@
 							   (vconcat (seq-take cells (1- idx))
 								    (vector curr-cell prev-cell)
 								    (seq-drop cells (+ idx 2))))
-						     (ejn-render-notebook notebook)
+						     (let ((prev-region (ejn-render--full-cell-region (ejn-cell-id prev-cell)))
+							   (curr-region (ejn-render--full-cell-region (ejn-cell-id curr-cell))))
+						       (when (and prev-region curr-region)
+							 (let ((inhibit-read-only t))
+							   (delete-region (car prev-region) (cdr curr-region))
+							   (goto-char (car prev-region)))))
+						     (let ((ejn--rendering-p t))
+						       (ejn-render--insert-cell-at-point curr-cell)
+						       (ejn-render--insert-cell-at-point prev-cell))
 						     (ejn--goto-cell-start-by-id (ejn-cell-id curr-cell))))))))
 
 (defun ejn-move-cell-down ()
@@ -175,7 +211,15 @@
 							   (vconcat (seq-take cells idx)
 								    (vector next-cell curr-cell)
 								    (seq-drop cells (+ idx 3))))
-						     (ejn-render-notebook notebook)
+						     (let ((curr-region (ejn-render--full-cell-region (ejn-cell-id curr-cell)))
+							   (next-region (ejn-render--full-cell-region (ejn-cell-id next-cell))))
+						       (when (and curr-region next-region)
+							 (let ((inhibit-read-only t))
+							   (delete-region (car curr-region) (cdr next-region))
+							   (goto-char (car curr-region)))))
+						     (let ((ejn--rendering-p t))
+						       (ejn-render--insert-cell-at-point next-cell)
+						       (ejn-render--insert-cell-at-point curr-cell))
 						     (ejn--goto-cell-start-by-id (ejn-cell-id curr-cell))))))))
 
 (defun ejn-toggle-cell-type ()
@@ -268,7 +312,11 @@
 											     (plist-get entry :type)
 											     :at (1+ idx))))
 						     (setf (ejn-cell-source new-cell) (plist-get entry :source))
-						     (ejn-render-notebook notebook)
+						     (let ((region (ejn-render--full-cell-region (ejn-cell-id current-cell))))
+						       (when region
+							 (goto-char (cdr region))))
+						     (let ((ejn--rendering-p t))
+						       (ejn-render--insert-cell-at-point new-cell))
 						     (ejn--goto-cell-start-by-id (ejn-cell-id new-cell))))))))
 
 (provide 'ejn-cell-engine)
