@@ -1,0 +1,24 @@
+# Byte-compiled files
+*.elc
+
+# Auto-save files
+*~
+#*#
+
+# Emacs lock files
+.lock
+
+# Emacs session files
+*.session
+
+# Backup files
+*~
+
+# Jupyter Notebook related
+.ipynb_checkpoints/
+
+# Auto-generated files
+*.eln
+
+# Serena project data
+.serena/
