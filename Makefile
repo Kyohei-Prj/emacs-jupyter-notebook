@@ -6,14 +6,19 @@ EL_FILES := $(shell find eln -name '*.el' -type f)
 # Module files: everything in eln/ subdirectories (eln/*/).el
 MODULE_EL_FILES := $(shell find eln -mindepth 2 -name '*.el' -type f | sort)
 
-# Main entry point: eln/ejn.el (compiled last, has require stubs for modules)
+# Main entry point: eln/ejn.el (compiled after modules, has require stubs for modules)
 MAIN_EL_FILE := eln/ejn.el
+
+# Remaining top-level files (not in subdirs, not ejn.el) — e.g. ejn-test.el
+# These depend on ejn.el, so they compile after it.
+TOP_LEVEL_EL_FILES := $(shell find eln -maxdepth 1 -mindepth 1 -name '*.el' -type f ! -name 'ejn.el' | sort)
 
 .PHONY: compile clean lint test
 
 compile:
 	emacs -batch -f batch-byte-compile $(MODULE_EL_FILES)
 	emacs -batch -f batch-byte-compile $(MAIN_EL_FILE)
+	emacs -batch -f batch-byte-compile $(TOP_LEVEL_EL_FILES)
 
 clean:
 	find eln -name '*.elc' -type f -delete
