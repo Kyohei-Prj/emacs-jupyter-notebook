@@ -1,0 +1,92 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        emacs-version: ["30", "31", "master"]
+        display-mode: ["GUI", "TTY"]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Emacs
+        uses: purcell/setup-emacs@v5
+        with:
+          version: ${{ matrix.emacs-version }}
+
+      - name: Set display mode
+        shell: bash
+        run: |
+          echo "DISPLAY_MODE=${{ matrix.display-mode }}" >> $GITHUB_ENV
+          if [ "${{ matrix.display-mode }}" = "TTY" ]; then
+            echo "Display mode set to TTY"
+          else
+            echo "Display mode set to GUI"
+          fi
+
+      - name: Compile Elisp
+        run: make compile
+
+  lint:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        emacs-version: ["30", "31", "master"]
+        display-mode: ["GUI", "TTY"]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Emacs
+        uses: purcell/setup-emacs@v5
+        with:
+          version: ${{ matrix.emacs-version }}
+
+      - name: Set display mode
+        shell: bash
+        run: |
+          echo "DISPLAY_MODE=${{ matrix.display-mode }}" >> $GITHUB_ENV
+          if [ "${{ matrix.display-mode }}" = "TTY" ]; then
+            echo "Display mode set to TTY"
+          else
+            echo "Display mode set to GUI"
+          fi
+
+      - name: Lint Elisp
+        run: make lint
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        emacs-version: ["30", "31", "master"]
+        display-mode: ["GUI", "TTY"]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Emacs
+        uses: purcell/setup-emacs@v5
+        with:
+          version: ${{ matrix.emacs-version }}
+
+      - name: Set display mode
+        shell: bash
+        run: |
+          echo "DISPLAY_MODE=${{ matrix.display-mode }}" >> $GITHUB_ENV
+          if [ "${{ matrix.display-mode }}" = "TTY" ]; then
+            echo "Display mode set to TTY"
+          else
+            echo "Display mode set to GUI"
+          fi
+
+      - name: Run tests
+        run: make test
