@@ -19,12 +19,12 @@
 **Goal:** Provide `make compile`, `make lint`, `make test`, `make clean` targets that work end-to-end.
 
 **Tasks:**
-- [ ] Task 2.1: Write `Makefile` with `compile` target using `emacs -batch -f batch-byte-compile` on all `eln/*.el` files [type: tdd]
-- [ ] Task 2.2: Write `Makefile` with `lint` target running `elint` on all `.el` files [type: tdd]
-- [ ] Task 2.3: Write `Makefile` with `clean` target removing `.elc` files and byte-compile output directory [type: smoke]
-- [ ] Task 2.4: Write `Makefile` with `test` target running `emacs -batch -f ert-run-tests-batch-and-exit` [type: tdd]
-- [ ] Task 2.5: Write `eln/ejn-test.el` stub test file with one passing ERT test [type: tdd]
-- [ ] Task 2.6: Verify full build: `make clean && make compile && make lint && make test` passes locally [type: tdd]
+- [x] Task 2.1: Write `Makefile` with `compile` target using `emacs -batch -f batch-byte-compile` on all `eln/*.el` files [type: tdd]
+- [x] Task 2.2: Write `Makefile` with `lint` target running `elint` on all `.el` files [type:tdd]
+- [x] Task 2.3: Write `Makefile` with `clean` target removing `.elc` files and byte-compile output directory [type: smoke]
+- [x] Task 2.4: Write `Makefile` with `test` target running `emacs -batch -f ert-run-tests-batch-and-exit` [type: tdd]
+- [x] Task 2.5: Write `eln/ejn-test.el` stub test file with one passing ERT test [type: tdd]
+- [x] Task 2.6: Verify full build: `make clean && make compile && make lint && make test` passes locally [type: tdd]
 
 **Acceptance:** `make clean && make compile && make lint && make test` completes with zero errors and zero warnings.
 
