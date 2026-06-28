@@ -20,5 +20,11 @@
 # Auto-generated files
 *.eln
 
+# Byte-compile output directory
+eln/eln/
+
+# Auto-save list
+auto-save-list
+
 # Serena project data
 .serena/
