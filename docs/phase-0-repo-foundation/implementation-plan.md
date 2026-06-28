@@ -4,12 +4,12 @@
 **Goal:** Create the full directory structure and main package file so the project is byte-compilable and loadable.
 
 **Tasks:**
-- [ ] Task 1.1: Create all module directories under `eln/` (core, model, transactions, events, sync, backend, scheduler, render, lang, serializer, ui, plugin) [type: smoke]
-- [ ] Task 1.2: Create test directory structure (`test/helpers/`, `test/contracts/`, `test/integration/`, `test/performance/`) [type: smoke]
-- [ ] Task 1.3: Create `scripts/` directory [type: smoke]
-- [ ] Task 1.4: Write `eln/ejn.el` with package header (name: ejn, version: 0.0.0, Emacs 30.1+), lexical-binding, minimal `require` stubs for all modules [type: smoke]
-- [ ] Task 1.5: Write minimal stub `.el` files for each module (one per module directory, with lexical-binding and a single commented placeholder) [type: smoke]
-- [ ] Task 1.6: Update `.gitignore` with Emacs artifacts (`*.elc`, `eln/eln/`, `#*#`, `auto-save-list`) [type: smoke]
+- [x] Task 1.1: Create all module directories under `eln/` (core, model, transactions, events, sync, backend, scheduler, render, lang, serializer, ui, plugin) [type: smoke]
+- [x] Task 1.2: Create test directory structure (`test/helpers/`, `test/contracts/`, `test/integration/`, `test/performance/`) [type: smoke]
+- [x] Task 1.3: Create `scripts/` directory [type: smoke]
+- [x] Task 1.4: Write `eln/ejn.el` with package header (name: ejn, version: 0.0.0, Emacs 30.1+), lexical-binding, minimal `require` stubs for all modules [type: smoke]
+- [x] Task 1.5: Write minimal stub `.el` files for each module (one per module directory, with lexical-binding and a single commented placeholder) [type: smoke]
+- [x] Task 1.6: Update `.gitignore` with Emacs artifacts (`*.elc`, `eln/eln/`, `#*#`, `auto-save-list`) [type: smoke]
 
 **Acceptance:** `(require 'ejn)` loads without error. All directories exist. All `.el` files have `lexical-binding: t`.
 
